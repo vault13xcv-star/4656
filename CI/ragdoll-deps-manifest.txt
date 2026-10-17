@@ -1,0 +1,2 @@
+https://github.com/OpenMW/openmw-deps-build/releases/download/2026-02-24/vcpkg-x64-windows-2022-2026-02-24.7z
+26175e781a4cfe4ca8a6e1b7d97ba899d15841e97d494b5fdc73d5ba0de8af8d65fa7b1cb9950a6568c3e0c59dd5d030c800a50481453179b1dab8032f6edfd9  vcpkg-x64-windows-2022-2026-02-24.7z

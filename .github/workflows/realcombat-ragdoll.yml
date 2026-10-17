@@ -1,0 +1,94 @@
+name: Real Combat ragdoll - Windows x64
+
+on:
+  push:
+    branches:
+      - experimental/ragdoll-*
+  workflow_dispatch:
+
+# Only trusted source branches run this workflow; no pull-request trigger.
+permissions:
+  contents: write
+
+concurrency:
+  group: realcombat-ragdoll-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out the exact source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Publish initial build status
+        run: ./CI/ragdoll-report.ps1 -Stage dependencies -Result running
+
+      - name: Activate MSVC 2022 for x64
+        uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
+        with:
+          arch: x64
+          vsversion: '2022'
+
+      - name: Download and verify pinned upstream dependencies
+        run: ./CI/ragdoll-windows.ps1 -Phase Dependencies
+
+      - name: Configure the runtime and physics tests
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage configure -Result running
+          ./CI/ragdoll-windows.ps1 -Phase Configure
+
+      - name: Compile the modified engine and tests
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage build -Result running
+          ./CI/ragdoll-windows.ps1 -Phase Build
+
+      - name: Run physics, synthetic skeleton and component tests
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage tests -Result running
+          ./CI/ragdoll-windows.ps1 -Phase Test
+
+      - name: Package a standalone runtime and check its DLLs
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage package -Result running
+          ./CI/ragdoll-windows.ps1 -Phase Package
+
+      - name: Upload the Windows package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: OpenMW-RealCombat-Ragdoll-Windows-x64-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish the downloadable prerelease
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage publish -Result running
+          ./CI/ragdoll-windows.ps1 -Phase Publish
+
+      - name: Publish final status and bounded diagnostic logs through Git
+        if: always()
+        env:
+          BUILD_RESULT: ${{ job.status }}
+        run: ./CI/ragdoll-report.ps1 -Stage completed -Result $env:BUILD_RESULT
+
+      - name: Preserve full build and test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ragdoll-build-logs-${{ github.sha }}
+          path: |
+            ragdoll-logs/*
+            build/CMakeCache.txt
+            build/CMakeFiles/CMakeConfigureLog.yaml
+            build-ragdoll-tests/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 30
