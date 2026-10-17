@@ -1,0 +1,152 @@
+{
+  "targetRun": "39074115129",
+  "updatedUtc": "2026-10-17T22:47:58.289756+00:00",
+  "run": {
+    "id": 39074115129,
+    "name": "Real Combat ragdoll - Windows x64",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "23ef58fa27444a1f472299905490432158eac16e",
+    "run_attempt": 1,
+    "created_at": "2026-10-17T22:12:32Z",
+    "updated_at": "2026-10-17T22:47:45Z",
+    "run_started_at": "2026-10-17T22:12:32Z",
+    "html_url": "https://github.com/vault13xcv-star/4656/actions/runs/39074115129"
+  },
+  "jobs": [
+    {
+      "id": 117517633729,
+      "name": "windows",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-17T22:12:41Z",
+      "completed_at": "2026-10-17T22:47:44Z",
+      "html_url": "https://github.com/vault13xcv-star/4656/actions/runs/39074115129/job/117517633729",
+      "runner_name": "GitHub Actions 1000000001",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:12:42Z",
+          "completed_at": "2026-10-17T22:12:44Z"
+        },
+        {
+          "number": 2,
+          "name": "Check out the exact source commit",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:12:44Z",
+          "completed_at": "2026-10-17T22:12:50Z"
+        },
+        {
+          "number": 3,
+          "name": "Publish initial build status",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:12:50Z",
+          "completed_at": "2026-10-17T22:12:52Z"
+        },
+        {
+          "number": 4,
+          "name": "Activate MSVC 2022 for x64",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:12:52Z",
+          "completed_at": "2026-10-17T22:13:00Z"
+        },
+        {
+          "number": 5,
+          "name": "Download and verify pinned upstream dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:13:00Z",
+          "completed_at": "2026-10-17T22:13:10Z"
+        },
+        {
+          "number": 6,
+          "name": "Configure the runtime and physics tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:13:10Z",
+          "completed_at": "2026-10-17T22:13:52Z"
+        },
+        {
+          "number": 7,
+          "name": "Compile the modified engine and tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:13:52Z",
+          "completed_at": "2026-10-17T22:46:40Z"
+        },
+        {
+          "number": 8,
+          "name": "Run physics, synthetic skeleton and component tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:46:40Z",
+          "completed_at": "2026-10-17T22:46:51Z"
+        },
+        {
+          "number": 9,
+          "name": "Package a standalone runtime and check its DLLs",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:46:51Z",
+          "completed_at": "2026-10-17T22:47:15Z"
+        },
+        {
+          "number": 10,
+          "name": "Upload the Windows package",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:47:15Z",
+          "completed_at": "2026-10-17T22:47:19Z"
+        },
+        {
+          "number": 11,
+          "name": "Publish the downloadable prerelease",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:47:19Z",
+          "completed_at": "2026-10-17T22:47:29Z"
+        },
+        {
+          "number": 12,
+          "name": "Publish final status and bounded diagnostic logs through Git",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:47:29Z",
+          "completed_at": "2026-10-17T22:47:38Z"
+        },
+        {
+          "number": 13,
+          "name": "Preserve full build and test logs",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:47:38Z",
+          "completed_at": "2026-10-17T22:47:39Z"
+        },
+        {
+          "number": 26,
+          "name": "Post Check out the exact source commit",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:47:39Z",
+          "completed_at": "2026-10-17T22:47:41Z"
+        },
+        {
+          "number": 27,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-17T22:47:42Z",
+          "completed_at": "2026-10-17T22:47:42Z"
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "resultsBranch": "build-results/ragdoll-diagnostic-39074115129-39076509456"
+}
