@@ -149,6 +149,8 @@ namespace MWRender
             {
                 bone.mNode->removeUpdateCallback(bone.mCallback);
                 bone.mCallback->setNestedCallback(nullptr);
+                // Unanimated bones must also return to their captured offsets on resurrection.
+                bone.mNode->setMatrix(bone.mRestLocal);
             }
             releaseBudget();
         }
