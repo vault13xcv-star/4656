@@ -1,0 +1,10 @@
+[1/10] Building CXX object CMakeFiles\ragdoll-tests.dir\tests\simulation.cpp.obj
+[2/10] Building CXX object CMakeFiles\ragdoll-tests.dir\simulation.cpp.obj
+[3/10] Building CXX object CMakeFiles\ragdoll-render-tests.dir\tests\render_pose.cpp.obj
+[4/10] Building CXX object CMakeFiles\ragdoll-render-tests.dir\simulation.cpp.obj
+[5/10] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp.obj
+[6/10] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\debug\debuglog.cpp.obj
+[7/10] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\files\conversion.cpp.obj
+[8/10] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\sceneutil\skeleton.cpp.obj
+[9/10] Linking CXX executable ragdoll-tests.exe
+[10/10] Linking CXX executable ragdoll-render-tests.exe
