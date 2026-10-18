@@ -32,7 +32,10 @@ before publication. This is not an in-game playtest.
 
 The standalone tests are configured with `-DRAGDOLL_TEST_RENDERING=ON` and the
 same vcpkg toolchain/prefix as the engine, so the Bullet and OpenSceneGraph ABIs
-match the runtime. Release tags begin with `ragdoll-windows-`; they do not match
+match the runtime. These three standalone test suites build and run before the
+full engine compilation, so a Windows solver regression fails within minutes.
+The complete engine and component tests still build and pass before packaging.
+Release tags begin with `ragdoll-windows-`; they do not match
 the upstream release workflow's `openmw-**` tag trigger.
 
 ## Poll without GitHub API access
