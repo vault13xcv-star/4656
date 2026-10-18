@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.3.0'
+$ragdollVersion = '0.4.0'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -204,7 +204,8 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Automated checks: compiled runtime, component tests, ragdoll physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke check, ZIP integrity.
+Version 0.4 fixes corpse fire/smoke with reversed depth, frozen-body slope motion, explosion wave geometry and visible whole-body electrical spasms. Pickable world items now have mass, rigid-body collisions and weapon/spell impulses.
+Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 
 Corresponding engine sources are attached. Dependency notices are in the runtime's licenses directory.

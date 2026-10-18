@@ -25,6 +25,7 @@ cmake -S "$source_dir" -B "$build_dir" -G Ninja \
 
 cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --target \
     components/CMakeFiles/components.dir/ragdoll/simulation.cpp.o \
+    components/CMakeFiles/components.dir/ragdoll/items.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdoll.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdollappearance.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/animation.cpp.o \
@@ -41,6 +42,7 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/projectilemanager.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/mtphysics.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/physicssystem.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/itemphysics.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/worldimp.cpp.o
 
 test_dir="$build_dir/ragdoll-tests"

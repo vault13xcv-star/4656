@@ -139,9 +139,10 @@ namespace
     class RagdollTriangleSnapshot final : public btBroadphaseAabbCallback
     {
     public:
-        RagdollTriangleSnapshot(const btVector3& min, const btVector3& max)
+        RagdollTriangleSnapshot(const btVector3& min, const btVector3& max, bool excludeItems)
             : mMin(min)
             , mMax(max)
+            , mExcludeItems(excludeItems)
         {
         }
 
@@ -160,6 +161,8 @@ namespace
             {
                 const auto* owner = static_cast<const MWPhysics::Object*>(object->getUserPointer());
                 if (owner && !owner->isSolid())
+                    return true;
+                if (owner && mExcludeItems && owner->getPtr().getClass().isItem(owner->getPtr()))
                     return true;
             }
             appendShape(*object->getCollisionShape(), object->getWorldTransform(), 0);
@@ -251,6 +254,7 @@ namespace
 
         btVector3 mMin;
         btVector3 mMax;
+        bool mExcludeItems;
         std::vector<osg::Vec3f> mVertices;
         bool mFailed = false;
     };
@@ -768,14 +772,14 @@ namespace MWPhysics
     }
 
     std::vector<osg::Vec3f> PhysicsTaskScheduler::getRagdollCollisionTriangles(
-        const osg::Vec3f& center, float radius) const
+        const osg::Vec3f& center, float radius, bool excludeItems) const
     {
         if (!std::isfinite(radius) || radius <= 0.f || radius > 4096.f || !std::isfinite(center.x())
             || !std::isfinite(center.y()) || !std::isfinite(center.z()))
             return {};
         const btVector3 position = Misc::Convert::toBullet(center);
         const btVector3 extent(radius, radius, radius);
-        RagdollTriangleSnapshot snapshot(position - extent, position + extent);
+        RagdollTriangleSnapshot snapshot(position - extent, position + extent, excludeItems);
         {
             // The full traversal and shape reads must share the lock used by async actor movement,
             // queued object transforms and cell removal; copying only object pointers is not safe.

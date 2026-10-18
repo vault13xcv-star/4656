@@ -6,6 +6,7 @@
 #include <array>
 
 #include <components/misc/rng.hpp>
+#include <components/misc/convert.hpp>
 #include <components/settings/values.hpp>
 
 #include <components/sceneutil/positionattitudetransform.hpp>
@@ -26,6 +27,7 @@
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/globals.hpp"
 #include "../mwworld/inventorystore.hpp"
+#include "../mwphysics/raycasting.hpp"
 
 #include "actorutil.hpp"
 #include "difficultyscaling.hpp"
@@ -301,6 +303,12 @@ namespace MWMechanics
         const MWWorld::Store<ESM::GameSetting>& gmst = world->getStore().get<ESM::GameSetting>();
 
         bool validVictim = !victim.isEmpty() && victim.getClass().isActor();
+        if (!victim.isEmpty() && victim.getClass().isItem(victim))
+        {
+            osg::Vec3f direction = impactDirection;
+            if (direction.normalize() > 0)
+                world->applyItemImpulse(victim, direction * (400.f + 600.f * attackStrength), hitPosition);
+        }
 
         ESM::RefId weaponSkill = ESM::Skill::Marksman;
         if (!weapon.isEmpty())
@@ -781,6 +789,18 @@ namespace MWMechanics
             hitPos.z() += world->getHalfExtents(result).z() * 2.f * zOffset;
         }
 
+        // Pickable clutter uses an actual contact ray; it must never be passed
+        // to actor-stat or probabilistic actor-hit code.
+        if (Settings::ragdoll().mItemPhysics)
+        {
+            const osg::Vec3f aim = Misc::Convert::makeOsgQuat(posdata) * osg::Vec3f(0, 1, 0);
+            const auto contact = world->getRayCasting()->castRay(actorEyePos, actorEyePos + aim * reach, { actor }, {},
+                MWPhysics::CollisionType_World | MWPhysics::CollisionType_HeightMap
+                    | MWPhysics::CollisionType_Door | MWPhysics::CollisionType_VisualOnly);
+            if (contact.mHit && !contact.mHitObject.isEmpty() && contact.mHitObject.getClass().isItem(contact.mHitObject)
+                && (result.isEmpty() || (contact.mHitPos - actorEyePos).length() < minDist))
+                return { contact.mHitObject, contact.mHitPos };
+        }
         return std::make_pair(result, hitPos);
     }
 

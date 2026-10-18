@@ -95,6 +95,8 @@ namespace MWMechanics
         std::uint64_t mEffect = 0;
         osg::Vec3f mOrigin;
         osg::Vec3f mDirection;
+        osg::Vec3f mTargetPosition;
+        bool mHasTargetPosition = false;
         float mRadius = 0.f; // metres; ESM effect area is stored in feet
         bool mExploded = false;
         bool mHasImpulse = true; // False when only the effect survives a save/load.
@@ -115,14 +117,15 @@ namespace MWMechanics
         float distance = 0.f;
         if (context.mExploded)
         {
-            impact.mMagicDirection = targetPosition - context.mOrigin;
+            impact.mMagicDirection = (context.mHasTargetPosition ? context.mTargetPosition : targetPosition)
+                - context.mOrigin;
             distance = impact.mMagicDirection.length() / Constants::UnitsPerMeter;
         }
         if (impact.mMagicDirection.normalize() == 0.f)
         {
             impact.mMagicDirection = context.mDirection;
             if (impact.mMagicDirection.normalize() == 0.f)
-                impact.mMagicDirection.set(0, 1, 0);
+                impact.mMagicDirection.set(0, 0, 1);
         }
         impact.mMagicDistance = std::max(minimumDistance, context.mRadius - distance) * scale;
         return impact;

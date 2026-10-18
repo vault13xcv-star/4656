@@ -592,6 +592,8 @@ namespace MWClass
         // This is because hitting nothing is not a "miss" and should be handled as such character controller-side.
         victim = result.first;
         hitPosition = result.second;
+        if (!victim.getClass().isActor())
+            return true;
 
         ESM::RefId weapskill = ESM::Skill::HandToHand;
         if (!weapon.isEmpty())
@@ -616,6 +618,17 @@ namespace MWClass
         if (victim.isEmpty()) // Didn't hit anything
             return;
 
+        if (!victim.getClass().isActor())
+        {
+            osg::Vec3f direction = hitPosition - ptr.getRefData().getPosition().asVec3();
+            direction.z() = std::max(0.15f * direction.length(), direction.z() * 0.1f);
+            direction.normalize();
+            const float weight = weapon.isEmpty() ? 1.f : weapon.getClass().getWeight(weapon);
+            MWBase::Environment::get().getWorld()->applyItemImpulse(victim,
+                direction * ((200.f + weight * 100.f) * (0.25f + attackStrength)), hitPosition);
+            MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false);
+            return;
+        }
         const MWWorld::Class& othercls = victim.getClass();
         MWMechanics::CreatureStats& otherstats = othercls.getCreatureStats(victim);
         if (otherstats.isDead()) // Can't hit dead actors

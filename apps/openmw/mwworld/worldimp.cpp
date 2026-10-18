@@ -1375,6 +1375,7 @@ namespace MWWorld
         mProjectileManager->processHits();
         mDiscardMovements = false;
         mPhysics->moveActors();
+        mPhysics->updateItems(duration);
     }
 
     void World::updateNavigator()
@@ -1414,6 +1415,16 @@ namespace MWWorld
     std::vector<osg::Vec3f> World::getRagdollCollisionTriangles(const osg::Vec3f& center, float radius) const
     {
         return mPhysics->getRagdollCollisionTriangles(center, radius);
+    }
+
+    void World::applyItemImpulse(const Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point)
+    {
+        mPhysics->applyItemImpulse(ptr, impulse, point);
+    }
+
+    void World::applyItemExplosion(const osg::Vec3f& origin, float radius, float strength)
+    {
+        mPhysics->applyItemExplosion(origin, radius, strength);
     }
 
     bool World::rotateDoor(const Ptr door, MWWorld::DoorState state, float duration)
@@ -1926,7 +1937,7 @@ namespace MWWorld
 
         // only the player place items in the world, so no need to check actor
         PCDropped(dropped);
-
+        mPhysics->applyItemImpulse(dropped, osg::Vec3f(), dropped.getRefData().getPosition().asVec3());
         return dropped;
     }
 
@@ -2048,6 +2059,7 @@ namespace MWWorld
 
         if (actor == mPlayer->getPlayer()) // Only call if dropped by player
             PCDropped(dropped);
+        mPhysics->applyItemImpulse(dropped, osg::Vec3f(), dropped.getRefData().getPosition().asVec3());
         return dropped;
     }
 

@@ -63,7 +63,8 @@ namespace MWPhysics
         void aabbTest(const btVector3& aabbMin, const btVector3& aabbMax, btBroadphaseAabbCallback& callback);
         /// Main-thread snapshot; owns every vertex and retains no Bullet objects or cell resources.
         /// Empty means no usable geometry, an unsupported shape, or the safety limit was exceeded.
-        std::vector<osg::Vec3f> getRagdollCollisionTriangles(const osg::Vec3f& center, float radius) const;
+        std::vector<osg::Vec3f> getRagdollCollisionTriangles(const osg::Vec3f& center, float radius,
+            bool excludeItems = false) const;
         void getAabb(const btCollisionObject* obj, btVector3& min, btVector3& max);
         void setCollisionFilterMask(btCollisionObject* collisionObject, int collisionFilterMask);
         void addCollisionObject(btCollisionObject* collisionObject, int collisionFilterGroup, int collisionFilterMask);

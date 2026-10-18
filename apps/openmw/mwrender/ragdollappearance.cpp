@@ -1,6 +1,7 @@
 #include "ragdollappearance.hpp"
 
 #include "vismask.hpp"
+#include <components/sceneutil/depth.hpp>
 
 #include <osg/Billboard>
 #include <osg/BlendFunc>
@@ -191,19 +192,24 @@ namespace MWRender
             osg::ref_ptr<osg::StateSet> state = new osg::StateSet;
             state->setTextureAttributeAndModes(0, particleTexture(smoke), sTextureOverride);
             state->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA,
-                smoke ? GL_ONE_MINUS_SRC_ALPHA : GL_ONE), osg::StateAttribute::ON);
-            state->setAttributeAndModes(new osg::Depth(osg::Depth::LEQUAL, 0, 1, false), osg::StateAttribute::ON);
+                smoke ? GL_ONE_MINUS_SRC_ALPHA : GL_ONE), sTextureOverride);
+            state->setAttributeAndModes(new SceneUtil::AutoDepth(osg::Depth::LEQUAL, 0, 1, false), sTextureOverride);
+            state->setMode(GL_ALPHA_TEST, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
             state->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
             state->setMode(GL_CULL_FACE, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
             state->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
             osg::ref_ptr<osg::Program> program = new osg::Program;
             program->addShader(new osg::Shader(osg::Shader::VERTEX,
-                "#version 120\nvarying vec2 uv; varying vec4 tint; void main(){"
-                "gl_Position=gl_ModelViewProjectionMatrix*gl_Vertex; uv=gl_MultiTexCoord0.xy; tint=gl_Color;}"));
+                "#version 120\nuniform mat4 projectionMatrix; varying vec2 uv; varying vec4 tint; void main(){"
+                // OpenMW retains an unreversed camera projection for culling;
+                // its actual render projection is a per-view uniform. The
+                // built-in matrix is only a fallback for standalone OSG views.
+                "mat4 p=projectionMatrix; if(p[0][0]==0.0) p=gl_ProjectionMatrix;"
+                "gl_Position=p*gl_ModelViewMatrix*gl_Vertex; uv=gl_MultiTexCoord0.xy; tint=gl_Color;}"));
             program->addShader(new osg::Shader(osg::Shader::FRAGMENT,
                 "#version 120\nuniform sampler2D diffuseMap; varying vec2 uv; varying vec4 tint;"
                 "void main(){gl_FragColor=texture2D(diffuseMap,uv)*tint;}"));
-            state->setAttributeAndModes(program, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            state->setAttributeAndModes(program, sTextureOverride);
             state->addUniform(new osg::Uniform("diffuseMap", 0));
             return state;
         }

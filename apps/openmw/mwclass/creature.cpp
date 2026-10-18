@@ -250,6 +250,8 @@ namespace MWClass
         // This is because hitting nothing is not a "miss" and should be handled as such character controller-side.
         victim = result.first;
         hitPosition = result.second;
+        if (!victim.getClass().isActor())
+            return true;
 
         float hitchance = MWMechanics::getHitChance(ptr, victim, ptr.get<ESM::Creature>()->mBase->mData.mCombat);
         return Misc::Rng::roll0to99(world->getPrng()) < hitchance;
@@ -277,6 +279,14 @@ namespace MWClass
         if (victim.isEmpty())
             return; // Didn't hit anything
 
+        if (!victim.getClass().isActor())
+        {
+            osg::Vec3f direction = hitPosition - ptr.getRefData().getPosition().asVec3();
+            direction.normalize();
+            MWBase::Environment::get().getWorld()->applyItemImpulse(victim,
+                direction * (400.f + 800.f * attackStrength), hitPosition);
+            return;
+        }
         const MWWorld::Class& othercls = victim.getClass();
         MWMechanics::CreatureStats& otherstats = othercls.getCreatureStats(victim);
         if (otherstats.isDead()) // Can't hit dead actors

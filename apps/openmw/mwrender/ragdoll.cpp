@@ -191,13 +191,13 @@ namespace MWRender
                 return;
             // Internal equal-and-opposite impulses flex joints without launching
             // the centre of mass. Smooth decay and solver limits bound every spasm.
-            const float envelope = 1.f - mElapsed / std::max(0.001f, mSettings.mShockDuration);
-            const float strength = std::min(2000.f, mMass * mTorsoLength * mTorsoLength * 0.004f)
-                * mSettings.mShockStrength * envelope * timeStep * 12.f;
-            for (const std::size_t joint : { 2u, 3u, 4u, 5u, 7u, 9u })
+            const float envelope = std::min(1.f, (mSettings.mShockDuration - mElapsed) / 0.5f);
+            const float strength = mMass * mTorsoLength * mTorsoLength * 1.6f
+                * mSettings.mShockStrength * envelope * timeStep;
+            for (const std::size_t joint : { 0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u })
             {
-                const float pulse = std::sin(mElapsed * 44.f + joint * 2.1f);
-                const osg::Vec3f axis = joint >= 7 ? mRight : mForward;
+                const float pulse = std::sin(mElapsed * 18.f + joint * 1.3f);
+                const osg::Vec3f axis = joint >= 6 || joint < 2 ? mRight : mForward;
                 mSimulation->applyJointTorqueImpulse(joint, toBullet(axis * (strength * pulse)));
             }
         }
@@ -483,6 +483,7 @@ namespace MWRender
         ++sSimulatingCorpses;
         impl->mBudgetSlot = true;
 
+        bool launched = false;
         if (impact.mValid)
         {
             // Convert each approximate throw distance into momentum for a reference
@@ -502,6 +503,7 @@ namespace MWRender
             const float speed = velocity.length();
             if (speed > settings.mMaxLaunchSpeed)
                 velocity *= settings.mMaxLaunchSpeed / speed;
+            launched = velocity.length2() > 0.01f;
             impl->mSimulation->applyWholeBodyImpulse(toBullet(velocity * mass));
             if (impact.mCrossbow && settings.mPinEnabled && impact.mWeaponDirection.length2() > 0.0001f)
             {
@@ -518,7 +520,9 @@ namespace MWRender
             }
         }
         // Tiny off-centre imbalance for dagger/arrow/no-impact deaths: no launch.
-        impl->mSimulation->applyImpulse(1, toBullet(forward * (mass * 0.6f)), toBullet(neck));
+        const float imbalance = physics.mBodyMode == Ragdoll::BodyMode::Rigid ? 18.f : 0.6f;
+        if (!launched)
+            impl->mSimulation->applyImpulse(1, toBullet(forward * (mass * imbalance)), toBullet(neck));
 
         auto result = std::unique_ptr<RagdollController>(new RagdollController(std::move(impl)));
         result->refreshCallbacks();
@@ -574,9 +578,7 @@ namespace MWRender
                 mImpl->updatePin();
                 for (std::size_t i = 0; i < mImpl->mBodyMatrices.size(); ++i)
                     mImpl->mBodyMatrices[i] = toOsg(mImpl->mSimulation->getBodyTransform(i));
-                if ((mImpl->mSimulation->isSleeping()
-                        && (!mImpl->mShock || mImpl->mElapsed >= mImpl->mSettings.mShockDuration))
-                    || mImpl->mElapsed >= mImpl->mSettings.mMaxSimulationTime)
+                if (mImpl->mElapsed >= mImpl->mSettings.mMaxSimulationTime)
                     mImpl->freeze();
             }
         }

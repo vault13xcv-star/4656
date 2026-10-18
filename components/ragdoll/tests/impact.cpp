@@ -1,4 +1,6 @@
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
+#include <components/misc/mathutil.hpp>
+#include <components/misc/convert.hpp>
 
 #include <cmath>
 #include <iostream>
@@ -215,6 +217,40 @@ namespace
             "Stronger restored ordinary health damage retained elemental presentation");
     }
 
+    void testExplosionWaveGeometry()
+    {
+        MWMechanics::RagdollMagicImpact context;
+        context.mExploded = true;
+        context.mHasTargetPosition = true;
+        context.mRadius = 20;
+        context.mOrigin.set(800,-400,60);
+        for (int i=0; i<16; ++i)
+        {
+            const float angle = i * 3.14159265f / 8;
+            const osg::Vec3f outward(std::cos(angle), std::sin(angle), 0);
+            context.mTargetPosition = context.mOrigin + outward * (4 * Constants::UnitsPerMeter);
+            context.mDirection = -outward; // Caster aim must not reverse the spherical wave.
+            const auto hit = MWMechanics::makeRagdollMagicImpact(context, context.mOrigin - outward * 500,
+                2, 1, Element::Fire, 50);
+            check(near(hit.mMagicDirection, outward) && near(hit.mMagicDistance,16),
+                "Explosion direction changed with a later victim position or caster aim");
+        }
+    }
+
+    void testSavedItemRotation()
+    {
+        for (int i=0; i<1000; ++i)
+        {
+            const float angles[3] = { i*0.17f, i*0.37f, i*0.61f };
+            const auto before = Misc::Convert::makeOsgQuat(angles);
+            const auto euler = Misc::toEulerAnglesZYX(before);
+            const float saved[3] = { euler.x(), euler.y(), euler.z() };
+            const auto after = Misc::Convert::makeOsgQuat(saved);
+            const double dot = before.x()*after.x()+before.y()*after.y()+before.z()*after.z()+before.w()*after.w();
+            check(std::abs(dot)>0.9999, "Native saved Euler angles changed a physical item's orientation");
+        }
+    }
+
     void testDelayedEffectsDoNotReuseExpiredContact()
     {
         MWMechanics::RagdollHit hit;
@@ -249,7 +285,9 @@ int main()
         testExplosionDistanceAndDirection();
         testDelayedEffectsDoNotReuseExpiredContact();
         testRestoredEffectPresentationHasNoInventedImpulse();
-        std::cout << "Ragdoll impact: 8 groups passed\n";
+        testExplosionWaveGeometry();
+        testSavedItemRotation();
+        std::cout << "Ragdoll impact: 10 groups passed\n";
     }
     catch (const std::exception& error)
     {

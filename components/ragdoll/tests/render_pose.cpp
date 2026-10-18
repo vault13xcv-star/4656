@@ -502,6 +502,62 @@ namespace
         std::cout << "PASS elemental timers after physics freeze and rigid frost skeleton\n";
     }
 
+    void visibleShockAndFrozenFall()
+    {
+        for (int facing=0; facing<8; ++facing)
+        {
+            SkeletonFixture radial;
+            radial.mWorld->setMatrix(osg::Matrixf::rotate(facing*0.785398f, osg::Vec3f(0,0,1))
+                * osg::Matrixf::translate(0,0,200));
+            MWRender::RagdollController::Settings settings;
+            settings.mArmorMass = 1000;
+            Ragdoll::Impact wave;
+            wave.mValid = true;
+            wave.mDeathElement = Ragdoll::DeathElement::Frost;
+            wave.mMagicDirection.set(1,0,0);
+            wave.mMagicDistance = 0.5f;
+            auto body = MWRender::RagdollController::create(*radial.mSkeleton, *radial.mSkeleton, floorSnapshot, settings, wave);
+            const auto start = body->getPosition();
+            for (int i=0; i<6; ++i) body->update(1.f/120);
+            const auto motion = body->getPosition() - start;
+            require(motion.x()>0.1 && std::abs(motion.y())<0.001,
+                "A facing-dependent toppling kick redirected the explosion of a heavy corpse");
+        }
+        SkeletonFixture frozen;
+        frozen.mWorld->setMatrix(osg::Matrixf::identity());
+        Ragdoll::Impact impact;
+        impact.mValid = true;
+        impact.mDeathElement = Ragdoll::DeathElement::Frost;
+        auto statue = MWRender::RagdollController::create(*frozen.mSkeleton, *frozen.mSkeleton, floorSnapshot, {}, impact);
+        const float height = worldMatrix(*frozen.mBones.at("Head")).getTrans().z();
+        for (int i=0; i<240; ++i) statue->update(1.f/60);
+        require(statue->isSimulating(), "Frost ragdoll was destroyed before the ten second deadline");
+        require(worldMatrix(*frozen.mBones.at("Head")).getTrans().z() < height - 30,
+            "An upright frozen death did not topple under gravity");
+        statue.reset();
+
+        SkeletonFixture electric;
+        electric.mWorld->setMatrix(osg::Matrixf::identity());
+        impact.mDeathElement = Ragdoll::DeathElement::Shock;
+        auto corpse = MWRender::RagdollController::create(*electric.mSkeleton, *electric.mSkeleton, floorSnapshot, {}, impact);
+        float torsoTravel = 0, legTravel = 0;
+        auto previous = electric.pose();
+        for (int i=0; i<300; ++i)
+        {
+            corpse->update(1.f/60);
+            const auto current = electric.pose();
+            if (i>180)
+            {
+                torsoTravel += (current.at("Spine2").getTrans() - previous.at("Spine2").getTrans()).length();
+                legTravel += (current.at("L Foot").getTrans() - previous.at("L Foot").getTrans()).length();
+            }
+            previous = current;
+        }
+        std::cout << "Shock travel in seconds 3–5: torso=" << torsoTravel << " leg=" << legTravel << '\n';
+        require(torsoTravel > 8 && legTravel > 20, "Shock only produced subpixel hand tremors");
+        std::cout << "PASS visible whole-body shock and topple of upright frozen corpse\n";
+    }
+
 }
 
 int main()
@@ -516,6 +572,7 @@ int main()
         anatomicalLimitsAndShock();
         skinSurfacesAndCleanup();
         elementalLifecycle();
+        visibleShockAndFrozenFall();
         return 0;
     }
     catch (const std::exception& error)

@@ -41,6 +41,8 @@ namespace Resource
     class ResourceSystem;
 }
 
+namespace Ragdoll { class ItemSimulation; }
+
 class btCollisionWorld;
 class btBroadphaseInterface;
 class btDefaultCollisionConfiguration;
@@ -217,6 +219,9 @@ namespace MWPhysics
         using RayCastingInterface::castRay;
 
         std::vector<osg::Vec3f> getRagdollCollisionTriangles(const osg::Vec3f& center, float radius) const;
+        void applyItemImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point);
+        void applyItemExplosion(const osg::Vec3f& origin, float radius, float strength);
+        void updateItems(float duration);
 
         RayCastingResult castSphere(const osg::Vec3f& from, const osg::Vec3f& to, float radius,
             int mask = CollisionType_Default, int group = 0xff) const override;
@@ -293,6 +298,7 @@ namespace MWPhysics
 
     private:
         void updateWater();
+        void registerItem(const MWWorld::Ptr& ptr, const Object& object);
 
         void prepareSimulation(bool willSimulate, std::vector<Simulation>& simulations);
 
@@ -307,6 +313,11 @@ namespace MWPhysics
 
         using ObjectMap = std::unordered_map<const MWWorld::LiveCellRefBase*, std::shared_ptr<Object>>;
         ObjectMap mObjects;
+        std::unique_ptr<Ragdoll::ItemSimulation> mItems;
+        std::vector<osg::Vec3f> mItemCollisionVertices;
+        std::vector<osg::Vec3f> mItemRegions;
+        float mItemSnapshotAge = 1.f;
+        bool mSynchronizingItems = false;
 
         std::map<Object*, bool> mAnimatedObjects; // stores pointers to elements in mObjects
 

@@ -7,6 +7,10 @@
 #include <osg/Group>
 #include <osg/Stats>
 #include <osg/Timer>
+#include <osg/ComputeBoundsVisitor>
+#include <BulletCollision/CollisionShapes/btBoxShape.h>
+#include <BulletCollision/CollisionShapes/btCompoundShape.h>
+#include <components/sceneutil/positionattitudetransform.hpp>
 
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
@@ -28,6 +32,7 @@
 #include <components/resource/bulletshapemanager.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/settings/values.hpp>
+#include <components/ragdoll/items.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -435,6 +440,28 @@ namespace MWPhysics
             ? Misc::ResourceHelpers::correctActorModelPath(mesh, mResourceSystem->getVFS())
             : VFS::Path::Normalized(mesh);
         osg::ref_ptr<Resource::BulletShapeInstance> shapeInstance = mShapeManager->getInstance(animationMesh);
+        if ((!shapeInstance || !shapeInstance->mCollisionShape) && Settings::ragdoll().mItemPhysics
+            && ptr.getClass().isItem(ptr) && ptr.getRefData().getBaseNode())
+        {
+            osg::ComputeBoundsVisitor visitor;
+            const auto* root = ptr.getRefData().getBaseNode();
+            for (unsigned i = 0; i < root->getNumChildren(); ++i)
+                const_cast<osg::Node*>(root->getChild(i))->accept(visitor);
+            const auto bounds = visitor.getBoundingBox();
+            if (bounds.valid())
+            {
+                osg::ref_ptr<Resource::BulletShape> source = new Resource::BulletShape;
+                source->mVisualCollisionType = Resource::VisualCollisionType::Default;
+                auto compound = std::make_unique<btCompoundShape>();
+                btTransform offset = btTransform::getIdentity();
+                offset.setOrigin(Misc::Convert::toBullet(bounds.center()));
+                const osg::Vec3f extent = (bounds._max - bounds._min) * 0.5f;
+                compound->addChildShape(offset, new btBoxShape(btVector3(
+                    std::max(0.2f, extent.x()), std::max(0.2f, extent.y()), std::max(0.2f, extent.z()))));
+                source->mCollisionShape.reset(compound.release());
+                shapeInstance = Resource::makeInstance(source);
+            }
+        }
         if (!shapeInstance || !shapeInstance->mCollisionShape)
             return;
 
@@ -453,8 +480,13 @@ namespace MWPhysics
                 break;
         }
 
+        // Many vanilla inventory models have visual-only geometry. Give these
+        // an actual projectile/melee collider while leaving decorative meshes alone.
+        if (Settings::ragdoll().mItemPhysics && ptr.getClass().isItem(ptr))
+            collisionType = CollisionType_World;
         auto obj = std::make_shared<Object>(ptr, shapeInstance, rotation, collisionType, mTaskScheduler.get());
         mObjects.emplace(ptr.mRef, obj);
+        registerItem(ptr, *obj);
 
         if (obj->isAnimated())
             mAnimatedObjects.emplace(obj.get(), false);
@@ -462,6 +494,9 @@ namespace MWPhysics
 
     void PhysicsSystem::remove(const MWWorld::Ptr& ptr)
     {
+        if (mItems)
+            mItems->remove(reinterpret_cast<Ragdoll::ItemSimulation::Id>(ptr.mRef));
+        mItemSnapshotAge = 1.f;
         if (auto foundObject = mObjects.find(ptr.mRef); foundObject != mObjects.end())
         {
             mAnimatedObjects.erase(foundObject->second.get());
@@ -539,7 +574,8 @@ namespace MWPhysics
         {
             float scale = ptr.getCellRef().getScale();
             foundObject->second->setScale(scale);
-            mTaskScheduler->updateSingleAabb(foundObject->second);
+            mTaskScheduler->updateSingleAabb(foundObject->second, true);
+            registerItem(ptr, *foundObject->second);
         }
         else if (auto foundActor = mActors.find(ptr.mRef); foundActor != mActors.end())
         {
@@ -554,6 +590,10 @@ namespace MWPhysics
         {
             foundObject->second->setRotation(rotate);
             mTaskScheduler->updateSingleAabb(foundObject->second);
+            if (mItems && !mSynchronizingItems)
+                mItems->move(reinterpret_cast<Ragdoll::ItemSimulation::Id>(ptr.mRef), foundObject->second->getTransform());
+            if (!mSynchronizingItems)
+                mItemSnapshotAge = 1.f;
         }
         else if (auto foundActor = mActors.find(ptr.mRef); foundActor != mActors.end())
         {
@@ -571,6 +611,10 @@ namespace MWPhysics
         {
             foundObject->second->updatePosition();
             mTaskScheduler->updateSingleAabb(foundObject->second);
+            if (mItems && !mSynchronizingItems)
+                mItems->move(reinterpret_cast<Ragdoll::ItemSimulation::Id>(ptr.mRef), foundObject->second->getTransform());
+            if (!ptr.getClass().isItem(ptr))
+                mItemSnapshotAge = 1.f;
         }
         else if (auto foundActor = mActors.find(ptr.mRef); foundActor != mActors.end())
         {

@@ -58,7 +58,7 @@ list(APPEND COMPONENT_FILES "${OpenMW_BINARY_DIR}/${OSG_PLUGIN_CHECKER_CPP_FILE}
 # source files
 
 add_component_dir (ragdoll
-    simulation
+    simulation items
     )
 
 add_component_dir (lua

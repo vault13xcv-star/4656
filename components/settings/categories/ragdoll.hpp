@@ -11,6 +11,11 @@ namespace Settings
         using WithIndex::WithIndex;
 
         SettingValue<bool> mEnabled{ mIndex, "Ragdoll", "enabled" };
+        SettingValue<bool> mItemPhysics{ mIndex, "Ragdoll", "item physics" };
+        SettingValue<float> mItemMassScale{
+            mIndex, "Ragdoll", "item mass scale", makeClampSanitizerFloat(0.05f, 20.f) };
+        SettingValue<float> mItemImpulseScale{
+            mIndex, "Ragdoll", "item impulse scale", makeClampSanitizerFloat(0.f, 10.f) };
         SettingValue<int> mMaxActive{ mIndex, "Ragdoll", "max active", makeClampSanitizerInt(1, 32) };
         SettingValue<float> mCollisionRadius{
             mIndex, "Ragdoll", "collision radius", makeClampSanitizerFloat(256, 4096) };

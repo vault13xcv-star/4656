@@ -248,25 +248,52 @@ namespace Ragdoll
                     return ClosestConvexResultCallback::addSingleResult(result, worldNormal);
                 }
             };
-            for (std::size_t i = 0; i < mRigidOffsets.size(); ++i)
+            btScalar remaining = dt;
+            bool clamped = false;
+            for (int iteration = 0; iteration < 12; ++iteration)
             {
-                const auto& capsule = static_cast<const btCapsuleShape&>(*mShapes[i]);
-                const btTransform from = body.getWorldTransform() * mRigidOffsets[i];
-                const btTransform to = predicted * mRigidOffsets[i];
-                const btScalar motion = from.getOrigin().distance(to.getOrigin())
-                    + body.getAngularVelocity().length() * dt * (capsule.getHalfHeight() + capsule.getRadius());
-                if (motion < capsule.getRadius() * 0.5)
-                    continue;
-                Sweep sweep(body, from.getOrigin(), to.getOrigin());
-                sweep.m_closestHitFraction = fraction;
-                mWorld->convexSweepTest(&capsule, from, to, sweep);
-                if (sweep.hasHit())
-                    fraction = std::min(fraction, sweep.m_closestHitFraction);
+                body.predictIntegratedTransform(remaining, predicted);
+                fraction = 1;
+                btVector3 contactNormal(0, 0, 0), contactPoint(0, 0, 0);
+                for (std::size_t i = 0; i < mRigidOffsets.size(); ++i)
+                {
+                    const auto& capsule = static_cast<const btCapsuleShape&>(*mShapes[i]);
+                    const btTransform from = body.getWorldTransform() * mRigidOffsets[i];
+                    const btTransform to = predicted * mRigidOffsets[i];
+                    const btScalar motion = from.getOrigin().distance(to.getOrigin())
+                        + body.getAngularVelocity().length() * remaining * (capsule.getHalfHeight() + capsule.getRadius());
+                    if (!clamped && motion < capsule.getRadius() * 0.5)
+                        continue;
+                    Sweep sweep(body, from.getOrigin(), to.getOrigin());
+                    sweep.m_closestHitFraction = fraction;
+                    mWorld->convexSweepTest(&capsule, from, to, sweep);
+                    if (sweep.hasHit())
+                    {
+                        fraction = sweep.m_closestHitFraction;
+                        contactNormal = sweep.m_hitNormalWorld.normalized();
+                        contactPoint = sweep.m_hitPointWorld;
+                    }
+                }
+                if (fraction >= 1)
+                {
+                    if (!clamped) return false;
+                    body.proceedToTransform(predicted);
+                    break;
+                }
+                clamped = true;
+                body.predictIntegratedTransform(remaining * fraction, predicted);
+                body.proceedToTransform(predicted);
+                // Resolve the inward contact velocity, then sweep the remaining
+                // tangential motion. Merely setting hitFraction=0 freezes an icy
+                // statue at its first touching surface, even on a steep slope.
+                const btVector3 offset = contactPoint - body.getCenterOfMassPosition();
+                const btScalar inward = contactNormal.dot(body.getVelocityInLocalPoint(offset));
+                const btScalar denominator = body.computeImpulseDenominator(contactPoint, contactNormal);
+                if (inward < 0 && denominator > SIMD_EPSILON)
+                    body.applyImpulse(contactNormal * (-inward / denominator), offset);
+                remaining *= 1 - fraction;
+                if (remaining < 1e-7) break;
             }
-            if (fraction >= 1)
-                return false;
-            body.predictIntegratedTransform(dt * fraction, predicted);
-            body.proceedToTransform(predicted);
             body.setHitFraction(0);
             return true;
         }
@@ -416,13 +443,15 @@ namespace Ragdoll
             btRigidBody::btRigidBodyConstructionInfo info(mass, nullptr, shape, inertia);
             info.m_startWorldTransform = transform;
             info.m_linearDamping = settings.mLinearDamping;
-            info.m_angularDamping = settings.mAngularDamping;
-            info.m_friction = 0.85;
-            info.m_rollingFriction = 0.05;
-            info.m_spinningFriction = 0.1;
+            info.m_angularDamping = settings.mBodyMode == BodyMode::Rigid ? 0.08 : settings.mAngularDamping;
+            info.m_friction = settings.mBodyMode == BodyMode::Rigid ? 0.22 : 0.85;
+            info.m_rollingFriction = settings.mBodyMode == BodyMode::Rigid ? 0.005 : 0.05;
+            info.m_spinningFriction = settings.mBodyMode == BodyMode::Rigid ? 0.01 : 0.1;
             info.m_restitution = 0;
             auto body = std::make_unique<btRigidBody>(info);
             body->setSleepingThresholds(1, 0.15);
+            if (settings.mBodyMode == BodyMode::Rigid)
+                body->setActivationState(DISABLE_DEACTIVATION);
             body->setCcdMotionThreshold(radius * 0.5);
             body->setCcdSweptSphereRadius(radius * 0.8);
             mImpl->mWorld->addRigidBody(body.get(), sBodyGroup, sStaticGroup | sBodyGroup);

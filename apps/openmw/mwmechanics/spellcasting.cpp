@@ -28,6 +28,19 @@
 
 namespace MWMechanics
 {
+    namespace
+    {
+        float itemImpactStrength(const ESM::ENAMstruct& effect)
+        {
+            const auto& id = effect.mEffectID;
+            if (id == ESM::MagicEffect::FireDamage || id == ESM::MagicEffect::FrostDamage
+                || id == ESM::MagicEffect::ShockDamage || id == ESM::MagicEffect::Poison
+                || id == ESM::MagicEffect::DamageHealth || id == ESM::MagicEffect::DrainHealth
+                || id == ESM::MagicEffect::AbsorbHealth)
+                return std::clamp(200.f + std::max(effect.mMagnMin, effect.mMagnMax) * 20.f, 0.f, 5000.f);
+            return 0;
+        }
+    }
     CastSpell::CastSpell(
         const MWWorld::Ptr& caster, const MWWorld::Ptr& target, const bool fromProjectile, const bool scriptedSpell)
         : mCaster(caster)
@@ -42,6 +55,8 @@ namespace MWMechanics
     {
         const auto world = MWBase::Environment::get().getWorld();
         std::map<MWWorld::Ptr, std::vector<ESM::IndexedENAMstruct>> toApply;
+        float itemRadius = 0;
+        float itemStrength = 0;
         for (const ESM::IndexedENAMstruct& effectInfo : effects.mList)
         {
             const ESM::MagicEffect* effect = world->getStore().get<ESM::MagicEffect>().find(effectInfo.mData.mEffectID);
@@ -58,6 +73,13 @@ namespace MWMechanics
                 && (mCaster.isEmpty() || mCaster.getClass().isActor()))
                 continue; // Don't play explosion for touch spells on non-activatable objects except when spell is from
                           // a projectile enchantment or ExplodeSpell
+
+            const float strength = itemImpactStrength(effectInfo.mData);
+            if (strength > 0 && effectInfo.mData.mArea > 0)
+            {
+                itemRadius = std::max(itemRadius, effectInfo.mData.mArea * Constants::UnitsPerFoot);
+                itemStrength = std::max(itemStrength, strength);
+            }
 
             // Spawn the explosion orb effect
             const ESM::Static* areaStatic;
@@ -106,6 +128,8 @@ namespace MWMechanics
                 list.push_back(effectInfo);
             }
         }
+
+        world->applyItemExplosion(mHitPosition, itemRadius, itemStrength);
 
         // Now apply the appropriate effects to each actor in range
         for (auto& applyPair : toApply)
@@ -169,6 +193,22 @@ namespace MWMechanics
         if (!found)
             return;
 
+        if (!exploded && !target.isEmpty() && target.getClass().isItem(target))
+        {
+            float strength = 0;
+            for (const auto& entry : effects.mList)
+                if (entry.mData.mRange == range && entry.mData.mArea <= 0)
+                    strength = std::max(strength, itemImpactStrength(entry.mData));
+            osg::Vec3f direction = mImpactDirection;
+            if (direction.normalize() == 0 && !mCaster.isEmpty())
+            {
+                direction = mHitPosition - mCaster.getRefData().getPosition().asVec3();
+                direction.normalize();
+            }
+            if (strength > 0)
+                MWBase::Environment::get().getWorld()->applyItemImpulse(target, direction * strength, mHitPosition);
+        }
+
         ActiveSpells::ActiveSpellParams params(mCaster, mId, mSourceName, mItem);
         params.setFlag(mFlags);
         auto ragdollHit = mRagdollHit && target == mTarget && !exploded
@@ -225,6 +265,11 @@ namespace MWMechanics
             impact.mOrigin = mHitPosition;
             impact.mDirection = mImpactDirection;
             impact.mExploded = exploded && (range != ESM::RT_Self || target != mCaster || mFromProjectile);
+            // Freeze the wave geometry at contact, before AI movement and damage-over-time ticks.
+            impact.mTargetPosition = target.getRefData().getPosition().asVec3();
+            if (targetIsActor)
+                impact.mTargetPosition.z() += MWBase::Environment::get().getWorld()->getHalfExtents(target).z();
+            impact.mHasTargetPosition = true;
             impact.mRadius = std::max(0, enam.mData.mArea) * Constants::UnitsPerFoot / Constants::UnitsPerMeter;
             if (impact.mDirection.length2() < 1e-6f && !mCaster.isEmpty())
                 impact.mDirection = target.getRefData().getPosition().asVec3()

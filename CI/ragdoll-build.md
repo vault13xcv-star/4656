@@ -2,7 +2,7 @@
 
 Push the modified engine to a branch matching `experimental/ragdoll-*` to run
 `.github/workflows/realcombat-ragdoll.yml`. GitHub Actions must be enabled for the
-repository. The current feature branch is `experimental/ragdoll-0.3.0-windows`.
+repository. The current feature branch is `experimental/ragdoll-0.4.0-windows`.
 A manual `workflow_dispatch` is also supported once GitHub exposes the workflow.
 No personal access token or repository secret is needed: the job uses its
 short-lived `GITHUB_TOKEN` with `contents: write`.
@@ -31,9 +31,9 @@ text or the encoding of the user's game data.
 Successful jobs publish an immutable GitHub prerelease containing the runtime
 ZIP, its SHA256 checksum and the complete corresponding engine source archive.
 Runtime/source ZIP names, the prerelease title, tag and package metadata include
-the ragdoll feature version (currently `0.3.0`) separately from OpenMW `0.51.0`.
+the ragdoll feature version (currently `0.4.0`) separately from OpenMW `0.51.0`.
 Actions also stores these as a 30-day artifact. Physics, synthetic OSG skeleton,
-lethal-hit attribution and component tests,
+loose-item dynamics, lethal-hit attribution and component tests,
 the installed executable's `--version` command, and ZIP integrity must pass
 before publication. This is not an in-game playtest.
 
@@ -42,6 +42,11 @@ same vcpkg toolchain/prefix as the engine, so the Bullet and OpenSceneGraph ABIs
 match the runtime. All standalone test suites build and run before the
 full engine compilation, so a Windows solver regression fails within minutes.
 The complete engine and component tests still build and pass before packaging.
+Linux validation can additionally enable `-DRAGDOLL_TEST_GL=ON` for surfaceless
+EGL tests of visible fire/smoke, opaque-wall occlusion, inherited NPC shader/alpha
+state and the native per-view projection in both normal and reversed depth modes.
+The retained cloud helper accepts this flag:
+`/workspace/openmw-toolchain/check.sh -DRAGDOLL_TEST_GL=ON`.
 MSVC precompiled headers remain enabled; no unverified CMake build directory is
 restored between jobs. Compiler-cache tools that reject MSVC precompiled headers
 would require a separate measured build configuration before being enabled.

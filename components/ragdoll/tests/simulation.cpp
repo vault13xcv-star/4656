@@ -556,6 +556,27 @@ namespace
         }
     }
 
+    void testFrozenSlope()
+    {
+        const btVector3 normal(-0.5, 0, btSqrt(0.75));
+        Ragdoll::StaticCollider slope;
+        slope.mShape = std::make_shared<btStaticPlaneShape>(normal, 0);
+        for (const double dt : { 1.0/30, 1.0/60, 1.0/120 })
+        {
+            auto body = capsule(btVector3(0,0,12), 3, 18);
+            Ragdoll::Settings settings;
+            settings.mBodyMode = Ragdoll::BodyMode::Rigid;
+            Ragdoll::Simulation sim({ body }, {}, { slope }, settings);
+            runFor(sim, 2, dt);
+            const auto start = sim.getBodyTransform(0).getOrigin();
+            runFor(sim, 3, dt);
+            const auto end = sim.getBodyTransform(0).getOrigin();
+            check(end.x() < start.x() - 100, "Frozen statue stuck partway down a slope");
+            check(!sim.isSleeping(), "Frozen statue slept before the controller deadline");
+            check(normal.dot(end) > 2, "Frozen statue tunneled into a slope");
+        }
+    }
+
     void testSoftConnectedBody()
     {
         auto first = capsule(btVector3(0, 8, 40), 2, 12);
@@ -614,7 +635,8 @@ int main()
         testStaticRayAndWallPin();
         testFrozenCompoundBody();
         testSoftConnectedBody();
-        std::cout << "12 ragdoll physics suites passed (actual double precision Bullet solver)\n";
+        testFrozenSlope();
+        std::cout << "13 ragdoll physics suites passed (actual double precision Bullet solver)\n";
         return 0;
     }
     catch (const std::exception& error)
