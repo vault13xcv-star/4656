@@ -46,12 +46,17 @@ jobs:
           ./CI/ragdoll-report.ps1 -Stage configure -Result running
           ./CI/ragdoll-windows.ps1 -Phase Configure
 
-      - name: Compile the modified engine and tests
+      - name: Build and run physics, synthetic skeleton and lethal-hit attribution tests
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage ragdoll-tests -Result running
+          ./CI/ragdoll-windows.ps1 -Phase RagdollTests
+
+      - name: Compile the modified engine and component tests
         run: |
           ./CI/ragdoll-report.ps1 -Stage build -Result running
           ./CI/ragdoll-windows.ps1 -Phase Build
 
-      - name: Run physics, synthetic skeleton, lethal-hit attribution and component tests
+      - name: Run component tests
         run: |
           ./CI/ragdoll-report.ps1 -Stage tests -Result running
           ./CI/ragdoll-windows.ps1 -Phase Test

@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory)][ValidateSet('Dependencies', 'Configure', 'Build', 'Test', 'Package', 'Publish')][string] $Phase
+    [Parameter(Mandatory)][ValidateSet('Dependencies', 'Configure', 'RagdollTests', 'Build', 'Test', 'Package', 'Publish')][string] $Phase
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -107,16 +107,20 @@ switch ($Phase) {
         Run 'cmake' (@('-S', "$source/components/ragdoll", '-B', $tests,
             '-DRAGDOLL_TEST_RENDERING=ON', "-DCMAKE_PREFIX_PATH=$prefix") + $common) 'configure-ragdoll-tests.log'
     }
+    RagdollTests {
+        # Exercise the exact Windows Bullet build before spending time compiling
+        # the whole engine. Keep this mandatory and preserve every test failure.
+        Run 'cmake' @('--build', $tests, '--parallel', '3') 'build-ragdoll-tests.log'
+        Copy-Runtime $tests
+        Run 'ctest' @('--test-dir', $tests, '--output-on-failure') 'ragdoll-tests.log'
+    }
     Build {
         Invoke-WithBuildReports {
             Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests') 'build.log'
-            Run 'cmake' @('--build', $tests, '--parallel', '3') 'build-ragdoll-tests.log'
         }
     }
     Test {
         Copy-Runtime $build
-        Copy-Runtime $tests
-        Run 'ctest' @('--test-dir', $tests, '--output-on-failure') 'ragdoll-tests.log'
         Run "$build/components-tests.exe" @('--gtest_color=no') 'components-tests.log'
     }
     Package {

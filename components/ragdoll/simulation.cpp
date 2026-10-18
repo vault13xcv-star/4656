@@ -238,13 +238,42 @@ namespace Ragdoll
                 // when this substep would cross the anatomical limit.
                 const btScalar safeSpeed = std::clamp(speed,
                     (hinge.getLowerLimit() - angle) / (horizon * dt), (hinge.getUpperLimit() - angle) / (horizon * dt));
-                const btScalar inverseInertia = axis.dot(
-                    (parent.getInvInertiaTensorWorld() + child.getInvInertiaTensorWorld()) * axis);
-                if (inverseInertia <= SIMD_EPSILON || btFabs(safeSpeed - speed) < SIMD_EPSILON)
+                if (btFabs(safeSpeed - speed) < SIMD_EPSILON)
                     continue;
-                const btVector3 impulse = axis * ((safeSpeed - speed) / inverseInertia);
-                parent.applyTorqueImpulse(-impulse);
-                child.applyTorqueImpulse(impulse);
+
+                // A torque around the centres of mass alone changes the joint
+                // anchor velocities. Applied after Bullet's contact solve, that
+                // would stretch the limb before the next substep can repair it.
+                // Project the angular stop impulse into the point constraint:
+                // K maps an anchor impulse to relative point velocity, while the
+                // compensating impulse cancels the point motion from unit torque.
+                const btVector3 parentArm = parent.getWorldTransform().getBasis() * hinge.getAFrame().getOrigin();
+                const btVector3 childArm = child.getWorldTransform().getBasis() * hinge.getBFrame().getOrigin();
+                const btMatrix3x3& parentInertia = parent.getInvInertiaTensorWorld();
+                const btMatrix3x3& childInertia = child.getInvInertiaTensorWorld();
+                const auto pointResponse = [&](const btVector3& impulse) {
+                    return impulse * (parent.getInvMass() + child.getInvMass())
+                        + (parentInertia * parentArm.cross(impulse)).cross(parentArm)
+                        + (childInertia * childArm.cross(impulse)).cross(childArm);
+                };
+                const btVector3 x = pointResponse(btVector3(1, 0, 0));
+                const btVector3 y = pointResponse(btVector3(0, 1, 0));
+                const btVector3 z = pointResponse(btVector3(0, 0, 1));
+                const btMatrix3x3 response(x.x(), y.x(), z.x(), x.y(), y.y(), z.y(), x.z(), y.z(), z.z());
+                const btVector3 pointMotion = (parentInertia * axis).cross(parentArm)
+                    + (childInertia * axis).cross(childArm);
+                const btVector3 compensation = -(response.inverse() * pointMotion);
+                const btScalar inverseInertia = axis.dot((parentInertia + childInertia) * axis
+                    + parentInertia * parentArm.cross(compensation) + childInertia * childArm.cross(compensation));
+                if (inverseInertia <= SIMD_EPSILON)
+                    continue;
+                const btScalar magnitude = (safeSpeed - speed) / inverseInertia;
+                const btVector3 torque = axis * magnitude;
+                const btVector3 impulse = compensation * magnitude;
+                parent.applyTorqueImpulse(-torque);
+                child.applyTorqueImpulse(torque);
+                parent.applyImpulse(-impulse, parentArm);
+                child.applyImpulse(impulse, childArm);
             }
         }
 
