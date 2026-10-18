@@ -20,7 +20,7 @@ function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
     if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE; see $LogName." }
 }
 
-function Invoke-WithBuildReports([scriptblock] $Build) {
+function Invoke-WithBuildReports([scriptblock] $BuildAction) {
     # A separate PowerShell process can publish log tails while Ninja runs.
     # Each report finishes before another starts; request a clean stop before
     # the next workflow phase writes to the same disposable report checkout.
@@ -44,7 +44,7 @@ function Invoke-WithBuildReports([scriptblock] $Build) {
         }
     }
     try {
-        & $Build
+        & $BuildAction
     } finally {
         New-Item -ItemType File -Path $stopFile -Force | Out-Null
         $finished = Wait-Job $heartbeat -Timeout 90
