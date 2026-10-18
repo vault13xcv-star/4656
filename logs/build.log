@@ -1,14 +1,3 @@
-[526/981] Linking CXX static library extern\osg-ffmpeg-videoplayer\osg-ffmpeg-videoplayer.lib
-[527/981] Building CXX object _deps\googletest-build\googlemock\CMakeFiles\gmock.dir\src\gmock-all.cc.obj
-[528/981] Linking CXX static library extern\oics\oics.lib
-[529/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\objects.cpp.obj
-[530/981] Linking CXX static library components\components.lib
-[531/981] Building CXX object _deps\googletest-build\googletest\CMakeFiles\gtest.dir\src\gtest-all.cc.obj
-[532/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\rotatecontroller.cpp.obj
-[533/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\sky.cpp.obj
-[534/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\animation.cpp.obj
-[535/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\renderingmanager.cpp.obj
-[536/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\skyutil.cpp.obj
 [537/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\creatureanimation.cpp.obj
 [538/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\esm4npcanimation.cpp.obj
 [539/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\npcanimation.cpp.obj
@@ -178,3 +167,14 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(460): warning C4244: '=': conver
 [699/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\luabindings.cpp.obj
 [700/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\localscripts.cpp.obj
 [701/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\contentbindings.cpp.obj
+[702/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\cellbindings.cpp.obj
+[703/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\coremwscriptbindings.cpp.obj
+[704/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\mwscriptbindings.cpp.obj
+[705/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\camerabindings.cpp.obj
+[706/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\vfsbindings.cpp.obj
+[707/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\uibindings.cpp.obj
+[708/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\soundbindings.cpp.obj
+[709/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\nearbybindings.cpp.obj
+[710/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\inputbindings.cpp.obj
+[711/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\objectbindings.cpp.obj
+[712/981] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\postprocessingbindings.cpp.obj
