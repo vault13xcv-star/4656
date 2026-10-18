@@ -1,0 +1,4 @@
+Error: D:/a/4656/4656/
+            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests') 'build.log'
+            Run 'cmake' @('--build', $tests, '--parallel', '3') 'build-ragdoll-tests.log'
+         is not a directory
