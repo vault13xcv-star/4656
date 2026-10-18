@@ -51,7 +51,7 @@ jobs:
           ./CI/ragdoll-report.ps1 -Stage build -Result running
           ./CI/ragdoll-windows.ps1 -Phase Build
 
-      - name: Run physics, synthetic skeleton and component tests
+      - name: Run physics, synthetic skeleton, lethal-hit attribution and component tests
         run: |
           ./CI/ragdoll-report.ps1 -Stage tests -Result running
           ./CI/ragdoll-windows.ps1 -Phase Test

@@ -1,6 +1,8 @@
 #ifndef GAME_MWBASE_LUAMANAGER_H
 #define GAME_MWBASE_LUAMANAGER_H
 
+#include <cstdint>
+
 #include <filesystem>
 #include <map>
 #include <string>
@@ -87,7 +89,7 @@ namespace MWBase
         virtual void skillUse(const MWWorld::Ptr& actor, ESM::RefId skillId, int useType, float scale) = 0;
         virtual void onHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& weapon,
             const MWWorld::Ptr& ammo, int attackType, float attackStrength, float damage, bool isHealth,
-            const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType)
+            const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType, std::uint64_t ragdollHit = 0)
             = 0;
         virtual void exteriorCreated(MWWorld::CellStore& cell) = 0;
         virtual void actorDied(const MWWorld::Ptr& actor) = 0;

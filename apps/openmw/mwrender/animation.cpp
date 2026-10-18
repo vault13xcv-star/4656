@@ -1,6 +1,7 @@
 #include "animation.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <limits>
 
@@ -22,11 +23,13 @@
 #include <components/resource/keyframemanager.hpp>
 #include <components/resource/scenemanager.hpp>
 
+#include <components/esm3/loadarmo.hpp>
 #include <components/esm3/loadcont.hpp>
 #include <components/esm3/loadcrea.hpp>
 #include <components/esm3/loadmgef.hpp>
 #include <components/esm3/loadnpc.hpp>
 #include <components/esm3/loadrace.hpp>
+#include <components/esm3/loadskil.hpp>
 #include <components/esm4/loadligh.hpp>
 
 #include <components/misc/constants.hpp>
@@ -56,6 +59,7 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/esmstore.hpp"
+#include "../mwworld/inventorystore.hpp"
 
 #include "../mwmechanics/character.hpp" // FIXME: for MWMechanics::Priority
 #include "../mwmechanics/creaturestats.hpp"
@@ -1477,20 +1481,55 @@ namespace MWRender
             mRagdoll.reset();
             mRagdollObservedAlive = true;
             mRagdollAttempted = false;
+            mRagdollPendingTime = 0.f;
             return;
         }
         if (mRagdollObservedAlive && !mRagdollAttempted)
         {
+            // Native on-strike magic can kill before the queued Lua weapon hit
+            // resolves. Give that same contact a bounded opportunity to merge.
+            if (mPtr.getClass().getCreatureStats(mPtr).isRagdollImpactPending() && mRagdollPendingTime < 0.1f)
+            {
+                if (duration > 0.f && std::isfinite(duration))
+                    mRagdollPendingTime += duration;
+                return;
+            }
             mRagdollAttempted = true;
             try
             {
-                const RagdollController::Settings config{ settings.mMaxActive.get(),
-                    settings.mCollisionRadius.get(), settings.mCollisionRefreshInterval.get(),
-                    settings.mMaxSimulationTime.get() };
+                RagdollController::Settings config;
+                config.mMaxActive = settings.mMaxActive;
+                config.mCollisionRadius = settings.mCollisionRadius;
+                config.mCollisionRefreshInterval = settings.mCollisionRefreshInterval;
+                config.mMaxSimulationTime = settings.mMaxSimulationTime;
+                config.mBaseMass = settings.mBaseMass;
+                config.mDeathAge = mRagdollPendingTime;
+                config.mReferenceHeight = settings.mReferenceHeight;
+                config.mImpulseMultiplier = settings.mImpulseMultiplier;
+                config.mMaxLaunchSpeed = settings.mMaxLaunchSpeed;
+                config.mShockDuration = settings.mShockDuration;
+                config.mShockStrength = settings.mShockStrength;
+                config.mPinEnabled = settings.mPinEnabled;
+                config.mPinMaxDistance = settings.mPinMaxDistance;
+                config.mPinContactDistance = settings.mPinContactDistance;
+                // Encumbrance includes carried loot and clothing; only equipped
+                // armour contributes additional physical body mass here.
+                const auto& inventory = mPtr.getClass().getInventoryStore(mPtr);
+                for (int slot = 0; slot < MWWorld::InventoryStore::Slots; ++slot)
+                {
+                    const auto item = inventory.getSlot(slot);
+                    if (item == inventory.end() || item->getType() != ESM::Armor::sRecordId)
+                        continue;
+                    const ESM::RefId skill = item->getClass().getEquipmentSkill(*item, false);
+                    const float factor = skill == ESM::Skill::LightArmor ? settings.mLightArmorMassFactor.get()
+                        : skill == ESM::Skill::MediumArmor ? settings.mMediumArmorMassFactor.get()
+                        : settings.mHeavyArmorMassFactor.get();
+                    config.mArmorMass += std::max(0.f, item->getClass().getWeight(*item)) * factor;
+                }
                 mRagdoll = RagdollController::create(*mObjectRoot, *mSkeleton,
                     [](const osg::Vec3f& center, float radius) {
                         return MWBase::Environment::get().getWorld()->getRagdollCollisionTriangles(center, radius);
-                    }, config);
+                    }, config, mPtr.getClass().getCreatureStats(mPtr).getRagdollImpact());
                 Log(Debug::Info) << (mRagdoll ? "Humanoid ragdoll started for "
                                            : "Humanoid ragdoll unavailable; using native death for ")
                                  << mPtr.getCellRef().getRefId();
@@ -1611,6 +1650,7 @@ namespace MWRender
         mRagdoll.reset();
         mRagdollObservedAlive = false;
         mRagdollAttempted = false;
+        mRagdollPendingTime = 0.f;
         osg::ref_ptr<osg::StateSet> previousStateset;
         if (mObjectRoot)
         {

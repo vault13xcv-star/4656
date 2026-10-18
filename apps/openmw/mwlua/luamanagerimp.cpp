@@ -1,5 +1,8 @@
 #include "luamanagerimp.hpp"
 
+#include "../mwmechanics/combat.hpp"
+#include "../mwmechanics/creaturestats.hpp"
+
 #include <filesystem>
 
 #include <MyGUI_InputManager.h>
@@ -28,6 +31,7 @@
 #include "../mwrender/bonegroup.hpp"
 #include "../mwrender/postprocessor.hpp"
 
+#include "../mwworld/class.hpp"
 #include "../mwworld/datetimemanager.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/player.hpp"
@@ -584,8 +588,12 @@ namespace MWLua
 
     void LuaManager::onHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& weapon,
         const MWWorld::Ptr& ammo, int attackType, float attackStrength, float damage, bool isHealth,
-        const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType sourceType)
+        const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType sourceType, std::uint64_t ragdollHit)
     {
+        if (!ragdollHit && !victim.isEmpty() && victim.getClass().isActor()
+            && (sourceType == MWMechanics::DamageSourceType::Melee || sourceType == MWMechanics::DamageSourceType::Ranged))
+            ragdollHit = victim.getClass().getCreatureStats(victim).queueRagdollHit(
+                MWMechanics::makeRagdollHit(attacker, victim, weapon, ammo, attackType, hitPos));
         mLua.protectedCall([&](LuaUtil::LuaView& view) {
             sol::table damageTable = view.newTable();
             if (isHealth)
@@ -600,6 +608,7 @@ namespace MWLua
                 data["weapon"] = LObject(weapon);
             if (!ammo.isEmpty())
                 data["ammo"] = ammo.getCellRef().getRefId().serializeText();
+            data["_ragdollHit"] = ragdollHit;
             data["type"] = attackType;
             data["strength"] = attackStrength;
             data["damage"] = damageTable;

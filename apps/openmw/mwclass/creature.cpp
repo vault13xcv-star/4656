@@ -314,6 +314,7 @@ namespace MWClass
 
         float damage = min + (max - min) * attackStrength;
         bool healthdmg = true;
+        auto ragdollHit = MWMechanics::makeRagdollHit(ptr, victim, weapon, {}, type, hitPosition);
         if (!weapon.isEmpty())
         {
             const unsigned char* attack = nullptr;
@@ -332,7 +333,7 @@ namespace MWClass
             }
 
             // Apply "On hit" enchanted weapons
-            MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition);
+            MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit);
         }
         else if (isBipedal(ptr))
         {
@@ -347,7 +348,8 @@ namespace MWClass
         MWMechanics::diseaseContact(victim, ptr);
 
         MWBase::Environment::get().getLuaManager()->onHit(ptr, victim, weapon, MWWorld::Ptr(), type, attackStrength,
-            damage, healthdmg, hitPosition, true, MWMechanics::DamageSourceType::Melee);
+            damage, healthdmg, hitPosition, true, MWMechanics::DamageSourceType::Melee,
+            otherstats.queueRagdollHit(ragdollHit));
     }
 
     void Creature::onHit(const MWWorld::Ptr& ptr, const std::map<std::string, float>& damages, ESM::RefId object,

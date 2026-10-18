@@ -23,11 +23,20 @@ namespace Ragdoll
 
     struct JointDefinition
     {
+        enum class Type { Ball, Hinge };
+
         std::size_t mParent = 0;
         std::size_t mChild = 0;
         // Both joint frames coincide here in the initial pose. Angular bounds
         // are in radians relative to that pose; translation is always locked.
         btTransform mFrameWorld = btTransform::getIdentity();
+        // Anatomical frames need not share an orientation at creation: their
+        // relative rotation describes the already bent limb in the captured pose.
+        bool mUseLocalFrames = false;
+        btTransform mFrameInParent = btTransform::getIdentity();
+        btTransform mFrameInChild = btTransform::getIdentity();
+        Type mType = Type::Ball;
+        // A hinge uses only Z bounds and rotates around its frame's Z axis.
         btVector3 mAngularLower{ -0.5, -0.5, -0.5 };
         btVector3 mAngularUpper{ 0.5, 0.5, 0.5 };
     };
@@ -47,8 +56,8 @@ namespace Ragdoll
         btScalar mFixedTimeStep = 1.0 / 120.0;
         // A long stall must not cause an unbounded physics catch-up.
         btScalar mMaxFrameTime = 0.1;
-        btScalar mLinearDamping = 0.15;
-        btScalar mAngularDamping = 0.65;
+        btScalar mLinearDamping = 0.04;
+        btScalar mAngularDamping = 0.4;
         btScalar mMaxLinearSpeed = 2000;
         btScalar mMaxAngularSpeed = 25;
     };
@@ -71,9 +80,26 @@ namespace Ragdoll
         bool advance(btScalar dt);
         void replaceStaticColliders(std::vector<StaticCollider> colliders);
         void applyImpulse(std::size_t body, const btVector3& impulse, const btVector3& worldPoint);
+        // All segments receive the same change in velocity; total momentum is
+        // exactly the supplied impulse, independent of the mass distribution.
+        void applyWholeBodyImpulse(const btVector3& impulse);
+        // Equal and opposite torque impulses, without a net linear launch.
+        void applyJointTorqueImpulse(std::size_t joint, const btVector3& impulse);
+        bool raycastStatic(const btVector3& from, const btVector3& to,
+            btVector3& point, btVector3& normal) const;
+        // Anchors the current body point to the world without teleportation.
+        // One pin per corpse allows the remaining articulated limbs to hang.
+        bool pinBody(std::size_t body, const btVector3& worldPoint);
+        bool isPinned() const;
 
         std::size_t getNumBodies() const;
         const btTransform& getBodyTransform(std::size_t body) const;
+        const btVector3& getBodyLinearVelocity(std::size_t body) const;
+        const btVector3& getBodyAngularVelocity(std::size_t body) const;
+        btScalar getBodyMass(std::size_t body) const;
+        btScalar getTotalMass() const;
+        // Only meaningful for Type::Hinge; other joint types return zero.
+        btScalar getJointAngle(std::size_t joint) const;
         bool isSleeping() const;
         bool isValid() const;
 

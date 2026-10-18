@@ -11,6 +11,7 @@
 #include "aisetting.hpp"
 #include "drawstate.hpp"
 #include "magiceffects.hpp"
+#include "ragdollimpact.hpp"
 #include "spells.hpp"
 #include "stat.hpp"
 
@@ -46,6 +47,10 @@ namespace MWMechanics
         MagicEffects mMagicEffects;
         Stat<int> mAiSettings[4];
         AiSequence mAiSequence;
+        // Pending native contacts are keyed explicitly across asynchronous Lua events.
+        std::map<std::uint64_t, std::shared_ptr<RagdollHit>> mRagdollPendingHits;
+        std::uint64_t mRagdollNextHit = 0;
+        std::shared_ptr<RagdollHit> mRagdollDeathHit;
         bool mDead = false;
         bool mDeathAnimationFinished = false;
         bool mDied = false; // flag for OnDeath script function
@@ -172,6 +177,13 @@ namespace MWMechanics
         bool isParalyzed() const;
 
         bool isDead() const;
+
+        std::uint64_t queueRagdollHit(const std::shared_ptr<RagdollHit>& hit);
+        std::shared_ptr<RagdollHit> takeRagdollHit(std::uint64_t id);
+        void recordRagdollDeath(const std::shared_ptr<RagdollHit>& hit);
+        bool isRagdollDeathHit(const std::shared_ptr<RagdollHit>& hit) const;
+        const Ragdoll::Impact& getRagdollImpact() const;
+        bool isRagdollImpactPending() const { return mRagdollDeathHit && mRagdollDeathHit->mAwaitingWeapon; }
 
         bool isDeathAnimationFinished() const;
         void setDeathAnimationFinished(bool finished);

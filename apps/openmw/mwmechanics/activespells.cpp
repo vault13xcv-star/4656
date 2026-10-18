@@ -378,6 +378,13 @@ namespace MWMechanics
     {
         const auto caster = MWBase::Environment::get().getWorldModel()->getPtr(spellIt->mCaster);
         bool removedSpell = false;
+        if (!ptr.getClass().getCreatureStats(ptr).isDead())
+        {
+            std::set<RagdollHit*> updated;
+            for (const auto& [index, impact] : spellIt->mRagdollImpacts)
+                if (impact.mHit && updated.insert(impact.mHit.get()).second)
+                    impact.mHit->beginMagicTick(duration);
+        }
         std::optional<ActiveSpellParams> reflected;
         for (auto it = spellIt->mEffects.begin(); it != spellIt->mEffects.end();)
         {
@@ -396,6 +403,17 @@ namespace MWMechanics
                         reflected = { *spellIt, caster };
                     else
                         reflected = { *spellIt, ptr };
+                }
+                if (const auto* original = spellIt->getRagdollImpact(it->mEffectIndex))
+                {
+                    auto reflectedImpact = *original;
+                    reflectedImpact.mHit = reflected->mRagdollImpacts.empty() ? std::make_shared<RagdollHit>()
+                        : reflected->mRagdollImpacts.begin()->second.mHit;
+                    reflectedImpact.mEffect = ++reflectedImpact.mHit->mNextEffect;
+                    reflectedImpact.mOrigin = ptr.getRefData().getPosition().asVec3();
+                    reflectedImpact.mDirection = caster.getRefData().getPosition().asVec3() - reflectedImpact.mOrigin;
+                    reflectedImpact.mExploded = false;
+                    reflected->setRagdollImpact(it->mEffectIndex, std::move(reflectedImpact));
                 }
                 auto& reflectedEffect = reflected->mEffects.emplace_back(*it);
                 reflectedEffect.mFlags
@@ -497,7 +515,11 @@ namespace MWMechanics
                 if (!spell.hasFlag(ESM::ActiveSpells::Flag_Temporary))
                     return;
                 if (merge(found->mEffects, spell.mEffects))
+                {
+                    for (const auto& [index, impact] : spell.mRagdollImpacts)
+                        found->mRagdollImpacts[index] = impact;
                     return;
+                }
                 for (auto& effect : found->mEffects)
                     effect.mTimeLeft = 0.f;
             }

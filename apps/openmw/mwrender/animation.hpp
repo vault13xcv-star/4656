@@ -193,6 +193,7 @@ namespace MWRender
         std::unique_ptr<RagdollController> mRagdoll;
         bool mRagdollObservedAlive = false;
         bool mRagdollAttempted = false;
+        float mRagdollPendingTime = 0.f;
 
         void updateRagdoll(float duration);
 

@@ -36,6 +36,8 @@ namespace MWMechanics
             ESM::RefId mActiveSpellId;
             ESM::RefId mSourceSpellId;
             std::vector<ActiveEffect> mEffects;
+            // Runtime-only provenance, deliberately absent from ESM/save data.
+            std::map<int, RagdollMagicImpact> mRagdollImpacts;
             std::string mDisplayName;
             ESM::RefNum mCaster;
             ESM::RefNum mItem;
@@ -70,6 +72,13 @@ namespace MWMechanics
             std::vector<ActiveEffect>& getEffects() { return mEffects; }
 
             ESM::RefNum getCaster() const { return mCaster; }
+            void setRagdollImpact(int index, RagdollMagicImpact impact)
+            { mRagdollImpacts[index] = std::move(impact); }
+            const RagdollMagicImpact* getRagdollImpact(int index) const
+            {
+                const auto found = mRagdollImpacts.find(index);
+                return found == mRagdollImpacts.end() ? nullptr : &found->second;
+            }
 
             int getWorsenings() const { return mWorsenings; }
 

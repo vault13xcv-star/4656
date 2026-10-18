@@ -204,6 +204,33 @@ namespace
             check(std::isfinite(yaw) && std::isfinite(pitch) && std::isfinite(roll),
                 "A humanoid joint rotation became non-finite");
         }
+
+        // A launch into a nearby wall exercises the whole articulated body,
+        // contact impulses and fixed stepping at each supported rendering rate.
+        Ragdoll::StaticCollider wall;
+        wall.mShape = std::make_shared<btBoxShape>(btVector3(3, 500, 500));
+        wall.mTransform.setOrigin(btVector3(120, 0, 250));
+        for (const btScalar frame : { btScalar(1.0 / 30), btScalar(1.0 / 60), btScalar(1.0 / 120) })
+        {
+            Ragdoll::Simulation launched(bodies, joints, { plane(), wall });
+            launched.applyWholeBodyImpulse(btVector3(400, 30, 160) * launched.getTotalMass());
+            runFor(launched, 10, frame);
+            for (std::size_t i = 0; i < bodies.size(); ++i)
+            {
+                const auto& origin = launched.getBodyTransform(i).getOrigin();
+                check(origin.z() > bodies[i].mRadius - 0.5 && origin.z() < 200,
+                    "An impact launched a segment through the floor or left it airborne");
+                check(origin.x() < 120, "A high-speed ragdoll tunneled through a wall");
+            }
+            for (const auto& joint : joints)
+            {
+                const btTransform localA = bodies[joint.mParent].mTransform.inverse() * joint.mFrameWorld;
+                const btTransform localB = bodies[joint.mChild].mTransform.inverse() * joint.mFrameWorld;
+                const btVector3 a = (launched.getBodyTransform(joint.mParent) * localA).getOrigin();
+                const btVector3 b = (launched.getBodyTransform(joint.mChild) * localB).getOrigin();
+                check(a.distance(b) < 0.8, "A wall impact pulled apart an articulated humanoid");
+            }
+        }
     }
 
     void testFrameRatePauseAndBadInput()
@@ -269,6 +296,152 @@ namespace
         const btQuaternion relative = first.getRotation().inverse() * second.getRotation();
         check(relative.getAngleShortestPath() < 0.01, "Locked angular joint allowed independent rotation");
     }
+
+    void testMassWeightedImpactAndConservation()
+    {
+        auto first = capsule(btVector3(-20, 0, 30));
+        auto second = capsule(btVector3(20, 0, 30));
+        first.mMass = 5;
+        second.mMass = 15;
+        Ragdoll::Settings settings;
+        settings.mGravity.setZero();
+        settings.mLinearDamping = 0;
+        Ragdoll::Simulation light({ first, second }, {}, {}, settings);
+        const btVector3 impulse(200, 40, 0);
+        light.applyWholeBodyImpulse(impulse);
+        check(btFabs(light.getTotalMass() - 20) < 1e-8, "Total body mass is incorrect");
+        check(light.getBodyLinearVelocity(0).distance(impulse / 20) < 1e-8
+                && light.getBodyLinearVelocity(1).distance(impulse / 20) < 1e-8,
+            "Impact stretched lighter limbs instead of distributing the body's momentum");
+        first.mMass *= 2;
+        second.mMass *= 2;
+        Ragdoll::Simulation heavy({ first, second }, {}, {}, settings);
+        heavy.applyWholeBodyImpulse(impulse);
+        runFor(light, 0.5);
+        runFor(heavy, 0.5);
+        const btScalar lightTravel = light.getBodyTransform(0).getOrigin().x() + 20;
+        const btScalar heavyTravel = heavy.getBodyTransform(0).getOrigin().x() + 20;
+        check(btFabs(lightTravel - heavyTravel * 2) < 1e-6, "Double mass did not halve impact velocity");
+
+        Ragdoll::JointDefinition joint;
+        joint.mChild = 1;
+        joint.mFrameWorld.setOrigin(btVector3(0, 0, 30));
+        Ragdoll::Simulation convulsing({ first, second }, { joint }, {}, settings);
+        convulsing.applyJointTorqueImpulse(0, btVector3(50, -30, 20));
+        check(convulsing.getBodyLinearVelocity(0).length2() == 0
+                && convulsing.getBodyLinearVelocity(1).length2() == 0,
+            "Joint convulsion injected a linear launch");
+        runFor(convulsing, 0.5);
+        const btVector3 momentum = convulsing.getBodyLinearVelocity(0) * first.mMass
+            + convulsing.getBodyLinearVelocity(1) * second.mMass;
+        check(momentum.length() < 1e-7, "Joint convulsion changed total linear momentum");
+    }
+
+    void testAnatomicalHingeLimits()
+    {
+        // The local frames represent a limb which was already flexed 0.7 rad
+        // before death. Its limits are anatomical, not +/- the captured angle.
+        for (const btScalar frame : { btScalar(1.0 / 30), btScalar(1.0 / 60), btScalar(1.0 / 120) })
+        {
+            auto proximal = capsule(btVector3(0, 10, 60), 3, 14);
+            auto distal = capsule(btVector3(0, -10, 60), 3, 14);
+            proximal.mMass = 5;
+            distal.mMass = 3;
+            btTransform anchor = btTransform::getIdentity();
+            anchor.setOrigin(btVector3(0, 0, 60));
+            const btQuaternion flexion(btVector3(0, 0, 1), 0.7);
+            distal.mTransform.setOrigin(anchor.getOrigin() + quatRotate(flexion, btVector3(0, -10, 0)));
+            distal.mTransform.setRotation(flexion);
+            btTransform distalFrame = anchor;
+            distalFrame.setRotation(flexion);
+            Ragdoll::JointDefinition knee;
+            knee.mChild = 1;
+            knee.mType = Ragdoll::JointDefinition::Type::Hinge;
+            knee.mUseLocalFrames = true;
+            knee.mFrameInParent = proximal.mTransform.inverse() * anchor;
+            knee.mFrameInChild = distal.mTransform.inverse() * distalFrame;
+            knee.mAngularLower = btVector3(0, 0, 0);
+            knee.mAngularUpper = btVector3(0, 0, 2.4);
+            Ragdoll::Settings settings;
+            settings.mGravity.setZero();
+            Ragdoll::Simulation simulation({ proximal, distal }, { knee }, {}, settings);
+            check(btFabs(simulation.getJointAngle(0) - 0.7) < 1e-6,
+                "Anatomical hinge lost the captured limb flexion");
+            check(simulation.getBodyTransform(1).getOrigin() == distal.mTransform.getOrigin(),
+                "Creating a hinge snapped the body into a different pose");
+            for (const btScalar torque : { btScalar(-5000), btScalar(5000), btScalar(-5000) })
+            {
+                simulation.applyJointTorqueImpulse(0, btVector3(0, 0, torque));
+                for (int i = 0; i < static_cast<int>(2 / frame); ++i)
+                {
+                    check(simulation.advance(frame), "Hinge impact became invalid");
+                    const btScalar angle = simulation.getJointAngle(0);
+                    check(angle > -0.08 && angle < 2.48,
+                        "Knee/elbow hinge bent backwards or folded past its anatomical stop: " + std::to_string(angle));
+                    const btTransform a = simulation.getBodyTransform(0) * knee.mFrameInParent;
+                    const btTransform b = simulation.getBodyTransform(1) * knee.mFrameInChild;
+                    check(a.getOrigin().distance(b.getOrigin()) < 0.75, "A hinge separated under a strong impact: " + std::to_string(a.getOrigin().distance(b.getOrigin())));
+                    check(a.getBasis().getColumn(2).dot(b.getBasis().getColumn(2)) > 0.999,
+                        "A knee/elbow hinge developed sideways twist");
+                }
+            }
+        }
+    }
+
+    void testSelfCollisionAndOverlappingAnimation()
+    {
+        Ragdoll::Settings settings;
+        settings.mGravity.setZero();
+        settings.mLinearDamping = 0;
+        Ragdoll::Simulation collision({ capsule(btVector3(-10, 0, 0)), capsule(btVector3(10, 0, 0)) }, {}, {}, settings);
+        collision.applyImpulse(0, btVector3(25, 0, 0), btVector3(-10, 0, 0));
+        collision.applyImpulse(1, btVector3(-25, 0, 0), btVector3(10, 0, 0));
+        runFor(collision, 1);
+        check(collision.getBodyTransform(1).getOrigin().x() - collision.getBodyTransform(0).getOrigin().x() > 3.9,
+            "Unlinked body segments passed through each other");
+
+        Ragdoll::Simulation overlap({ capsule(btVector3(-0.5, 0, 0)), capsule(btVector3(0.5, 0, 0)) }, {}, {}, settings);
+        runFor(overlap, 0.2);
+        check(overlap.getBodyLinearVelocity(0).length() < 0.01
+                && overlap.getBodyLinearVelocity(1).length() < 0.01,
+            "An initial overlapping animation pose caused a depenetration explosion");
+        overlap.applyImpulse(0, btVector3(-10, 0, 0), btVector3(-0.5, 0, 0));
+        overlap.applyImpulse(1, btVector3(10, 0, 0), btVector3(0.5, 0, 0));
+        runFor(overlap, 0.5);
+        overlap.applyImpulse(0, btVector3(20, 0, 0), overlap.getBodyTransform(0).getOrigin());
+        overlap.applyImpulse(1, btVector3(-20, 0, 0), overlap.getBodyTransform(1).getOrigin());
+        runFor(overlap, 1);
+        check(overlap.getBodyTransform(1).getOrigin().x() - overlap.getBodyTransform(0).getOrigin().x() > 3.9,
+            "Initially overlapping limbs did not recover self-collision after separation");
+    }
+
+    void testStaticRayAndWallPin()
+    {
+        Ragdoll::StaticCollider wall;
+        wall.mShape = std::make_shared<btBoxShape>(btVector3(1, 100, 100));
+        wall.mTransform.setOrigin(btVector3(20, 0, 50));
+        auto torso = capsule(btVector3(15, 0, 60), 4, 10);
+        torso.mMass = 25;
+        Ragdoll::Simulation simulation({ torso }, {}, { plane(), wall });
+        btVector3 point, normal;
+        check(simulation.raycastStatic(btVector3(0, 0, 60), btVector3(30, 0, 60), point, normal),
+            "Static wall ray missed the wall");
+        check(btFabs(point.x() - 19) < 0.01 && normal.x() < -0.99,
+            "Wall ray hit the corpse itself or returned the wrong impact normal");
+        check(!simulation.pinBody(0, btVector3(1000, 0, 60)), "Pinned a corpse before it reached a distant wall");
+        check(simulation.pinBody(0, point) && simulation.isPinned(), "Wall pin could not be created");
+        check(!simulation.pinBody(0, point), "Created a duplicate pin constraint");
+        const btVector3 localPin = torso.mTransform.inverse() * point;
+        simulation.applyWholeBodyImpulse(btVector3(2000, 1000, 1000));
+        runFor(simulation, 10);
+        check((simulation.getBodyTransform(0) * localPin).distance(point) < 0.3,
+            "Wall pin detached under gravity and an impact");
+        check(simulation.getBodyTransform(0).getOrigin().z() > 50, "Pinned corpse fell to the floor");
+        simulation.replaceStaticColliders({ plane(), wall });
+        runFor(simulation, 0.5);
+        check((simulation.getBodyTransform(0) * localPin).distance(point) < 0.3,
+            "Replacing collision geometry invalidated the pin's world anchor");
+    }
 }
 
 int main()
@@ -281,7 +454,11 @@ int main()
         testHumanoidJoints();
         testFrameRatePauseAndBadInput();
         testConstrainedMotion();
-        std::cout << "6 ragdoll physics suites passed (actual double precision Bullet solver)\n";
+        testMassWeightedImpactAndConservation();
+        testAnatomicalHingeLimits();
+        testSelfCollisionAndOverlappingAnimation();
+        testStaticRayAndWallPin();
+        std::cout << "10 ragdoll physics suites passed (actual double precision Bullet solver)\n";
         return 0;
     }
     catch (const std::exception& error)

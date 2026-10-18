@@ -475,12 +475,28 @@ namespace MWLua
             context.mLuaManager->addAction(
                 [self = Object(self), damages = std::move(damageCpp),
                     attacker = options.get<sol::optional<Object>>("attacker"), weaponId,
-                    successful = options.get<bool>("successful"), sourceType = sourceType] {
+                    successful = options.get<bool>("successful"), sourceType = sourceType,
+                    ragdollId = options.get_or<std::uint64_t>("_ragdollHit", 0)] {
                     MWWorld::Ptr attackerPtr;
                     MWWorld::Ptr weaponPtr;
                     if (attacker)
                         attackerPtr = attacker->ptr();
-                    self.ptr().getClass().onHit(self.ptr(), damages, weaponId, attackerPtr, successful, sourceType);
+                    const auto target = self.ptr();
+                    auto& stats = target.getClass().getCreatureStats(target);
+                    const auto hit = stats.takeRagdollHit(ragdollId);
+                    const float before = stats.getHealth().getCurrent();
+                    const bool wasDead = stats.isDead();
+                    target.getClass().onHit(target, damages, weaponId, attackerPtr, successful, sourceType);
+                    if (hit)
+                        hit->mAwaitingWeapon = false;
+                    const auto health = damages.find("health");
+                    if (hit && successful && health != damages.end() && health->second > 0.f
+                        && (stats.getHealth().getCurrent() < before || stats.isRagdollDeathHit(hit)))
+                    {
+                        hit->applyWeapon();
+                        if (!wasDead && stats.isDead())
+                            stats.recordRagdollDeath(hit);
+                    }
                 },
                 "HitAction");
         };

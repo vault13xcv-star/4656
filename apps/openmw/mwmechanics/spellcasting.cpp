@@ -171,6 +171,8 @@ namespace MWMechanics
 
         ActiveSpells::ActiveSpellParams params(mCaster, mId, mSourceName, mItem);
         params.setFlag(mFlags);
+        auto ragdollHit = mRagdollHit && target == mTarget && !exploded
+            ? mRagdollHit : std::make_shared<RagdollHit>();
         bool castByPlayer = (!mCaster.isEmpty() && mCaster == getPlayer());
 
         const ActiveSpells* targetSpells = nullptr;
@@ -216,6 +218,18 @@ namespace MWMechanics
             effect.mDuration = hasDuration ? static_cast<float>(enam.mData.mDuration) : 1.f;
 
             effect.mTimeLeft = effect.mDuration;
+
+            RagdollMagicImpact impact;
+            impact.mHit = ragdollHit;
+            impact.mEffect = ++ragdollHit->mNextEffect;
+            impact.mOrigin = mHitPosition;
+            impact.mDirection = mImpactDirection;
+            impact.mExploded = exploded && (range != ESM::RT_Self || target != mCaster || mFromProjectile);
+            impact.mRadius = std::max(0, enam.mData.mArea) * Constants::UnitsPerFoot / Constants::UnitsPerMeter;
+            if (impact.mDirection.length2() < 1e-6f && !mCaster.isEmpty())
+                impact.mDirection = target.getRefData().getPosition().asVec3()
+                    - mCaster.getRefData().getPosition().asVec3();
+            params.setRagdollImpact(effect.mEffectIndex, std::move(impact));
 
             // add to list of active effects, to apply in next frame
             params.getEffects().emplace_back(effect);

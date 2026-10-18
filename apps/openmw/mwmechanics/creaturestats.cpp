@@ -259,8 +259,45 @@ namespace MWMechanics
         mMurdered = false;
     }
 
+    std::uint64_t CreatureStats::queueRagdollHit(const std::shared_ptr<RagdollHit>& hit)
+    {
+        if (!hit)
+            return 0;
+        // A mod can consume Hit without forwarding _onHit. Keep the queue bounded.
+        while (mRagdollPendingHits.size() >= 128)
+            mRagdollPendingHits.erase(mRagdollPendingHits.begin());
+        const auto id = ++mRagdollNextHit;
+        mRagdollPendingHits.emplace(id, hit);
+        return id;
+    }
+
+    std::shared_ptr<RagdollHit> CreatureStats::takeRagdollHit(std::uint64_t id)
+    {
+        auto node = mRagdollPendingHits.extract(id);
+        return node.empty() ? nullptr : std::move(node.mapped());
+    }
+
+    void CreatureStats::recordRagdollDeath(const std::shared_ptr<RagdollHit>& hit)
+    {
+        if (mDead && !mRagdollDeathHit)
+            mRagdollDeathHit = hit;
+    }
+
+    bool CreatureStats::isRagdollDeathHit(const std::shared_ptr<RagdollHit>& hit) const
+    {
+        return hit && hit == mRagdollDeathHit;
+    }
+
+    const Ragdoll::Impact& CreatureStats::getRagdollImpact() const
+    {
+        static const Ragdoll::Impact empty;
+        return mRagdollDeathHit ? mRagdollDeathHit->mApplied : empty;
+    }
+
     void CreatureStats::resurrect()
     {
+        mRagdollDeathHit.reset();
+        mRagdollPendingHits.clear();
         if (mDead)
         {
             mDynamic[0].setCurrent(mDynamic[0].getBase());
@@ -558,6 +595,8 @@ namespace MWMechanics
 
     void CreatureStats::readState(const ESM::CreatureStats& state)
     {
+        mRagdollDeathHit.reset();
+        mRagdollPendingHits.clear();
         if (!state.mMissingACDT)
         {
             for (size_t i = 0; i < state.mAttributes.size(); ++i)

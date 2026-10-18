@@ -691,8 +691,9 @@ namespace MWClass
         if (othercls.getCreatureStats(victim).getKnockedDown())
             damage *= store.find("fCombatKODamageMult")->mValue.getFloat();
 
-        // Apply "On hit" enchanted weapons
-        MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition);
+        auto ragdollHit = MWMechanics::makeRagdollHit(ptr, victim, weapon, {}, type, hitPosition);
+        // Bind enchantments and the asynchronous physical hit to this contact.
+        MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit);
 
         MWMechanics::applyElementalShields(ptr, victim);
 
@@ -705,7 +706,8 @@ namespace MWClass
         MWMechanics::diseaseContact(victim, ptr);
 
         MWBase::Environment::get().getLuaManager()->onHit(ptr, victim, weapon, MWWorld::Ptr(), type, attackStrength,
-            damage, healthdmg, hitPosition, true, MWMechanics::DamageSourceType::Melee);
+            damage, healthdmg, hitPosition, true, MWMechanics::DamageSourceType::Melee,
+            otherstats.queueRagdollHit(ragdollHit));
     }
 
     void Npc::onHit(const MWWorld::Ptr& ptr, const std::map<std::string, float>& damages, ESM::RefId object,

@@ -567,7 +567,8 @@ namespace MWWorld
                 mRendering->emitWaterRipple(hitPosition);
 
             MWMechanics::projectileHit(
-                caster, target, bow, projectileRef.getPtr(), hitPosition, projectileState.mAttackStrength);
+                caster, target, bow, projectileRef.getPtr(), hitPosition, projectileState.mAttackStrength,
+                projectileState.mVelocity);
             projectileState.mToDelete = true;
         }
         const MWWorld::ESMStore& esmStore = *MWBase::Environment::get().getESMStore();
@@ -596,6 +597,7 @@ namespace MWWorld
 
             MWMechanics::CastSpell cast(caster, target);
             cast.mHitPosition = !active ? Misc::Convert::makeOsgVec3f(projectile->getHitPosition()) : pos;
+            cast.mImpactDirection = magicBoltState.mNode->getAttitude() * osg::Vec3f(0, 1, 0);
             cast.mId = magicBoltState.mSpellId;
             cast.mSourceName = magicBoltState.mSourceName;
             cast.mItem = magicBoltState.mItem;

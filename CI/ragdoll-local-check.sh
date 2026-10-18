@@ -27,6 +27,16 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     components/CMakeFiles/components.dir/ragdoll/simulation.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdoll.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/animation.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/npc.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/creature.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/combat.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/creaturestats.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/activespells.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/spellcasting.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/spelleffects.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwlua/luamanagerimp.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwlua/types/actor.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/projectilemanager.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/mtphysics.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/physicssystem.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/worldimp.cpp.o

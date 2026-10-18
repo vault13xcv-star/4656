@@ -3,6 +3,9 @@
 
 #include <utility>
 
+#include <osg/Vec3f>
+#include "ragdollimpact.hpp"
+
 namespace osg
 {
     class Vec3f;
@@ -17,7 +20,8 @@ namespace MWMechanics
 {
 
     bool applyOnStrikeEnchantment(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& object,
-        const osg::Vec3f& hitPosition, const bool fromProjectile = false);
+        const osg::Vec3f& hitPosition, const bool fromProjectile = false,
+        const std::shared_ptr<RagdollHit>& ragdollHit = {});
 
     /// @return can we block the attack?
     bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
@@ -34,7 +38,12 @@ namespace MWMechanics
     /// @note for a thrown weapon, \a weapon == \a projectile, for bows/crossbows, \a projectile is the arrow/bolt
     /// @note \a victim may be empty (e.g. for a hit on terrain), a non-actor (environment objects) or an actor
     void projectileHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, MWWorld::Ptr weapon,
-        const MWWorld::Ptr& projectile, const osg::Vec3f& hitPosition, float attackStrength);
+        const MWWorld::Ptr& projectile, const osg::Vec3f& hitPosition, float attackStrength,
+        const osg::Vec3f& impactDirection = {});
+
+    std::shared_ptr<RagdollHit> makeRagdollHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim,
+        const MWWorld::Ptr& weapon, const MWWorld::Ptr& projectile, int attackType,
+        const osg::Vec3f& hitPosition, const osg::Vec3f& impactDirection = {});
 
     /// Get the chance (in percent) for \a attacker to successfully hit \a victim with a given weapon skill value
     float getHitChance(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, int skillValue);

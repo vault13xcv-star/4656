@@ -12,11 +12,47 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
+$ragdollVersion = '0.2.0'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
     & $Program @Arguments 2>&1 | Tee-Object -FilePath (Join-Path $logs $LogName)
     if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE; see $LogName." }
+}
+
+function Invoke-WithBuildReports([scriptblock] $Build) {
+    # A separate PowerShell process can publish log tails while Ninja runs.
+    # Each report finishes before another starts; request a clean stop before
+    # the next workflow phase writes to the same disposable report checkout.
+    $stopFile = Join-Path $env:RUNNER_TEMP ("ragdoll-report-stop-" + [Guid]::NewGuid().ToString('N'))
+    $reportScript = Join-Path $PSScriptRoot 'ragdoll-report.ps1'
+    $heartbeat = Start-Job -ArgumentList $reportScript, $stopFile -ScriptBlock {
+        param([string] $ReportScript, [string] $StopFile)
+        $ErrorActionPreference = 'Stop'
+        while (-not (Test-Path $StopFile)) {
+            for ($second = 0; $second -lt 60 -and -not (Test-Path $StopFile); ++$second) {
+                Start-Sleep -Seconds 1
+            }
+            if (Test-Path $StopFile) { break }
+            try {
+                & $ReportScript -Stage build -Result running
+            } catch {
+                # Reporting is auxiliary. The foreground build and final
+                # report still determine success if GitHub has a brief outage.
+                Write-Warning "Build heartbeat could not be published: $($_.Exception.Message)"
+            }
+        }
+    }
+    try {
+        & $Build
+    } finally {
+        New-Item -ItemType File -Path $stopFile -Force | Out-Null
+        $finished = Wait-Job $heartbeat -Timeout 90
+        if (-not $finished) { Stop-Job $heartbeat }
+        Receive-Job $heartbeat -ErrorAction Continue
+        Remove-Job $heartbeat -Force
+        Remove-Item $stopFile -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Copy-Runtime([string] $Destination) {
@@ -72,8 +108,10 @@ switch ($Phase) {
             '-DRAGDOLL_TEST_RENDERING=ON', "-DCMAKE_PREFIX_PATH=$prefix") + $common) 'configure-ragdoll-tests.log'
     }
     Build {
-        Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests') 'build.log'
-        Run 'cmake' @('--build', $tests, '--parallel', '3') 'build-ragdoll-tests.log'
+        Invoke-WithBuildReports {
+            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests') 'build.log'
+            Run 'cmake' @('--build', $tests, '--parallel', '3') 'build-ragdoll-tests.log'
+        }
     }
     Test {
         Copy-Runtime $build
@@ -83,7 +121,7 @@ switch ($Phase) {
     }
     Package {
         $shortSha = $env:GITHUB_SHA.Substring(0, 12)
-        $packageName = "OpenMW-0.51-RealCombat-Ragdoll-Windows-x64-$shortSha"
+        $packageName = "OpenMW-0.51-RealCombat-Ragdoll-$ragdollVersion-Windows-x64-$shortSha"
         $install = Join-Path $source "package/$packageName"
         Run 'cmake' @('--install', $build, '--prefix', $install, '--config', 'Release') 'install.log'
         Copy-Runtime $install
@@ -102,7 +140,7 @@ switch ($Phase) {
             Copy-Item "$source/docs/realcombat-ragdoll.md" (Join-Path $install 'RAGDOLL-README.md')
         }
         @"
-Experimental humanoid ragdoll runtime for OpenMW 0.51.0 / Windows x64.
+Experimental humanoid ragdoll $ragdollVersion runtime for OpenMW 0.51.0 / Windows x64.
 Source: https://github.com/$($env:GITHUB_REPOSITORY)/tree/$($env:GITHUB_SHA)
 Commit: $($env:GITHUB_SHA)
 Build: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)
@@ -127,15 +165,15 @@ See RAGDOLL-README.md for feature configuration, limits and manual test steps.
         Run '7z' @('t', $zip) 'package-integrity.log'
         $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $packageName.zip" | Set-Content (Join-Path $dist 'SHA256SUMS') -Encoding ascii
-        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA } |
+        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion } |
             ConvertTo-Json | Set-Content (Join-Path $dist 'package.json') -Encoding utf8
-        Run 'git' @('archive', '--format=zip', "--output=$dist/OpenMW-Ragdoll-Source-$shortSha.zip", 'HEAD') 'source-package.log'
+        Run 'git' @('archive', '--format=zip', "--output=$dist/OpenMW-Ragdoll-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
     }
     Publish {
-        $tag = "ragdoll-windows-$($env:GITHUB_SHA.Substring(0, 12))-$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
+        $tag = "ragdoll-windows-$ragdollVersion-$($env:GITHUB_SHA.Substring(0, 12))-$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
         $notes = Join-Path $logs 'release-notes.md'
         @"
-Experimental OpenMW 0.51.0 runtime for Windows x64 with humanoid ragdolls.
+Experimental OpenMW 0.51.0 runtime for Windows x64 with humanoid ragdolls $ragdollVersion.
 
 Download the **Windows-x64 ZIP**, extract it fully, and read RAGDOLL-README.md.
 This build reuses your OpenMW user configuration; copyrighted game data is not included.
@@ -143,14 +181,14 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Automated checks: compiled runtime, component tests, ragdoll physics and synthetic skeleton tests, installed --version smoke check, ZIP integrity.
+Automated checks: compiled runtime, component tests, ragdoll physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke check, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 
 Corresponding engine sources are attached. Dependency notices are in the runtime's licenses directory.
 "@ | Set-Content $notes -Encoding utf8
         $assets = @(Get-ChildItem $dist -Filter '*.zip' -File | ForEach-Object FullName)
         $assets += Join-Path $dist 'SHA256SUMS'
-        Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--prerelease', '--title', "OpenMW 0.51 humanoid ragdoll - Windows x64 ($($env:GITHUB_SHA.Substring(0, 12)))", '--notes-file', $notes) + $assets) 'publish.log'
+        Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--prerelease', '--title', "OpenMW 0.51 humanoid ragdoll $ragdollVersion - Windows x64 ($($env:GITHUB_SHA.Substring(0, 12)))", '--notes-file', $notes) + $assets) 'publish.log'
         "https://github.com/$($env:GITHUB_REPOSITORY)/releases/tag/$tag" | Set-Content (Join-Path $dist 'release-url.txt') -Encoding ascii
     }
 }

@@ -1378,8 +1378,32 @@ namespace MWMechanics
                 applied |= ESM::ActiveEffect::Flag_Applied;
             }
             else
+            {
+                const float healthBefore = stats.getHealth().getCurrent();
+                const bool wasDead = stats.isDead();
                 applied |= applyActorMagicEffect(
                     target, caster, spellParams, effect, receivedMagicDamage, affectedHealth, recalculateMagicka);
+                const auto* impact = spellParams.getRagdollImpact(effect.mEffectIndex);
+                const bool harmfulHealth = effect.mEffectId == ESM::MagicEffect::FireDamage
+                    || effect.mEffectId == ESM::MagicEffect::ShockDamage
+                    || effect.mEffectId == ESM::MagicEffect::FrostDamage
+                    || effect.mEffectId == ESM::MagicEffect::DamageHealth
+                    || effect.mEffectId == ESM::MagicEffect::Poison
+                    || effect.mEffectId == ESM::MagicEffect::DrainHealth
+                    || effect.mEffectId == ESM::MagicEffect::AbsorbHealth;
+                if (impact && impact->mHit && effect.mMagnitude > 0.f
+                    && (stats.getHealth().getCurrent() < healthBefore
+                        || (wasDead && stats.isRagdollDeathHit(impact->mHit) && harmfulHealth
+                            && !(target == getPlayer() && world->getGodModeState()))))
+                {
+                    impact->mHit->applyMagic(impact->mEffect,
+                        makeRagdollMagicImpact(*impact, target.getRefData().getPosition().asVec3(),
+                            Settings::ragdoll().mMagicMinDistance, Settings::ragdoll().mMagicDistanceScale,
+                            effect.mEffectId == ESM::MagicEffect::ShockDamage));
+                    if (!wasDead && stats.isDead())
+                        stats.recordRagdollDeath(impact->mHit);
+                }
+            }
             effect.mMagnitude = magnitude;
             magnitudes.add(EffectKey(effect.mEffectId, effect.getSkillOrAttribute()),
                 EffectParam(effect.mMagnitude - oldMagnitude));

@@ -1,6 +1,8 @@
 
 #include "combat.hpp"
 
+#include <components/misc/strings/algorithm.hpp>
+
 #include <array>
 
 #include <components/misc/rng.hpp>
@@ -46,8 +48,75 @@ namespace
 namespace MWMechanics
 {
 
+    std::shared_ptr<RagdollHit> makeRagdollHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim,
+        const MWWorld::Ptr& weapon, const MWWorld::Ptr& projectile, int attackType,
+        const osg::Vec3f& hitPosition, const osg::Vec3f& impactDirection)
+    {
+        auto hit = std::make_shared<RagdollHit>();
+        hit->mAwaitingWeapon = true;
+        auto& impact = hit->mWeapon;
+        impact.mPosition = hitPosition;
+        impact.mValid = true;
+        osg::Vec3f direction = impactDirection;
+        if (projectile.isEmpty() && !attacker.isEmpty())
+        {
+            const auto& rotation = attacker.getRefData().getPosition().rot;
+            direction = osg::Quat(rotation[0], osg::Vec3f(-1, 0, 0), rotation[2], osg::Vec3f(0, 0, -1),
+                0.f, osg::Vec3f(0, 1, 0)) * osg::Vec3f(0, 1, 0);
+        }
+        if (direction.length2() < 1e-6f && !attacker.isEmpty() && !victim.isEmpty())
+            direction = victim.getRefData().getPosition().asVec3() - attacker.getRefData().getPosition().asVec3();
+        if (direction.normalize() == 0.f)
+            direction.set(0, 1, 0);
+        const auto& settings = Settings::ragdoll();
+        const auto* weaponData = !weapon.isEmpty() && weapon.getType() == ESM::Weapon::sRecordId
+            ? &weapon.get<ESM::Weapon>()->mBase->mData : nullptr;
+        const auto* ammoData = !projectile.isEmpty() && projectile.getType() == ESM::Weapon::sRecordId
+            ? &projectile.get<ESM::Weapon>()->mBase->mData : nullptr;
+        const int type = ammoData ? ammoData->mType : weaponData ? weaponData->mType : static_cast<int>(ESM::Weapon::HandToHand);
+        bool dagger = false;
+        if (type == ESM::Weapon::ShortBladeOneHand && weaponData)
+        {
+            const std::string model = Misc::StringUtils::lowerCase(weapon.get<ESM::Weapon>()->mBase->mModel);
+            if (model.find("dagger") != std::string::npos || model.find("tanto") != std::string::npos)
+                dagger = true;
+            else if (model.find("shortsword") == std::string::npos && model.find("short_sword") == std::string::npos
+                && model.find("wakizashi") == std::string::npos)
+                dagger = weaponData->mWeight <= static_cast<float>(settings.mDaggerMaxWeight);
+        }
+        if (type == ESM::Weapon::Bolt || type == ESM::Weapon::MarksmanCrossbow)
+        {
+            impact.mWeaponDistance = settings.mCrossbowDistance;
+            impact.mCrossbow = true;
+        }
+        else if (type == ESM::Weapon::LongBladeTwoHand || type == ESM::Weapon::BluntTwoClose
+            || type == ESM::Weapon::BluntTwoWide || type == ESM::Weapon::AxeTwoHand)
+            impact.mWeaponDistance = settings.mTwoHandDistance;
+        else if (type == ESM::Weapon::LongBladeOneHand || type == ESM::Weapon::BluntOneHand
+            || type == ESM::Weapon::AxeOneHand || type == ESM::Weapon::SpearTwoWide
+            || (type == ESM::Weapon::ShortBladeOneHand && !dagger))
+            impact.mWeaponDistance = settings.mOneHandDistance;
+        // Known dagger/tanto models are daggers; unknown short blades use the
+        // configurable weight threshold. ESM has no separate dagger subtype. Arrows/thrown weapons
+        // and unarmed contacts carry no exaggerated translation impulse.
+        if (projectile.isEmpty() && attackType == ESM::Weapon::AT_Slash)
+        {
+            // Native Morrowind slash animations sweep right-to-left. Keep a small
+            // forward component and use the attacker's frame, not the victim's.
+            direction = osg::Vec3f(-direction.y(), direction.x(), 0.f) + direction * 0.15f;
+            direction.normalize();
+        }
+        else if (projectile.isEmpty() && attackType == ESM::Weapon::AT_Chop)
+        {
+            direction.z() -= 0.45f;
+            direction.normalize();
+        }
+        impact.mWeaponDirection = direction;
+        return hit;
+    }
+
     bool applyOnStrikeEnchantment(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& object,
-        const osg::Vec3f& hitPosition, const bool fromProjectile)
+        const osg::Vec3f& hitPosition, const bool fromProjectile, const std::shared_ptr<RagdollHit>& ragdollHit)
     {
         const ESM::RefId enchantmentName = !object.isEmpty() ? object.getClass().getEnchantment(object) : ESM::RefId();
         if (!enchantmentName.empty())
@@ -58,6 +127,9 @@ namespace MWMechanics
             {
                 MWMechanics::CastSpell cast(attacker, victim, fromProjectile);
                 cast.mHitPosition = hitPosition;
+                cast.mRagdollHit = ragdollHit;
+                if (ragdollHit)
+                    cast.mImpactDirection = ragdollHit->mWeapon.mWeaponDirection;
                 cast.cast(object, false);
                 // Apply magic effects directly instead of waiting a frame to allow soul trap to work on one-hit kills
                 if (!victim.isEmpty() && victim.getClass().isActor())
@@ -222,7 +294,8 @@ namespace MWMechanics
     }
 
     void projectileHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, MWWorld::Ptr weapon,
-        const MWWorld::Ptr& projectile, const osg::Vec3f& hitPosition, float attackStrength)
+        const MWWorld::Ptr& projectile, const osg::Vec3f& hitPosition, float attackStrength,
+        const osg::Vec3f& impactDirection)
     {
         MWBase::World* world = MWBase::Environment::get().getWorld();
         const MWWorld::Store<ESM::GameSetting>& gmst = world->getStore().get<ESM::GameSetting>();
@@ -288,8 +361,9 @@ namespace MWMechanics
             }
         }
 
-        // Apply "On hit" effect of the projectile
-        bool appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true);
+        auto ragdollHit = makeRagdollHit(attacker, victim, weapon, projectile, 0, hitPosition, impactDirection);
+        // Apply "On hit" effect of the projectile with the same contact identity.
+        bool appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
 
         if (validVictim)
         {
@@ -303,7 +377,8 @@ namespace MWMechanics
             }
 
             MWBase::Environment::get().getLuaManager()->onHit(attacker, victim, weapon, projectile, 0, attackStrength,
-                damage, true, hitPosition, true, MWMechanics::DamageSourceType::Ranged);
+                damage, true, hitPosition, true, MWMechanics::DamageSourceType::Ranged,
+                victim.getClass().getCreatureStats(victim).queueRagdollHit(ragdollHit));
         }
     }
 

@@ -5,6 +5,7 @@
 #include <components/esm3/effectlist.hpp>
 
 #include "../mwworld/ptr.hpp"
+#include "ragdollimpact.hpp"
 
 namespace ESM
 {
@@ -37,6 +38,8 @@ namespace MWMechanics
         ESM::RefId mId; // ID of spell, potion, item etc
         std::string mSourceName; // Display name for spell, potion, etc
         osg::Vec3f mHitPosition{ 0, 0, 0 }; // Used for spawning area orb
+        osg::Vec3f mImpactDirection;
+        std::shared_ptr<RagdollHit> mRagdollHit; // Optional weapon/enchantment contact
         bool mAlwaysSucceed{
             false
         }; // Always succeed spells casted by NPCs/creatures regardless of their chance (default: false)

@@ -23,7 +23,10 @@ OpenMW user configuration is reused; no stable installation is overwritten.
 
 Successful jobs publish an immutable GitHub prerelease containing the runtime
 ZIP, its SHA256 checksum and the complete corresponding engine source archive.
-Actions also stores these as a 30-day artifact. Physics, synthetic OSG skeleton and component tests,
+Runtime/source ZIP names, the prerelease title, tag and package metadata include
+the ragdoll feature version (currently `0.2.0`) separately from OpenMW `0.51.0`.
+Actions also stores these as a 30-day artifact. Physics, synthetic OSG skeleton,
+lethal-hit attribution and component tests,
 the installed executable's `--version` command, and ZIP integrity must pass
 before publication. This is not an in-game playtest.
 
@@ -51,6 +54,12 @@ git show FETCH_HEAD:logs/build.log
 
 Replace the placeholders with the actual values. `status.json` identifies the
 phase, overall result, source commit, run URL, package checksum and release URL.
+During compilation a background reporter updates this branch every 60 seconds,
+including the last compiler output, so long builds have a visible heartbeat.
+It finishes before the next workflow phase can publish a report. A temporary
+heartbeat failure does not interrupt compilation; phase/final reports remain
+required.
+
 The `logs` directory has only the last 180 lines per diagnostic log; full logs
 remain in the workflow artifact. If the runtime ZIP is under 95 MiB, the final
 report commit also contains it, and `package.gitDownload` gives a direct GitHub
