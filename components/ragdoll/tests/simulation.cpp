@@ -341,6 +341,10 @@ namespace
     {
         // The local frames represent a limb which was already flexed 0.7 rad
         // before death. Its limits are anatomical, not +/- the captured angle.
+        // Different world orientations also catch post-solver angular impulses
+        // that accidentally invalidate the already solved point-anchor velocity.
+        for (const btScalar orientation : { btScalar(0), btScalar(0.1), btScalar(0.3), btScalar(0.7),
+                 btScalar(1.1), btScalar(1.5), btScalar(2.2), btScalar(2.8) })
         for (const btScalar frame : { btScalar(1.0 / 30), btScalar(1.0 / 60), btScalar(1.0 / 120) })
         {
             auto proximal = capsule(btVector3(0, 10, 60), 3, 14);
@@ -354,6 +358,12 @@ namespace
             distal.mTransform.setRotation(flexion);
             btTransform distalFrame = anchor;
             distalFrame.setRotation(flexion);
+            const btQuaternion worldRotation(btVector3(1, 2, 3).normalized(), orientation);
+            const btTransform world(worldRotation, btVector3(0, 0, 0));
+            proximal.mTransform = world * proximal.mTransform;
+            distal.mTransform = world * distal.mTransform;
+            anchor = world * anchor;
+            distalFrame = world * distalFrame;
             Ragdoll::JointDefinition knee;
             knee.mChild = 1;
             knee.mType = Ragdoll::JointDefinition::Type::Hinge;
@@ -371,7 +381,7 @@ namespace
                 "Creating a hinge snapped the body into a different pose");
             for (const btScalar torque : { btScalar(-5000), btScalar(5000), btScalar(-5000) })
             {
-                simulation.applyJointTorqueImpulse(0, btVector3(0, 0, torque));
+                simulation.applyJointTorqueImpulse(0, quatRotate(worldRotation, btVector3(0, 0, torque)));
                 for (int i = 0; i < static_cast<int>(2 / frame); ++i)
                 {
                     check(simulation.advance(frame), "Hinge impact became invalid");
