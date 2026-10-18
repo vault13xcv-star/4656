@@ -18,6 +18,8 @@
 #include <components/esm3/loadweap.hpp>
 #include <components/misc/mathutil.hpp>
 #include <components/resource/resourcesystem.hpp>
+#include <components/resource/scenemanager.hpp>
+#include <components/sceneutil/shadow.hpp>
 #include <components/settings/values.hpp>
 #include <components/testing/util.hpp>
 #include <components/toutf8/toutf8.hpp>
@@ -95,6 +97,15 @@ namespace
                 { VFS::Path::NormalizedView("meshes/floor.osgt"), mFloor.get() },
             });
             mResources = std::make_unique<Resource::ResourceSystem>(mVfs.get(), 60, &mEncoder.getStatelessEncoder());
+            auto* scene = mResources->getSceneManager();
+            scene->setShaderPath(std::filesystem::path(OPENMW_PROJECT_SOURCE_DIR) / "files/shaders");
+            auto defines = Shader::getDefaultDefines();
+            for (const auto& [key, value] : SceneUtil::ShadowManager::getShadowsDisabledDefines())
+                defines[key] = value;
+            osg::ref_ptr<SceneUtil::LightManager> lights = new SceneUtil::LightManager(SceneUtil::LightSettings{});
+            for (const auto& [key, value] : lights->getLightDefines())
+                defines[key] = value;
+            scene->getShaderManager().setGlobalDefines(defines);
             mPhysics = std::make_unique<MWPhysics::PhysicsSystem>(mResources.get(), new osg::Group);
         }
         void TearDown() override
