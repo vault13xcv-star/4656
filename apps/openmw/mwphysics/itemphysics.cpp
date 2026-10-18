@@ -1,13 +1,10 @@
 #include "physicssystem.hpp"
 #include "object.hpp"
 #include "mtphysics.hpp"
-#include "../mwbase/environment.hpp"
-#include "../mwbase/world.hpp"
 #include "../mwworld/class.hpp"
 #include <components/ragdoll/items.hpp>
 #include <components/resource/bulletshape.hpp>
 #include <components/misc/convert.hpp>
-#include <components/misc/mathutil.hpp>
 #include <components/settings/values.hpp>
 #include <components/debug/debuglog.hpp>
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
@@ -72,7 +69,8 @@ namespace MWPhysics
             applyItemImpulse(ptr, direction * (strength * (1.f - distance / radius)), center);
         }
     }
-    void PhysicsSystem::updateItems(float duration)
+    void PhysicsSystem::updateItems(float duration,
+        const std::function<void(const MWWorld::Ptr&, const osg::Vec3f&, const osg::Quat&)>& updateObject)
     {
         if (!mItems || !Settings::ragdoll().mItemPhysics || duration <= 0 || !mItems->hasActiveBodies()) return;
         std::set<std::array<int, 3>> tiles;
@@ -118,7 +116,6 @@ namespace MWPhysics
             mItemSnapshotAge = 0;
         }
         const auto poses = mItems->advance(duration);
-        const auto world = MWBase::Environment::get().getWorld();
         // World operations preserve reference identity, cell transfers, scripts,
         // picking, and native saved position/rotation. They may erase mObjects.
         mSynchronizingItems = true;
@@ -128,10 +125,8 @@ namespace MWPhysics
             {
                 const auto it = mObjects.find(reinterpret_cast<const MWWorld::LiveCellRefBase*>(pose.mId));
                 if (it == mObjects.end()) continue;
-                auto ptr = it->second->getPtr();
-                const auto rotation = Misc::Convert::toOsg(pose.mTransform.getRotation());
-                world->rotateObject(ptr, Misc::toEulerAnglesZYX(rotation), MWBase::RotationFlag_none);
-                ptr = world->moveObject(ptr, Misc::Convert::toOsg(pose.mTransform.getOrigin()));
+                updateObject(it->second->getPtr(), Misc::Convert::toOsg(pose.mTransform.getOrigin()),
+                    Misc::Convert::toOsg(pose.mTransform.getRotation()));
             }
         }
         catch (...) { mSynchronizingItems = false; throw; }

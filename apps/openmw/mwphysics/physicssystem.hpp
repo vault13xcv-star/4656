@@ -221,7 +221,10 @@ namespace MWPhysics
         std::vector<osg::Vec3f> getRagdollCollisionTriangles(const osg::Vec3f& center, float radius) const;
         void applyItemImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point);
         void applyItemExplosion(const osg::Vec3f& origin, float radius, float strength);
-        void updateItems(float duration);
+        // Apply changed poses while suppressing feedback from native position/
+        // rotation updates. The consumer preserves world reference ownership.
+        void updateItems(float duration,
+            const std::function<void(const MWWorld::Ptr&, const osg::Vec3f&, const osg::Quat&)>& updateObject);
 
         RayCastingResult castSphere(const osg::Vec3f& from, const osg::Vec3f& to, float radius,
             int mask = CollisionType_Default, int group = 0xff) const override;

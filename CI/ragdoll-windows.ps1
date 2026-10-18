@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.4.0'
+$ragdollVersion = '0.4.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -114,7 +114,7 @@ switch ($Phase) {
             '-DBUILD_MWINIIMPORTER=OFF', '-DBUILD_ESSIMPORTER=OFF', '-DBUILD_BSATOOL=OFF',
             '-DBUILD_ESMTOOL=OFF', '-DBUILD_NIFTEST=OFF', '-DBUILD_DOCS=OFF',
             '-DBUILD_NAVMESHTOOL=OFF', '-DBUILD_BULLETOBJECTTOOL=OFF',
-            '-DBUILD_BENCHMARKS=OFF', '-DBUILD_OPENCS_TESTS=OFF', '-DBUILD_OPENMW_TESTS=OFF',
+            '-DBUILD_BENCHMARKS=OFF', '-DBUILD_OPENCS_TESTS=OFF', '-DBUILD_OPENMW_TESTS=ON',
             '-DDEPLOY_QT_TRANSLATIONS=OFF', '-DOPENMW_LTO_BUILD=OFF',
             '-DOPENMW_USE_SYSTEM_SQLITE3=OFF', '-DOPENMW_USE_SYSTEM_YAML_CPP=OFF',
             "-DLuaJit_INCLUDE_DIR=$prefix/include/luajit", "-DLuaJit_LIBRARY=$prefix/lib/lua51.lib"
@@ -132,12 +132,13 @@ switch ($Phase) {
     }
     Build {
         Invoke-WithBuildReports {
-            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests') 'build.log'
+            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests', 'openmw-tests') 'build.log'
         }
     }
     Test {
         Copy-Runtime $build
         Run "$build/components-tests.exe" @('--gtest_color=no') 'components-tests.log'
+        Run "$build/openmw-tests.exe" @('--gtest_color=no', '--gtest_filter=ItemPhysics*') 'item-integration-tests.log'
     }
     Package {
         $shortSha = $env:GITHUB_SHA.Substring(0, 12)

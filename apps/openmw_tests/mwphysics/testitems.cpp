@@ -1,0 +1,215 @@
+#include "apps/openmw/mwclass/classes.hpp"
+#include "apps/openmw/mwphysics/physicssystem.hpp"
+#include "apps/openmw/mwworld/class.hpp"
+#include "apps/openmw/mwworld/livecellref.hpp"
+
+#include <components/esm3/loadalch.hpp>
+#include <components/esm3/loadappa.hpp>
+#include <components/esm3/loadarmo.hpp>
+#include <components/esm3/loadbook.hpp>
+#include <components/esm3/loadclot.hpp>
+#include <components/esm3/loadingr.hpp>
+#include <components/esm3/loadligh.hpp>
+#include <components/esm3/loadlock.hpp>
+#include <components/esm3/loadmisc.hpp>
+#include <components/esm3/loadprob.hpp>
+#include <components/esm3/loadrepa.hpp>
+#include <components/esm3/loadstat.hpp>
+#include <components/esm3/loadweap.hpp>
+#include <components/misc/mathutil.hpp>
+#include <components/resource/resourcesystem.hpp>
+#include <components/settings/values.hpp>
+#include <components/testing/util.hpp>
+#include <components/toutf8/toutf8.hpp>
+
+#include <osg/Geode>
+#include <osg/ShapeDrawable>
+#include <osgDB/Registry>
+
+#include <gtest/gtest.h>
+
+namespace
+{
+    // Real record classes, native scene insertion, mesh loading, contact rays,
+    // collision snapshots and pose updates. No Morrowind assets are needed.
+    std::string boxMesh(float x, float y, float z)
+    {
+        osg::ref_ptr<osg::Geode> node = new osg::Geode;
+        node->addDrawable(new osg::ShapeDrawable(new osg::Box(osg::Vec3f(), x, y, z)));
+        auto* writer = osgDB::Registry::instance()->getReaderWriterForExtension("osgt");
+        if (!writer)
+            throw std::runtime_error("OSG serialization plugin unavailable");
+        std::ostringstream stream;
+        if (!writer->writeNode(*node, stream).success())
+            throw std::runtime_error("Unable to serialize physics test mesh");
+        return stream.str();
+    }
+
+    template <class Record>
+    struct Reference
+    {
+        Record mBase;
+        std::unique_ptr<MWWorld::LiveCellRef<Record>> mRef;
+
+        Reference(float x, float y, float z, float mass = 1.f)
+        {
+            mBase.blank();
+            mBase.mId = ESM::RefId::stringRefId("physics-test");
+            mBase.mModel = "box.osgt";
+            if constexpr (!std::is_same_v<Record, ESM::Static>)
+                mBase.mData.mWeight = mass;
+            if constexpr (std::is_same_v<Record, ESM::Light>)
+                mBase.mData.mFlags |= ESM::Light::Carry;
+            ESM::CellRef ref;
+            ref.blank();
+            ref.mRefID = mBase.mId;
+            ref.mPos = {};
+            ref.mPos.pos[0] = x;
+            ref.mPos.pos[1] = y;
+            ref.mPos.pos[2] = z;
+            mRef = std::make_unique<MWWorld::LiveCellRef<Record>>(ref, &mBase);
+        }
+        MWWorld::Ptr ptr() { return MWWorld::Ptr(mRef.get()); }
+    };
+
+    class ItemPhysicsIntegration : public testing::Test
+    {
+    protected:
+        const bool mOldEnabled = Settings::ragdoll().mItemPhysics;
+        const int mOldThreads = Settings::physics().mAsyncNumThreads;
+        ToUTF8::Utf8Encoder mEncoder{ ToUTF8::WINDOWS_1252 };
+        std::unique_ptr<TestingOpenMW::VFSTestFile> mBox, mFloor;
+        std::unique_ptr<VFS::Manager> mVfs;
+        std::unique_ptr<Resource::ResourceSystem> mResources;
+        std::unique_ptr<MWPhysics::PhysicsSystem> mPhysics;
+
+        void SetUp() override
+        {
+            MWClass::registerClasses();
+            Settings::ragdoll().mItemPhysics.set(true);
+            Settings::physics().mAsyncNumThreads.set(0);
+            mBox = std::make_unique<TestingOpenMW::VFSTestFile>(boxMesh(4, 4, 4));
+            mFloor = std::make_unique<TestingOpenMW::VFSTestFile>(boxMesh(800, 800, 2));
+            mVfs = TestingOpenMW::createTestVFS({
+                { VFS::Path::NormalizedView("meshes/box.osgt"), mBox.get() },
+                { VFS::Path::NormalizedView("meshes/floor.osgt"), mFloor.get() },
+            });
+            mResources = std::make_unique<Resource::ResourceSystem>(mVfs.get(), 60, &mEncoder.getStatelessEncoder());
+            mPhysics = std::make_unique<MWPhysics::PhysicsSystem>(mResources.get(), new osg::Group);
+        }
+        void TearDown() override
+        {
+            mPhysics.reset();
+            Settings::ragdoll().mItemPhysics.set(mOldEnabled);
+            Settings::physics().mAsyncNumThreads.set(mOldThreads);
+        }
+        void insert(const MWWorld::Ptr& ptr, const std::string& mesh = "meshes/box.osgt")
+        {
+            ptr.getClass().insertObject(ptr, mesh, osg::Quat(), *mPhysics);
+            mPhysics->updateScale(ptr); // Scene applies scale after insertion.
+        }
+        void advance(float seconds)
+        {
+            for (int i = 0; i < int(seconds * 120); ++i)
+                mPhysics->updateItems(1.f / 120, [&](const MWWorld::Ptr& ptr, const osg::Vec3f& p, const osg::Quat& q) {
+                    // The native World consumer writes the reference and sends
+                    // these same transform notifications back to PhysicsSystem.
+                    ESM::Position pos = ptr.getRefData().getPosition();
+                    const auto angles = Misc::toEulerAnglesZYX(q);
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        pos.pos[axis] = p[axis];
+                        pos.rot[axis] = angles[axis];
+                    }
+                    ptr.getRefData().setPosition(pos);
+                    mPhysics->updateRotation(ptr, q);
+                    mPhysics->updatePosition(ptr);
+                });
+        }
+    };
+
+    template <class Record>
+    class ItemPhysicsRecords : public ItemPhysicsIntegration {};
+    using ItemRecords = testing::Types<ESM::Apparatus, ESM::Armor, ESM::Book, ESM::Clothing, ESM::Ingredient,
+        ESM::Light, ESM::Lockpick, ESM::Miscellaneous, ESM::Potion, ESM::Probe, ESM::Repair, ESM::Weapon>;
+    TYPED_TEST_SUITE(ItemPhysicsRecords, ItemRecords);
+
+    TYPED_TEST(ItemPhysicsRecords, SceneInsertionAndPostponedInsertionCreateHittableBodies)
+    {
+        Reference<TypeParam> item(0, 0, 20);
+        const auto ptr = item.ptr();
+        ASSERT_TRUE(ptr.getClass().isItem(ptr));
+        this->insert(ptr);
+        ASSERT_NE(this->mPhysics->getObject(ptr), nullptr);
+        const auto hit = this->mPhysics->castRay(osg::Vec3f(-20, 0, 20), osg::Vec3f(20, 0, 20));
+        EXPECT_TRUE(hit.mHit);
+        EXPECT_EQ(hit.mHitObject, ptr);
+        this->mPhysics->remove(ptr);
+
+        ptr.mRef->mData.mPhysicsPostponed = true;
+        this->insert(ptr);
+        EXPECT_EQ(this->mPhysics->getObject(ptr), nullptr);
+        ptr.mRef->mData.mPhysicsPostponed = false;
+        ptr.getClass().insertObjectPhysics(ptr, "meshes/box.osgt", osg::Quat(), *this->mPhysics);
+        EXPECT_NE(this->mPhysics->getObject(ptr), nullptr);
+        this->mPhysics->remove(ptr);
+
+        Settings::ragdoll().mItemPhysics.set(false);
+        this->insert(ptr);
+        EXPECT_EQ(this->mPhysics->getObject(ptr), nullptr);
+    }
+
+    TEST_F(ItemPhysicsIntegration, NativeImpulseMovesItemAndPreservesVelocityAcrossPoseUpdates)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        Reference<ESM::Potion> item(0, 0, 40);
+        insert(floor.ptr(), "meshes/floor.osgt");
+        insert(item.ptr());
+        advance(0.2f);
+        EXPECT_FLOAT_EQ(item.ptr().getRefData().getPosition().pos[2], 40.f);
+        mPhysics->applyItemImpulse(item.ptr(), osg::Vec3f(100, 0, 10), osg::Vec3f(0, 0, 41));
+        advance(0.2f);
+        EXPECT_GT(item.ptr().getRefData().getPosition().pos[0], 15.f);
+        EXPECT_LT(item.ptr().getRefData().getPosition().pos[2], 35.f);
+        advance(3.f);
+        EXPECT_GT(item.ptr().getRefData().getPosition().pos[2], 1.f);
+        EXPECT_LT(item.ptr().getRefData().getPosition().pos[2], 4.f);
+        mPhysics->remove(item.ptr());
+        mPhysics->remove(floor.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, NativeExplosionPushesRegisteredItemsOutwardAccordingToMass)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        Reference<ESM::Potion> light(-20, 0, 40, 1);
+        Reference<ESM::Armor> heavy(20, 0, 40, 20);
+        insert(floor.ptr(), "meshes/floor.osgt");
+        insert(light.ptr());
+        insert(heavy.ptr());
+        mPhysics->applyItemExplosion(osg::Vec3f(0, 0, 40), 100, 200);
+        advance(0.1f);
+        const float left = -20 - light.ptr().getRefData().getPosition().pos[0];
+        const float right = heavy.ptr().getRefData().getPosition().pos[0] - 20;
+        EXPECT_GT(left, 10.f);
+        EXPECT_GT(right, 0.5f);
+        EXPECT_NEAR(left / right, 20.f, 0.1f);
+        mPhysics->remove(light.ptr());
+        mPhysics->remove(heavy.ptr());
+        mPhysics->remove(floor.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, NativeDropWakesItemAndPickupRemovesBothColliders)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        Reference<ESM::Miscellaneous> item(0, 0, 80);
+        insert(floor.ptr(), "meshes/floor.osgt");
+        insert(item.ptr());
+        mPhysics->applyItemImpulse(item.ptr(), osg::Vec3f(), osg::Vec3f(0, 0, 80));
+        advance(0.2f);
+        EXPECT_LT(item.ptr().getRefData().getPosition().pos[2], 70.f);
+        mPhysics->remove(item.ptr());
+        EXPECT_EQ(mPhysics->getObject(item.ptr()), nullptr);
+        mPhysics->updateItems(0.1f, [](const auto&, const auto&, const auto&) { ADD_FAILURE() << "Ghost item pose"; });
+        mPhysics->remove(floor.ptr());
+    }
+}

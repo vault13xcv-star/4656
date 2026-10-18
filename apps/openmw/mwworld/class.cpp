@@ -7,6 +7,9 @@
 #include <components/esm3/loadmgef.hpp>
 #include <components/esm3/loadsoun.hpp>
 #include <components/misc/resourcehelpers.hpp>
+#include <components/settings/values.hpp>
+
+#include "../mwphysics/physicssystem.hpp"
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -41,11 +44,16 @@ namespace MWWorld
     void Class::insertObject(
         const Ptr& ptr, const std::string& mesh, const osg::Quat& rotation, MWPhysics::PhysicsSystem& physics) const
     {
+        insertObjectPhysics(ptr, mesh, rotation, physics);
     }
 
     void Class::insertObjectPhysics(
         const Ptr& ptr, const std::string& mesh, const osg::Quat& rotation, MWPhysics::PhysicsSystem& physics) const
     {
+        // Inventory classes inherit this implementation. Unlike statics and
+        // actors, they previously never entered PhysicsSystem::addObject.
+        if (Settings::ragdoll().mItemPhysics && isItem(ptr))
+            physics.addObject(ptr, VFS::Path::toNormalized(mesh), rotation, MWPhysics::CollisionType_World);
     }
 
     bool Class::consume(const MWWorld::Ptr& consumable, const MWWorld::Ptr& actor) const

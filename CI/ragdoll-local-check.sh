@@ -31,6 +31,7 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/animation.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/npcanimation.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/npc.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/light.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/creature.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/combat.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/creaturestats.cpp.o \
@@ -43,6 +44,7 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/mtphysics.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/physicssystem.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/itemphysics.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/class.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/worldimp.cpp.o
 
 test_dir="$build_dir/ragdoll-tests"
