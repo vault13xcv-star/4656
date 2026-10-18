@@ -125,7 +125,8 @@ namespace MWPhysics
             {
                 const auto it = mObjects.find(reinterpret_cast<const MWWorld::LiveCellRefBase*>(pose.mId));
                 if (it == mObjects.end()) continue;
-                updateObject(it->second->getPtr(), Misc::Convert::toOsg(pose.mTransform.getOrigin()),
+                const auto ptr = it->second->getPtr();
+                updateObject(ptr, Misc::Convert::toOsg(pose.mTransform.getOrigin()),
                     Misc::Convert::toOsg(pose.mTransform.getRotation()));
             }
         }
