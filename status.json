@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "sourceCommit": "e34767e4efbef11b54f122c0804979b78b64b6d3",
+  "sourceBranch": "experimental/ragdoll-0.3.0-windows",
+  "runId": "39126830034",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/39126830034",
+  "resultsBranch": "build-results/ragdoll-e34767e4efbef11b54f122c0804979b78b64b6d3-39126830034-1",
+  "stage": "dependencies",
+  "result": "running",
+  "updatedUtc": "2026-10-18T12:20:04.9655854Z",
+  "releaseUrl": null,
+  "package": null
+}
