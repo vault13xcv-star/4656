@@ -1,0 +1,77 @@
+Loading settings file: D:/a/4656/4656\files\settings-default.cfg
+Note: Google Test filter = ItemPhysics*
+[==========] Running 15 tests from 13 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from ItemPhysicsRecords/0, where TypeParam = struct ESM::Apparatus
+[ RUN      ] ItemPhysicsRecords/0.SceneInsertionAndPostponedInsertionCreateHittableBodies
+Disabling Multiview (disabled by config)
+[       OK ] ItemPhysicsRecords/0.SceneInsertionAndPostponedInsertionCreateHittableBodies (13 ms)
+[----------] 1 test from ItemPhysicsRecords/0 (13 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/1, where TypeParam = struct ESM::Armor
+[ RUN      ] ItemPhysicsRecords/1.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/1.SceneInsertionAndPostponedInsertionCreateHittableBodies (6 ms)
+[----------] 1 test from ItemPhysicsRecords/1 (6 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/2, where TypeParam = struct ESM::Book
+[ RUN      ] ItemPhysicsRecords/2.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/2.SceneInsertionAndPostponedInsertionCreateHittableBodies (5 ms)
+[----------] 1 test from ItemPhysicsRecords/2 (5 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/3, where TypeParam = struct ESM::Clothing
+[ RUN      ] ItemPhysicsRecords/3.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/3.SceneInsertionAndPostponedInsertionCreateHittableBodies (5 ms)
+[----------] 1 test from ItemPhysicsRecords/3 (5 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/4, where TypeParam = struct ESM::Ingredient
+[ RUN      ] ItemPhysicsRecords/4.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/4.SceneInsertionAndPostponedInsertionCreateHittableBodies (5 ms)
+[----------] 1 test from ItemPhysicsRecords/4 (5 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/5, where TypeParam = struct ESM::Light
+[ RUN      ] ItemPhysicsRecords/5.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/5.SceneInsertionAndPostponedInsertionCreateHittableBodies (6 ms)
+[----------] 1 test from ItemPhysicsRecords/5 (6 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/6, where TypeParam = struct ESM::Lockpick
+[ RUN      ] ItemPhysicsRecords/6.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/6.SceneInsertionAndPostponedInsertionCreateHittableBodies (5 ms)
+[----------] 1 test from ItemPhysicsRecords/6 (5 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/7, where TypeParam = struct ESM::Miscellaneous
+[ RUN      ] ItemPhysicsRecords/7.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/7.SceneInsertionAndPostponedInsertionCreateHittableBodies (5 ms)
+[----------] 1 test from ItemPhysicsRecords/7 (5 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/8, where TypeParam = struct ESM::Potion
+[ RUN      ] ItemPhysicsRecords/8.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/8.SceneInsertionAndPostponedInsertionCreateHittableBodies (6 ms)
+[----------] 1 test from ItemPhysicsRecords/8 (6 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/9, where TypeParam = struct ESM::Probe
+[ RUN      ] ItemPhysicsRecords/9.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/9.SceneInsertionAndPostponedInsertionCreateHittableBodies (6 ms)
+[----------] 1 test from ItemPhysicsRecords/9 (6 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/10, where TypeParam = struct ESM::Repair
+[ RUN      ] ItemPhysicsRecords/10.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/10.SceneInsertionAndPostponedInsertionCreateHittableBodies (6 ms)
+[----------] 1 test from ItemPhysicsRecords/10 (6 ms total)
+
+[----------] 1 test from ItemPhysicsRecords/11, where TypeParam = struct ESM::Weapon
+[ RUN      ] ItemPhysicsRecords/11.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/11.SceneInsertionAndPostponedInsertionCreateHittableBodies (5 ms)
+[----------] 1 test from ItemPhysicsRecords/11 (6 ms total)
+
+[----------] 3 tests from ItemPhysicsIntegration
+[ RUN      ] ItemPhysicsIntegration.NativeImpulseMovesItemAndPreservesVelocityAcrossPoseUpdates
+[       OK ] ItemPhysicsIntegration.NativeImpulseMovesItemAndPreservesVelocityAcrossPoseUpdates (9 ms)
+[ RUN      ] ItemPhysicsIntegration.NativeExplosionPushesRegisteredItemsOutwardAccordingToMass
+[       OK ] ItemPhysicsIntegration.NativeExplosionPushesRegisteredItemsOutwardAccordingToMass (6 ms)
+[ RUN      ] ItemPhysicsIntegration.NativeDropWakesItemAndPickupRemovesBothColliders
+[       OK ] ItemPhysicsIntegration.NativeDropWakesItemAndPickupRemovesBothColliders (6 ms)
+[----------] 3 tests from ItemPhysicsIntegration (21 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 13 test suites ran. (102 ms total)
+[  PASSED  ] 15 tests.
