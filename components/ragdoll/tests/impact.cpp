@@ -2,11 +2,14 @@
 
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
 namespace
 {
+    using Element = Ragdoll::DeathElement;
+
     void check(bool condition, const std::string& message)
     {
         if (!condition)
@@ -23,38 +26,84 @@ namespace
         return (actual - expected).length() <= 0.0001f;
     }
 
-    Ragdoll::Impact magic(const osg::Vec3f& direction, float distance, bool shock = false)
+    Ragdoll::Impact magic(const osg::Vec3f& direction, float distance,
+        Element element = Element::None, float effectiveDamage = 1.f)
     {
         Ragdoll::Impact result;
         result.mMagicDirection = direction;
         result.mMagicDistance = distance;
         result.mPosition = osg::Vec3f(10, 20, 30);
-        result.mShock = shock;
+        result.mDeathElement = element;
+        result.mDominantMagicDamage = effectiveDamage;
+        result.mShock = element == Element::Shock;
         result.mValid = true;
         return result;
+    }
+
+    void testDominantDamageIsIndependentOfRadius()
+    {
+        MWMechanics::RagdollHit hit;
+        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 8, Element::Fire, 4));
+        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 2, Element::Shock, 12));
+        check(hit.mApplied.mDeathElement == Element::Shock && hit.mApplied.mShock,
+            "A weaker wide-area fire effect suppressed stronger shock");
+        check(near(hit.mApplied.mDominantMagicDamage, 12), "Dominant damage was added instead of selected");
+        check(near(hit.mApplied.mMagicDistance, 8)
+                && near(hit.mApplied.mMagicDirection, osg::Vec3f(1, 0, 0)),
+            "Selecting shock presentation changed the strongest explosion impulse");
+
+        hit.applyMagic(3, magic(osg::Vec3f(0, 0, 1), 20, Element::Frost, 3));
+        check(hit.mApplied.mDeathElement == Element::Shock && near(hit.mApplied.mMagicDistance, 20),
+            "A larger radius incorrectly determined the death element");
+        hit.applyMagic(4, magic(osg::Vec3f(1, 0, 0), 1, Element::None, 15));
+        check(hit.mApplied.mDeathElement == Element::None && !hit.mApplied.mShock,
+            "Stronger ordinary health damage failed to suppress elemental presentation");
+        hit.applyMagic(5, magic(osg::Vec3f(1, 0, 0), 1, Element::Poison, 18));
+        check(hit.mApplied.mDeathElement == Element::Poison, "Dominant poison did not select slime");
+        hit.applyMagic(6, magic(osg::Vec3f(1, 0, 0), 1, Element::Fire, 22));
+        check(hit.mApplied.mDeathElement == Element::Fire, "Dominant fire did not replace poison");
+        hit.applyMagic(7, magic(osg::Vec3f(1, 0, 0), 1, Element::Frost, 25));
+        check(hit.mApplied.mDeathElement == Element::Frost && !hit.mApplied.mShock,
+            "Dominant frost retained another elemental presentation");
+    }
+
+    void testOnlyEffectiveDamageContributes()
+    {
+        MWMechanics::RagdollHit hit;
+        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 3, Element::Fire, 5));
+        // These represent the effective amounts delivered by the post-protection
+        // application hook: the configured spell magnitudes are intentionally absent.
+        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 10, Element::Shock, 2));
+        check(hit.mApplied.mDeathElement == Element::Fire && !hit.mApplied.mShock,
+            "A weaker resisted shock effect retained convulsions");
+        hit.applyMagic(3, magic(osg::Vec3f(0, 0, 1), 100, Element::Frost, 0));
+        check(hit.mApplied.mDeathElement == Element::Fire && near(hit.mApplied.mMagicDistance, 10),
+            "A fully resisted effect contributed a death element or impulse");
+        hit.applyMagic(4, magic(osg::Vec3f(0, 0, 1), 100, Element::Poison, -8));
+        hit.applyMagic(5, magic(osg::Vec3f(0, 0, 1), 100, Element::Poison,
+            std::numeric_limits<float>::quiet_NaN()));
+        check(hit.mMagic.size() == 2 && hit.mApplied.mDeathElement == Element::Fire,
+            "Invalid/non-damaging contributions entered attribution");
+        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 3, Element::Fire, 0));
+        check(hit.mApplied.mDeathElement == Element::Shock && hit.mApplied.mShock,
+            "Removing a zero-damage contribution left stale dominant fire");
     }
 
     void testDistinctEffectsAndDurationTicks()
     {
         MWMechanics::RagdollHit hit;
-        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 6));
+        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 6, Element::Fire, 5));
         for (int tick = 0; tick < 600; ++tick)
-            hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 6));
-        check(near(hit.mApplied.mMagicDistance, 6), "Duration ticks multiplied one effect's impulse");
-        check(near(hit.mApplied.mMagicDirection, osg::Vec3f(1, 0, 0)), "Duration changed the impact direction");
-
-        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 8, true));
-        check(near(hit.mApplied.mMagicDistance, 8), "A multi-effect spell exceeded its strongest throw");
-        check(near(hit.mApplied.mMagicDirection, osg::Vec3f(0, 1, 0)),
-            "The strongest spell effect lost its individual direction");
-        check(hit.mApplied.mShock, "Applied shock did not contribute to the contact");
-
-        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 8, false));
-        check(!hit.mApplied.mShock, "Replacing a contribution retained stale shock state");
-        check(near(hit.mApplied.mMagicDistance, 8), "Replacing a contribution added another impulse");
-        hit.applyMagic(3, magic(osg::Vec3f(1, 0, 0), 2, true));
-        check(hit.mApplied.mShock && near(hit.mApplied.mMagicDistance, 8),
-            "A weaker applied shock effect lost convulsions or inflated the blast");
+            hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 6, Element::Fire, 5));
+        check(near(hit.mApplied.mMagicDistance, 6) && near(hit.mApplied.mDominantMagicDamage, 5),
+            "Duration ticks multiplied one effect's damage or impulse");
+        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 8, Element::Shock, 6));
+        check(near(hit.mApplied.mMagicDistance, 8) && hit.mApplied.mShock,
+            "Distinct effects inflated the blast or lost the stronger element");
+        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 8, Element::Shock, 2));
+        check(hit.mApplied.mDeathElement == Element::Fire && !hit.mApplied.mShock,
+            "Replacing a weaker duration tick retained stale shock dominance");
+        check(near(hit.mApplied.mMagicDistance, 8), "Changing effective damage altered the independent blast radius");
     }
 
     void testWeaponAndMagicOrder()
@@ -64,18 +113,19 @@ namespace
         spellFirst.mWeapon.mWeaponDistance = 2;
         spellFirst.mWeapon.mCrossbow = true;
         spellFirst.mWeapon.mPosition = osg::Vec3f(4, 5, 6);
-        spellFirst.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, true));
+        spellFirst.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, Element::Shock, 9));
         spellFirst.applyWeapon();
 
         MWMechanics::RagdollHit weaponFirst;
         weaponFirst.mWeapon = spellFirst.mWeapon;
         weaponFirst.applyWeapon();
-        weaponFirst.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, true));
+        weaponFirst.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, Element::Shock, 9));
         for (const auto* hit : { &spellFirst, &weaponFirst })
         {
             const auto& applied = hit->mApplied;
-            check(applied.mValid && applied.mCrossbow && applied.mShock,
-                "Weapon and magic ordering dropped contact flags");
+            check(applied.mValid && applied.mCrossbow && applied.mShock
+                    && applied.mDeathElement == Element::Shock && near(applied.mDominantMagicDamage, 9),
+                "Asynchronous weapon/magic ordering lost elemental attribution");
             check(near(applied.mWeaponDistance, 2) && near(applied.mMagicDistance, 5),
                 "Weapon and magic ordering dropped a distance contribution");
             check(near(applied.mWeaponDirection, osg::Vec3f(0, 1, 0))
@@ -87,16 +137,18 @@ namespace
     void testEqualEffectsAndContactIsolation()
     {
         MWMechanics::RagdollHit first;
-        first.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5));
-        first.applyMagic(2, magic(osg::Vec3f(-1, 0, 0), 5));
-        check(near(first.mApplied.mMagicDistance, 5), "Equal-area effects multiplied or cancelled the spell's throw");
+        first.applyMagic(2, magic(osg::Vec3f(-1, 0, 0), 5, Element::Shock, 8));
+        first.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, Element::Fire, 8));
+        check(first.mApplied.mDeathElement == Element::Fire && !first.mApplied.mShock,
+            "Equal damage did not preserve native effect order independently of delivery order");
+        check(near(first.mApplied.mMagicDistance, 5), "Equal-area effects multiplied the spell's throw");
         check(near(first.mApplied.mMagicDirection.length(), 1), "Equal-area effects have an invalid direction");
 
         MWMechanics::RagdollHit second;
-        second.applyMagic(1, magic(osg::Vec3f(0, 1, 0), 2, true));
-        check(near(first.mApplied.mMagicDistance, 5) && !first.mApplied.mShock,
-            "An unrelated contact altered an earlier contact");
-        check(near(second.mApplied.mMagicDistance, 2) && second.mApplied.mShock,
+        second.applyMagic(1, magic(osg::Vec3f(0, 1, 0), 2, Element::Poison, 100));
+        check(first.mApplied.mDeathElement == Element::Fire && near(first.mApplied.mDominantMagicDamage, 8),
+            "An unrelated contact changed an earlier death element");
+        check(second.mApplied.mDeathElement == Element::Poison && near(second.mApplied.mDominantMagicDamage, 100),
             "Independent effect identifiers collided across contacts");
     }
 
@@ -108,33 +160,59 @@ namespace
         context.mRadius = 10;
         context.mExploded = true;
         const auto impact = MWMechanics::makeRagdollMagicImpact(context,
-            context.mOrigin + osg::Vec3f(4 * Constants::UnitsPerMeter, 0, 0), 2, 1, false);
+            context.mOrigin + osg::Vec3f(4 * Constants::UnitsPerMeter, 0, 0), 2, 1, Element::Fire, 30);
         check(near(impact.mMagicDistance, 6), "10 metre blast at 4 metres did not produce a 6 metre throw");
         check(near(impact.mMagicDirection, osg::Vec3f(1, 0, 0)),
             "Indirect explosion used the projectile direction instead of the epicentre");
         check(near(impact.mPosition, context.mOrigin), "Explosion lost its original world-space epicentre");
+        check(impact.mDeathElement == Element::Fire && near(impact.mDominantMagicDamage, 30),
+            "Explosion construction lost effective damage or element");
 
         const auto vertical = MWMechanics::makeRagdollMagicImpact(context,
-            context.mOrigin + osg::Vec3f(0, 0, 4 * Constants::UnitsPerMeter), 2, 1, true);
+            context.mOrigin + osg::Vec3f(0, 0, 4 * Constants::UnitsPerMeter), 2, 1, Element::Shock, 40);
         check(near(vertical.mMagicDirection, osg::Vec3f(0, 0, 1)) && near(vertical.mMagicDistance, 6),
             "Explosion direction discarded vertical separation");
-        check(vertical.mShock, "Lethal shock was not marked for convulsions");
+        check(vertical.mShock, "Shock contribution was not marked for convulsions");
 
         const auto edge = MWMechanics::makeRagdollMagicImpact(context,
-            context.mOrigin + osg::Vec3f(9 * Constants::UnitsPerMeter, 0, 0), 2, 1, false);
+            context.mOrigin + osg::Vec3f(9 * Constants::UnitsPerMeter, 0, 0), 2, 1, Element::None, 3);
         check(near(edge.mMagicDistance, 2), "Magic minimum throw was not respected near the blast edge");
 
         context.mExploded = false;
         context.mRadius = 0;
-        const auto direct = MWMechanics::makeRagdollMagicImpact(context, osg::Vec3f(900, 800, 700), 2, 1, false);
+        const auto direct = MWMechanics::makeRagdollMagicImpact(
+            context, osg::Vec3f(900, 800, 700), 2, 1, Element::Frost, 6);
         check(near(direct.mMagicDirection, osg::Vec3f(0, 0, -1)) && near(direct.mMagicDistance, 2),
             "Direct projectile lost its incoming direction or minimum throw");
 
         context.mExploded = true;
         context.mDirection = osg::Vec3f();
-        const auto atCentre = MWMechanics::makeRagdollMagicImpact(context, context.mOrigin, 2, 1, false);
+        const auto atCentre = MWMechanics::makeRagdollMagicImpact(context, context.mOrigin, 2, 1, Element::None, 1);
         check(near(atCentre.mMagicDirection.length(), 1) && near(atCentre.mMagicDistance, 2),
             "Coincident explosion and victim produced an invalid direction");
+    }
+
+    void testRestoredEffectPresentationHasNoInventedImpulse()
+    {
+        MWMechanics::RagdollMagicImpact context;
+        context.mHasImpulse = false;
+        const auto fire = MWMechanics::makeRagdollMagicImpact(
+            context, osg::Vec3f(100, 200, 300), 2, 1, Element::Fire, 8);
+        check(fire.mValid && fire.mDeathElement == Element::Fire && near(fire.mDominantMagicDamage, 8),
+            "A restored active fire effect lost its death presentation");
+        check(near(fire.mMagicDistance, 0) && near(fire.mWeaponDistance, 0)
+                && near(fire.mMagicDirection, osg::Vec3f()) && !fire.mCrossbow,
+            "A restored effect invented an explosion direction, radius or weapon impulse");
+        MWMechanics::RagdollHit spell;
+        spell.applyMagic(1, fire);
+        spell.applyMagic(2, MWMechanics::makeRagdollMagicImpact(
+            context, osg::Vec3f(100, 200, 300), 2, 1, Element::Frost, 10));
+        check(spell.mApplied.mDeathElement == Element::Frost && near(spell.mApplied.mMagicDistance, 0),
+            "Restored multi-effect spells lost exclusive strongest-element selection");
+        spell.applyMagic(3, MWMechanics::makeRagdollMagicImpact(
+            context, osg::Vec3f(100, 200, 300), 2, 1, Element::None, 12));
+        check(spell.mApplied.mDeathElement == Element::None,
+            "Stronger restored ordinary health damage retained elemental presentation");
     }
 
     void testDelayedEffectsDoNotReuseExpiredContact()
@@ -144,16 +222,17 @@ namespace
         hit.mWeapon.mCrossbow = true;
         hit.mWeapon.mWeaponDirection = osg::Vec3f(0, 1, 0);
         hit.mAwaitingWeapon = true;
-        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, true));
+        hit.applyMagic(1, magic(osg::Vec3f(1, 0, 0), 5, Element::Shock, 50));
         hit.beginMagicTick();
-        check(hit.mApplied.mShock && near(hit.mApplied.mMagicDistance, 5),
+        check(hit.mApplied.mShock && near(hit.mApplied.mDominantMagicDamage, 50),
             "Magic bookkeeping lost an enchantment before asynchronous weapon damage arrived");
         hit.applyWeapon();
         hit.mAwaitingWeapon = false;
         hit.beginMagicTick();
-        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 3));
-        check(!hit.mApplied.mShock && !hit.mApplied.mCrossbow && near(hit.mApplied.mWeaponDistance, 0),
-            "A later duration tick reused expired shock or the original weapon blow");
+        hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 3, Element::Poison, 2));
+        check(hit.mApplied.mDeathElement == Element::Poison && near(hit.mApplied.mDominantMagicDamage, 2)
+                && !hit.mApplied.mShock && !hit.mApplied.mCrossbow && near(hit.mApplied.mWeaponDistance, 0),
+            "A later duration tick reused an expired element or the original weapon blow");
         check(near(hit.mApplied.mMagicDistance, 3), "A delayed effect accumulated the old contact impulse");
     }
 }
@@ -162,12 +241,15 @@ int main()
 {
     try
     {
+        testDominantDamageIsIndependentOfRadius();
+        testOnlyEffectiveDamageContributes();
         testDistinctEffectsAndDurationTicks();
         testWeaponAndMagicOrder();
         testEqualEffectsAndContactIsolation();
         testExplosionDistanceAndDirection();
         testDelayedEffectsDoNotReuseExpiredContact();
-        std::cout << "Ragdoll impact: 5 groups passed\n";
+        testRestoredEffectPresentationHasNoInventedImpulse();
+        std::cout << "Ragdoll impact: 8 groups passed\n";
     }
     catch (const std::exception& error)
     {

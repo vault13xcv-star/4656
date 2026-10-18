@@ -686,6 +686,21 @@ namespace MWRender
             attachArrow();
     }
 
+    std::vector<osg::ref_ptr<osg::Node>> NpcAnimation::getRagdollSkinParts() const
+    {
+        std::vector<osg::ref_ptr<osg::Node>> result;
+        for (int part = 0; part < ESM::PRT_Count; ++part)
+        {
+            // Bare race skin (including the face) is installed at priority 1,
+            // group -1. Every garment/armour mesh belongs to an inventory slot.
+            if (part == ESM::PRT_Hair || part == ESM::PRT_Weapon || part == ESM::PRT_Shield)
+                continue;
+            if (mObjectParts[part] && mPartslots[part] == -1 && mPartPriorities[part] == 1)
+                result.push_back(mObjectParts[part]->getNode());
+        }
+        return result;
+    }
+
     PartHolderPtr NpcAnimation::insertBoundedPart(VFS::Path::NormalizedView model, std::string_view bonename,
         std::string_view bonefilter, bool enchantedGlow, osg::Vec4f* glowColor, bool isLight)
     {

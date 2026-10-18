@@ -49,7 +49,9 @@ namespace Ragdoll
 
         void validateSettings(const Settings& settings)
         {
-            if (!finite(settings.mGravity) || settings.mGravity.length2() > 1e12
+            if ((settings.mBodyMode != BodyMode::Articulated && settings.mBodyMode != BodyMode::Soft
+                    && settings.mBodyMode != BodyMode::Rigid)
+                || !finite(settings.mGravity) || settings.mGravity.length2() > 1e12
                 || !finite(settings.mFixedTimeStep) || settings.mFixedTimeStep < 1.0 / 1000.0
                 || settings.mFixedTimeStep > 1.0 / 30.0 || !finite(settings.mMaxFrameTime)
                 || settings.mMaxFrameTime < settings.mFixedTimeStep || settings.mMaxFrameTime > 1
@@ -136,6 +138,8 @@ namespace Ragdoll
                 // pre-step limit check. Enforce anatomical stop velocities at the
                 // actual integration boundary too, without snapping body poses.
                 mOwner.anticipateHingeStops(dt, 1);
+                if (mOwner.clampRigidMotion(dt))
+                    return;
                 btDiscreteDynamicsWorld::integrateTransforms(dt);
             }
         };
@@ -149,7 +153,14 @@ namespace Ragdoll
         std::unique_ptr<btSequentialImpulseConstraintSolver> mSolver;
         std::unique_ptr<World> mWorld;
         std::vector<std::unique_ptr<btCollisionShape>> mShapes;
+        std::unique_ptr<btCompoundShape> mCompoundShape;
         std::vector<std::unique_ptr<btRigidBody>> mBodies;
+        // A rigid corpse has one Bullet body and one immutable local transform
+        // for each visible part. The public indices always refer to those parts.
+        std::vector<btTransform> mRigidOffsets;
+        std::vector<btTransform> mPartTransforms;
+        std::vector<btScalar> mPartMasses;
+        std::size_t mJointCount = 0;
         std::vector<std::unique_ptr<btTypedConstraint>> mConstraints;
         std::unique_ptr<btPoint2PointConstraint> mPin;
         std::vector<std::pair<std::size_t, std::size_t>> mInitiallyOverlapping;
@@ -190,7 +201,74 @@ namespace Ragdoll
             mConstraints.clear();
             mPin.reset();
             mBodies.clear();
+            mCompoundShape.reset();
             mShapes.clear();
+        }
+
+        btRigidBody& bodyForPart(std::size_t part)
+        {
+            // Validate against visible part count even for a single rigid body.
+            (void)mPartMasses.at(part);
+            return *mBodies[mRigidOffsets.empty() ? part : 0];
+        }
+
+        bool clampRigidMotion(btScalar dt)
+        {
+            if (!mCompoundShape || !mBodies.front()->isActive())
+                return false;
+            btRigidBody& body = *mBodies.front();
+            btTransform predicted;
+            body.predictIntegratedTransform(dt, predicted);
+            btScalar fraction = 1;
+            // Bullet's standard CCD handles convex shapes only. A compound is
+            // non-convex, so sweep its capsule children and clamp the one rigid
+            // transform to the earliest contact instead of letting a frozen
+            // corpse tunnel through thin walls at maximum launch velocity.
+            struct Sweep : btCollisionWorld::ClosestConvexResultCallback
+            {
+                const btRigidBody& mBody;
+                Sweep(const btRigidBody& body, const btVector3& from, const btVector3& to)
+                    : btCollisionWorld::ClosestConvexResultCallback(from, to)
+                    , mBody(body)
+                {
+                    m_collisionFilterGroup = sBodyGroup;
+                    m_collisionFilterMask = sStaticGroup;
+                }
+
+                btScalar addSingleResult(btCollisionWorld::LocalConvexResult& result, bool worldNormal) override
+                {
+                    const btVector3 normal = worldNormal ? result.m_hitNormalLocal
+                        : result.m_hitCollisionObject->getWorldTransform().getBasis() * result.m_hitNormalLocal;
+                    const btVector3 velocity = mBody.getVelocityInLocalPoint(
+                        result.m_hitPointLocal - mBody.getCenterOfMassPosition());
+                    // Existing touching surfaces must not prevent motion away
+                    // from them or a rigid corpse rolling along the ground.
+                    if (normal.dot(velocity) >= -1e-6)
+                        return 1;
+                    return ClosestConvexResultCallback::addSingleResult(result, worldNormal);
+                }
+            };
+            for (std::size_t i = 0; i < mRigidOffsets.size(); ++i)
+            {
+                const auto& capsule = static_cast<const btCapsuleShape&>(*mShapes[i]);
+                const btTransform from = body.getWorldTransform() * mRigidOffsets[i];
+                const btTransform to = predicted * mRigidOffsets[i];
+                const btScalar motion = from.getOrigin().distance(to.getOrigin())
+                    + body.getAngularVelocity().length() * dt * (capsule.getHalfHeight() + capsule.getRadius());
+                if (motion < capsule.getRadius() * 0.5)
+                    continue;
+                Sweep sweep(body, from.getOrigin(), to.getOrigin());
+                sweep.m_closestHitFraction = fraction;
+                mWorld->convexSweepTest(&capsule, from, to, sweep);
+                if (sweep.hasHit())
+                    fraction = std::min(fraction, sweep.m_closestHitFraction);
+            }
+            if (fraction >= 1)
+                return false;
+            body.predictIntegratedTransform(dt * fraction, predicted);
+            body.proceedToTransform(predicted);
+            body.setHitFraction(0);
+            return true;
         }
 
         btScalar capsuleSeparation(std::size_t first, std::size_t second) const
@@ -325,13 +403,18 @@ namespace Ragdoll
         mImpl->mShapes.reserve(bodies.size());
         mImpl->mBodies.reserve(bodies.size());
         mImpl->mLastFinitePose.reserve(bodies.size());
+        mImpl->mPartMasses.reserve(bodies.size());
+        mImpl->mJointCount = joints.size();
         for (const BodyDefinition& definition : bodies)
         {
-            auto shape = std::make_unique<btCapsuleShape>(definition.mRadius, definition.mLength);
-            btVector3 inertia;
-            shape->calculateLocalInertia(definition.mMass, inertia);
-            btRigidBody::btRigidBodyConstructionInfo info(definition.mMass, nullptr, shape.get(), inertia);
-            info.m_startWorldTransform = definition.mTransform;
+            mImpl->mShapes.push_back(std::make_unique<btCapsuleShape>(definition.mRadius, definition.mLength));
+            mImpl->mPartMasses.push_back(definition.mMass);
+            mImpl->mTotalMass += definition.mMass;
+        }
+        const auto addBody = [&](btCollisionShape* shape, const btTransform& transform,
+                                 btScalar mass, const btVector3& inertia, btScalar radius) {
+            btRigidBody::btRigidBodyConstructionInfo info(mass, nullptr, shape, inertia);
+            info.m_startWorldTransform = transform;
             info.m_linearDamping = settings.mLinearDamping;
             info.m_angularDamping = settings.mAngularDamping;
             info.m_friction = 0.85;
@@ -340,13 +423,49 @@ namespace Ragdoll
             info.m_restitution = 0;
             auto body = std::make_unique<btRigidBody>(info);
             body->setSleepingThresholds(1, 0.15);
-            body->setCcdMotionThreshold(definition.mRadius * 0.5);
-            body->setCcdSweptSphereRadius(definition.mRadius * 0.8);
+            body->setCcdMotionThreshold(radius * 0.5);
+            body->setCcdSweptSphereRadius(radius * 0.8);
             mImpl->mWorld->addRigidBody(body.get(), sBodyGroup, sStaticGroup | sBodyGroup);
-            mImpl->mShapes.push_back(std::move(shape));
             mImpl->mBodies.push_back(std::move(body));
-            mImpl->mLastFinitePose.push_back(definition.mTransform);
-            mImpl->mTotalMass += definition.mMass;
+            mImpl->mLastFinitePose.push_back(transform);
+        };
+        if (settings.mBodyMode == BodyMode::Rigid)
+        {
+            // Freeze every captured part into one collision object, with the
+            // actual mass-weighted centre and principal moments of inertia.
+            // Locked articulated constraints would still flex under hard impacts.
+            btTransform origin = btTransform::getIdentity();
+            btVector3 centre(0, 0, 0);
+            for (const BodyDefinition& definition : bodies)
+                centre += definition.mTransform.getOrigin() * (definition.mMass / mImpl->mTotalMass);
+            origin.setOrigin(centre);
+            mImpl->mCompoundShape = std::make_unique<btCompoundShape>(true, static_cast<int>(bodies.size()));
+            for (std::size_t i = 0; i < bodies.size(); ++i)
+                mImpl->mCompoundShape->addChildShape(origin.inverse() * bodies[i].mTransform, mImpl->mShapes[i].get());
+            btTransform principal;
+            btVector3 inertia;
+            mImpl->mCompoundShape->calculatePrincipalAxisTransform(mImpl->mPartMasses.data(), principal, inertia);
+            mImpl->mRigidOffsets.reserve(bodies.size());
+            mImpl->mPartTransforms.reserve(bodies.size());
+            btScalar minRadius = bodies.front().mRadius;
+            for (std::size_t i = 0; i < bodies.size(); ++i)
+            {
+                const btTransform local = principal.inverse() * mImpl->mCompoundShape->getChildTransform(static_cast<int>(i));
+                mImpl->mCompoundShape->updateChildTransform(static_cast<int>(i), local, false);
+                mImpl->mRigidOffsets.push_back(local);
+                mImpl->mPartTransforms.push_back(bodies[i].mTransform);
+                minRadius = std::min(minRadius, bodies[i].mRadius);
+            }
+            mImpl->mCompoundShape->recalculateLocalAabb();
+            addBody(mImpl->mCompoundShape.get(), origin * principal, mImpl->mTotalMass, inertia, minRadius);
+            replaceStaticColliders(std::move(colliders));
+            return;
+        }
+        for (std::size_t i = 0; i < bodies.size(); ++i)
+        {
+            btVector3 inertia;
+            mImpl->mShapes[i]->calculateLocalInertia(bodies[i].mMass, inertia);
+            addBody(mImpl->mShapes[i].get(), bodies[i].mTransform, bodies[i].mMass, inertia, bodies[i].mRadius);
         }
         mImpl->mConstraints.reserve(joints.size());
         for (const JointDefinition& joint : joints)
@@ -358,7 +477,14 @@ namespace Ragdoll
             const btTransform localChild = joint.mUseLocalFrames ? joint.mFrameInChild
                 : child.getWorldTransform().inverse() * joint.mFrameWorld;
             std::unique_ptr<btTypedConstraint> constraint;
-            if (joint.mType == JointDefinition::Type::Hinge)
+            if (settings.mBodyMode == BodyMode::Soft)
+            {
+                // Acid removes anatomical angular stiffness, but the attachment
+                // points stay locked so the body bends freely without separating.
+                constraint = std::make_unique<btPoint2PointConstraint>(
+                    parent, child, localParent.getOrigin(), localChild.getOrigin());
+            }
+            else if (joint.mType == JointDefinition::Type::Hinge)
             {
                 auto hinge = std::make_unique<btHingeConstraint>(parent, child, localParent, localChild, true);
                 hinge->setLimit(joint.mAngularLower.z(), joint.mAngularUpper.z(), 0.95, 0.3, 1.0);
@@ -467,7 +593,7 @@ namespace Ragdoll
     {
         if (!finite(impulse) || !finite(worldPoint))
             throw std::invalid_argument("Invalid ragdoll impulse");
-        btRigidBody& target = *mImpl->mBodies.at(body);
+        btRigidBody& target = mImpl->bodyForPart(body);
         if (!mImpl->mValid)
             return;
         target.activate(true);
@@ -501,6 +627,11 @@ namespace Ragdoll
     {
         if (!finite(impulse))
             throw std::invalid_argument("Invalid ragdoll joint torque");
+        if (joint >= mImpl->mJointCount)
+            throw std::out_of_range("Invalid ragdoll joint index");
+        // Internal torques cannot deform or launch a single frozen solid body.
+        if (!mImpl->mRigidOffsets.empty())
+            return;
         btTypedConstraint& constraint = *mImpl->mConstraints.at(joint);
         if (!mImpl->mValid)
             return;
@@ -540,15 +671,16 @@ namespace Ragdoll
     {
         if (!finite(worldPoint))
             throw std::invalid_argument("Invalid ragdoll pin point");
-        btRigidBody& target = *mImpl->mBodies.at(body);
+        btRigidBody& target = mImpl->bodyForPart(body);
         if (!mImpl->mValid || mImpl->mPin)
             return false;
-        const btVector3 local = target.getWorldTransform().inverse() * worldPoint;
+        const btVector3 partLocal = getBodyTransform(body).inverse() * worldPoint;
         // A pin is a short bolt through a body, never an invisible tether to a
         // distant wall. Caller must wait for an actual collision approach.
         const auto& shape = static_cast<const btCapsuleShape&>(*mImpl->mShapes[body]);
-        if (local.length() > shape.getHalfHeight() + shape.getRadius() * 2)
+        if (partLocal.length() > shape.getHalfHeight() + shape.getRadius() * 2)
             return false;
+        const btVector3 local = target.getWorldTransform().inverse() * worldPoint;
         auto pin = std::make_unique<btPoint2PointConstraint>(target, local);
         pin->setPivotB(worldPoint);
         pin->m_setting.m_tau = 0.3;
@@ -567,27 +699,34 @@ namespace Ragdoll
 
     std::size_t Simulation::getNumBodies() const
     {
-        return mImpl->mBodies.size();
+        return mImpl->mPartMasses.size();
     }
 
     const btTransform& Simulation::getBodyTransform(std::size_t body) const
     {
+        if (!mImpl->mRigidOffsets.empty())
+        {
+            btTransform& result = mImpl->mPartTransforms.at(body);
+            result = mImpl->mBodies.front()->getWorldTransform() * mImpl->mRigidOffsets.at(body);
+            return result;
+        }
         return mImpl->mBodies.at(body)->getWorldTransform();
     }
 
-    const btVector3& Simulation::getBodyLinearVelocity(std::size_t body) const
+    btVector3 Simulation::getBodyLinearVelocity(std::size_t body) const
     {
-        return mImpl->mBodies.at(body)->getLinearVelocity();
+        btRigidBody& target = mImpl->bodyForPart(body);
+        return target.getVelocityInLocalPoint(getBodyTransform(body).getOrigin() - target.getCenterOfMassPosition());
     }
 
     const btVector3& Simulation::getBodyAngularVelocity(std::size_t body) const
     {
-        return mImpl->mBodies.at(body)->getAngularVelocity();
+        return mImpl->bodyForPart(body).getAngularVelocity();
     }
 
     btScalar Simulation::getBodyMass(std::size_t body) const
     {
-        return mImpl->mBodies.at(body)->getMass();
+        return mImpl->mPartMasses.at(body);
     }
 
     btScalar Simulation::getTotalMass() const
@@ -597,6 +736,10 @@ namespace Ragdoll
 
     btScalar Simulation::getJointAngle(std::size_t joint) const
     {
+        if (joint >= mImpl->mJointCount)
+            throw std::out_of_range("Invalid ragdoll joint index");
+        if (!mImpl->mRigidOffsets.empty())
+            return 0;
         btTypedConstraint& constraint = *mImpl->mConstraints.at(joint);
         return constraint.getConstraintType() == HINGE_CONSTRAINT_TYPE
             ? static_cast<btHingeConstraint&>(constraint).getHingeAngle() : 0;

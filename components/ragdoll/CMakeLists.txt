@@ -40,6 +40,7 @@ if(RAGDOLL_TEST_RENDERING)
         tests/render_pose.cpp
         simulation.cpp
         ../../apps/openmw/mwrender/ragdoll.cpp
+        ../../apps/openmw/mwrender/ragdollappearance.cpp
         ../sceneutil/skeleton.cpp
         ../debug/debuglog.cpp
         ../files/conversion.cpp)

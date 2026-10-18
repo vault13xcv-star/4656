@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.2.0'
+$ragdollVersion = '0.3.0'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -66,6 +66,22 @@ function Copy-Runtime([string] $Destination) {
     $crt = Get-ChildItem "$env:VCToolsRedistDir/x64" -Directory -Filter 'Microsoft.VC*.CRT' | Select-Object -First 1
     if (-not $crt) { throw 'The x64 redistributable MSVC runtime was not found.' }
     Copy-Item (Join-Path $crt.FullName '*.dll') $Destination -Force
+}
+
+function Copy-CyrillicLaunchers([string] $Destination) {
+    foreach ($fontFile in @(
+        'MysticCards.ttf', 'MysticCards.omwfont', 'MysticCardsFontLicense.txt',
+        'DejaVuLGCSansMono.ttf', 'DejaVuLGCSansMono.omwfont', 'DejaVuFontLicense.txt'
+    )) {
+        $installedFont = Join-Path $Destination "resources/vfs/fonts/$fontFile"
+        if (-not (Test-Path $installedFont -PathType Leaf) -or (Get-Item $installedFont).Length -eq 0) {
+            throw "Incomplete Cyrillic font package: $fontFile is missing or empty."
+        }
+    }
+    foreach ($launcherFile in @('OpenMW-Russian.cmd', 'OpenMW-Cyrillic-Fonts.cmd')) {
+        Copy-Item (Join-Path $source "files/windows/$launcherFile") (Join-Path $Destination $launcherFile) -Force
+    }
+    Copy-Item (Join-Path $source 'docs/realcombat-cyrillic.md') (Join-Path $Destination 'CYRILLIC-README.md') -Force
 }
 
 switch ($Phase) {
@@ -129,6 +145,7 @@ switch ($Phase) {
         $install = Join-Path $source "package/$packageName"
         Run 'cmake' @('--install', $build, '--prefix', $install, '--config', 'Release') 'install.log'
         Copy-Runtime $install
+        Copy-CyrillicLaunchers $install
         foreach ($required in @('openmw.exe', 'defaults.bin', 'openmw.cfg', 'resources', 'LICENSE.txt', 'SDL2.dll', 'MyGUIEngine.dll')) {
             if (-not (Test-Path (Join-Path $install $required))) { throw "Incomplete package: $required is missing." }
         }
@@ -162,6 +179,8 @@ See RAGDOLL-README.md for feature configuration, limits and manual test steps.
         $versionErr = Join-Path $logs 'installed-version-errors.log'
         $process = Start-Process -FilePath (Join-Path $install 'openmw.exe') -ArgumentList '--version' -WorkingDirectory $install -Wait -PassThru -RedirectStandardOutput $versionOut -RedirectStandardError $versionErr
         if ($process.ExitCode -ne 0) { throw "Installed runtime failed --version (exit $($process.ExitCode))." }
+        Run (Join-Path $install 'OpenMW-Russian.cmd') @('--version') 'installed-russian-version.log'
+        Run (Join-Path $install 'OpenMW-Cyrillic-Fonts.cmd') @('--version') 'installed-cyrillic-fonts-version.log'
         New-Item -ItemType Directory -Force $dist | Out-Null
         $zip = Join-Path $dist "$packageName.zip"
         Push-Location (Split-Path $install -Parent)

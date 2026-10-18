@@ -11,6 +11,8 @@ class btCollisionShape;
 
 namespace Ragdoll
 {
+    enum class BodyMode { Articulated, Soft, Rigid };
+
     // Coordinates and velocities use OpenMW world units, with Z pointing up.
     // A capsule's cylindrical section extends along its local Y axis.
     struct BodyDefinition
@@ -52,6 +54,7 @@ namespace Ragdoll
 
     struct Settings
     {
+        BodyMode mBodyMode = BodyMode::Articulated;
         btVector3 mGravity{ 0, 0, -627.2 };
         btScalar mFixedTimeStep = 1.0 / 120.0;
         // A long stall must not cause an unbounded physics catch-up.
@@ -94,7 +97,7 @@ namespace Ragdoll
 
         std::size_t getNumBodies() const;
         const btTransform& getBodyTransform(std::size_t body) const;
-        const btVector3& getBodyLinearVelocity(std::size_t body) const;
+        btVector3 getBodyLinearVelocity(std::size_t body) const;
         const btVector3& getBodyAngularVelocity(std::size_t body) const;
         btScalar getBodyMass(std::size_t body) const;
         btScalar getTotalMass() const;

@@ -1512,6 +1512,10 @@ namespace MWRender
                 config.mPinEnabled = settings.mPinEnabled;
                 config.mPinMaxDistance = settings.mPinMaxDistance;
                 config.mPinContactDistance = settings.mPinContactDistance;
+                config.mPoisonTransitionTime = settings.mPoisonTransitionTime;
+                config.mFireTransitionTime = settings.mFireTransitionTime;
+                config.mFrostTransitionTime = settings.mFrostTransitionTime;
+                config.mFireEffectDuration = settings.mFireEffectDuration;
                 // Encumbrance includes carried loot and clothing; only equipped
                 // armour contributes additional physical body mass here.
                 const auto& inventory = mPtr.getClass().getInventoryStore(mPtr);
@@ -1540,7 +1544,12 @@ namespace MWRender
             }
         }
         if (mRagdoll)
+        {
+            // Equipment may have changed while looting the corpse. Re-whitelist
+            // its current bare parts; never inherit a previous armour selection.
+            mRagdoll->setSkinParts(getRagdollSkinParts());
             mRagdoll->update(duration);
+        }
     }
 
     bool Animation::getRagdollPosition(osg::Vec3f& position) const

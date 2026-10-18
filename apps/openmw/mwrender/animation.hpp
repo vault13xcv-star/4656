@@ -196,6 +196,7 @@ namespace MWRender
         float mRagdollPendingTime = 0.f;
 
         void updateRagdoll(float duration);
+        virtual std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const { return {}; }
 
         // The node expected to accumulate movement during movement animations.
         osg::ref_ptr<osg::Node> mAccumRoot;

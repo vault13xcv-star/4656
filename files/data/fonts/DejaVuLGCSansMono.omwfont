@@ -8,11 +8,22 @@
         <Codes>
             <Code range="33 126"/>
             <Code range="192 382"/>
-            <Code range="1025 1105"/>
+            <!-- Cyrillic glyphs present in the bundled DejaVu LGC font. -->
+            <Code range="1024 1119"/>
+            <Code range="1122 1123"/>
+            <Code range="1138 1139"/>
+            <Code range="1168 1179"/>
+            <Code range="1186 1189"/>
+            <Code range="1194 1203"/>
+            <Code range="1210 1211"/>
+            <Code range="1216 1220"/>
+            <Code range="1223 1224"/>
+            <Code range="1227 1228"/>
+            <Code range="1231 1273"/>
+            <Code range="1296 1297"/>
+            <Code range="1306 1309"/>
             <Code range="8470"/>
             <Code hide="128"/>
-            <Code hide="1026 1039"/>
-            <Code hide="1104"/>
         </Codes>
     </Resource>
 </MyGUI>

@@ -1,8 +1,12 @@
 #include <apps/openmw/mwrender/ragdoll.hpp>
+#include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
 
 #include <osg/FrameStamp>
+#include <osg/Texture2D>
+#include <osg/Geometry>
+#include <osg/Geode>
 #include <osg/MatrixTransform>
 #include <osgUtil/UpdateVisitor>
 
@@ -286,6 +290,7 @@ namespace
         SkeletonFixture stalled;
         impact.mCrossbow = false;
         impact.mShock = true;
+        impact.mDeathElement = Ragdoll::DeathElement::Shock;
         MWRender::RagdollController::Settings settings;
         settings.mShockDuration = 10;
         auto timed = MWRender::RagdollController::create(
@@ -304,6 +309,7 @@ namespace
         Ragdoll::Impact impact;
         impact.mValid = true;
         impact.mShock = true;
+        impact.mDeathElement = Ragdoll::DeathElement::Shock;
         impact.mMagicDistance = 5;
         impact.mMagicDirection.set(1, 1, 0);
         auto corpse = MWRender::RagdollController::create(
@@ -355,6 +361,147 @@ namespace
         std::cout << "PASS anatomical hinge limits under recoil and five-second electrical spasms\n";
     }
 
+    osg::ref_ptr<osg::Texture2D> testSkinTexture()
+    {
+        osg::ref_ptr<osg::Image> image = new osg::Image;
+        image->allocateImage(8, 8, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+        for (int y = 0; y < 8; ++y)
+            for (int x = 0; x < 8; ++x)
+                image->setColor(osg::Vec4f(0.7f, 0.5f, 0.3f, 0.6f), x, y);
+        return new osg::Texture2D(image);
+    }
+
+    osg::Vec4f paintedPixel(osg::Node& node)
+    {
+        const auto* texture = static_cast<const osg::Texture2D*>(
+            node.getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+        return texture->getImage()->getColor(0, 0);
+    }
+
+    void skinSurfacesAndCleanup()
+    {
+        for (const auto element : { Ragdoll::DeathElement::Poison, Ragdoll::DeathElement::Fire,
+                 Ragdoll::DeathElement::Frost })
+        {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            osg::ref_ptr<osg::Group> skin = new osg::Group;
+            osg::ref_ptr<osg::Group> armour = new osg::Group;
+            auto texture = testSkinTexture();
+            osg::ref_ptr<osg::StateSet> shared = new osg::StateSet;
+            shared->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+            skin->setStateSet(shared);
+            armour->setStateSet(shared);
+            root->addChild(skin);
+            root->addChild(armour);
+            const auto original = texture->getImage()->getColor(0, 0);
+            {
+                MWRender::RagdollAppearance effect(*root, element, {});
+                const std::array<osg::Vec3f, 2> positions{ osg::Vec3f(0, 0, 10), osg::Vec3f(0, 10, 10) };
+                effect.update(0, { skin }, positions);
+                require(paintedPixel(*skin->getParent(0)) == original, "fade must start with the original skin texture");
+                const float duration = element == Ragdoll::DeathElement::Fire ? 2.f : 1.5f;
+                effect.update(duration / 2, { skin }, positions);
+                require(std::abs(effect.getBlend() - 0.5f) < 0.001f, "skin transformation must blend over the element's duration");
+                const auto halfway = paintedPixel(*skin->getParent(0));
+                effect.update(duration, { skin }, positions);
+                const auto final = paintedPixel(*skin->getParent(0));
+                require((halfway - original).length() > 0.01f && (final - halfway).length() > 0.01f,
+                    "surface texture must change gradually, not switch a global colour");
+                require(std::abs(final.a() - original.a()) < 0.005f, "skin painting must preserve texture transparency");
+                if (element == Ragdoll::DeathElement::Poison)
+                    require(final.g() > final.r() * 2 && final.g() > final.b() * 2, "poison must produce green slime texture");
+                else if (element == Ragdoll::DeathElement::Fire)
+                    require(final.r() < 0.15f && final.g() < 0.15f && final.b() < 0.15f, "fire must produce charred skin");
+                else
+                    require(final.b() > final.r() && final.g() > original.g(), "frost must produce an icy surface");
+                require(armour->getStateSet() == shared && armour->getParent(0) == root,
+                    "armour sharing skin assets must retain its original state and attachment");
+                require(texture->getImage()->getColor(0, 0) == original,
+                    "cached original texture pixels must remain immutable");
+                effect.update(5.01f, { skin }, positions);
+                require(!effect.hasFire(), "fire and smoke must expire at five seconds");
+            }
+            require(skin->getParent(0) == root && skin->getStateSet() == shared && root->getNumChildren() == 2,
+                "removal/resurrection must restore original attachments and states");
+        }
+
+        osg::ref_ptr<osg::Group> root = new osg::Group;
+        osg::ref_ptr<osg::Geode> skin = new osg::Geode;
+        osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
+        auto texture = testSkinTexture();
+        geometry->getOrCreateStateSet()->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+        skin->addDrawable(geometry);
+        root->addChild(skin);
+        {
+            MWRender::RagdollAppearance effect(*root, Ragdoll::DeathElement::Poison, {});
+            effect.update(1.5f, { skin }, {});
+            require(skin->getNumDrawables() == 1 && skin->getDrawable(0) && skin->getDrawable(0) != geometry,
+                "a Geode must keep a per-instance Drawable, never a Group child");
+            require(paintedPixel(*skin->getDrawable(0)).g() > paintedPixel(*skin->getDrawable(0)).r(),
+                "direct Drawable materials must receive slime texture");
+            require(static_cast<osg::Texture2D*>(geometry->getStateSet()->getTextureAttribute(0,
+                osg::StateAttribute::TEXTURE)) == texture, "shared source Drawable must remain unchanged");
+        }
+        require(skin->getDrawable(0) == geometry, "Geode drawable must restore after effect destruction");
+        {
+            MWRender::RagdollAppearance directPart(*root, Ragdoll::DeathElement::Poison, {});
+            directPart.update(0.5f, { geometry }, {});
+            directPart.update(1.5f, {}, {});
+            require(skin->getNumDrawables() == 0 && geometry->getNumParents() == 0,
+                "removing a direct Drawable skin part must remove its clone without resurrecting the source");
+        }
+
+        osg::ref_ptr<osg::Group> removed = new osg::Group;
+        removed->getOrCreateStateSet()->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+        root->addChild(removed);
+        MWRender::RagdollAppearance changing(*root, Ragdoll::DeathElement::Poison, {});
+        changing.update(0.5f, { removed }, {});
+        removed->getParent(0)->removeChild(removed); // Same operation as PartHolder destruction.
+        changing.update(1.5f, {}, {});
+        require(removed->getNumParents() == 0 && root->getNumChildren() == 1,
+            "equipment replacement must not reattach removed skin or leave an empty overlay");
+        std::cout << "PASS skin-only texture transitions, shared-asset isolation, Geode support and cleanup\n";
+    }
+
+    void elementalLifecycle()
+    {
+        SkeletonFixture fixture;
+        osg::ref_ptr<osg::Group> skin = new osg::Group;
+        skin->getOrCreateStateSet()->setTextureAttributeAndModes(0, testSkinTexture(), osg::StateAttribute::ON);
+        fixture.mSkeleton->addChild(skin);
+        Ragdoll::Impact impact;
+        impact.mValid = true;
+        impact.mDeathElement = Ragdoll::DeathElement::Fire;
+        MWRender::RagdollController::Settings settings;
+        settings.mMaxSimulationTime = 0.1f;
+        auto corpse = MWRender::RagdollController::create(
+            *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, impact);
+        corpse->setSkinParts({ skin });
+        corpse->update(0.2f);
+        require(!corpse->isSimulating() && corpse->hasFireEffect() && corpse->getAppearanceBlend() < 1,
+            "early physics freeze must retain unfinished skin fade and fire");
+        corpse->update(1.8f);
+        require(corpse->getAppearanceBlend() == 1 && corpse->hasFireEffect(),
+            "char transition must finish at two seconds after physics has frozen");
+        corpse->update(3.01f);
+        require(!corpse->hasFireEffect(), "frozen corpse's fire must stop at five seconds");
+        corpse.reset();
+        require(skin->getParent(0) == fixture.mSkeleton, "resurrection must remove skin overlay");
+
+        SkeletonFixture frozen;
+        impact.mDeathElement = Ragdoll::DeathElement::Frost;
+        auto ice = MWRender::RagdollController::create(
+            *frozen.mSkeleton, *frozen.mSkeleton, floorSnapshot, {}, impact);
+        const auto pelvisBefore = worldMatrix(*frozen.mBones.at("Pelvis"));
+        const auto headRelative = worldMatrix(*frozen.mBones.at("Head")) * osg::Matrixf::inverse(pelvisBefore);
+        for (int i = 0; i < 120; ++i)
+            ice->update(1.f / 60);
+        const auto headAfter = worldMatrix(*frozen.mBones.at("Head"))
+            * osg::Matrixf::inverse(worldMatrix(*frozen.mBones.at("Pelvis")));
+        require(near(headRelative, headAfter, 0.003f), "frost must preserve all relative bone transforms as one rigid object");
+        std::cout << "PASS elemental timers after physics freeze and rigid frost skeleton\n";
+    }
+
 }
 
 int main()
@@ -367,6 +514,8 @@ int main()
         inertiaAndMass();
         pinAndDeadline();
         anatomicalLimitsAndShock();
+        skinSurfacesAndCleanup();
+        elementalLifecycle();
         return 0;
     }
     catch (const std::exception& error)

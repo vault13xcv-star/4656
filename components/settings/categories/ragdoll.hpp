@@ -47,6 +47,14 @@ namespace Settings
             mIndex, "Ragdoll", "shock duration", makeClampSanitizerFloat(0, 10) };
         SettingValue<float> mShockStrength{
             mIndex, "Ragdoll", "shock strength", makeClampSanitizerFloat(0, 5) };
+        SettingValue<float> mPoisonTransitionTime{
+            mIndex, "Ragdoll", "poison transition time", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mFireTransitionTime{
+            mIndex, "Ragdoll", "fire transition time", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mFrostTransitionTime{
+            mIndex, "Ragdoll", "frost transition time", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mFireEffectDuration{
+            mIndex, "Ragdoll", "fire effect duration", makeClampSanitizerFloat(0, 10) };
         SettingValue<bool> mPinEnabled{ mIndex, "Ragdoll", "pin enabled" };
         SettingValue<float> mPinMaxDistance{
             mIndex, "Ragdoll", "pin max distance", makeClampSanitizerFloat(0, 20) };

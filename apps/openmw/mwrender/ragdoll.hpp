@@ -2,6 +2,7 @@
 #define OPENMW_MWRENDER_RAGDOLL_H
 
 #include <osg/Vec3f>
+#include <osg/ref_ptr>
 
 #include <components/ragdoll/impact.hpp>
 
@@ -12,6 +13,7 @@
 namespace osg
 {
     class Group;
+    class Node;
 }
 
 namespace SceneUtil
@@ -44,6 +46,10 @@ namespace MWRender
             bool mPinEnabled = true;
             float mPinMaxDistance = 3.f;
             float mPinContactDistance = 12.f;
+            float mPoisonTransitionTime = 1.5f;
+            float mFireTransitionTime = 2.f;
+            float mFrostTransitionTime = 1.5f;
+            float mFireEffectDuration = 5.f;
         };
 
         /// Returns nullptr for unsupported skeletons, missing collision geometry or an exhausted budget.
@@ -53,6 +59,9 @@ namespace MWRender
         ~RagdollController();
 
         void update(float duration);
+        void setSkinParts(std::vector<osg::ref_ptr<osg::Node>> skinParts);
+        float getAppearanceBlend() const;
+        bool hasFireEffect() const;
         /// Native animation controllers are rebuilt when a death animation starts/ends.
         /// Keep the final pose override last, without suppressing their event bookkeeping.
         void refreshCallbacks();

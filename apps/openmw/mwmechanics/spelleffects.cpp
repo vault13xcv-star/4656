@@ -1391,15 +1391,35 @@ namespace MWMechanics
                     || effect.mEffectId == ESM::MagicEffect::Poison
                     || effect.mEffectId == ESM::MagicEffect::DrainHealth
                     || effect.mEffectId == ESM::MagicEffect::AbsorbHealth;
+                if (!impact && effect.mMagnitude > 0.f
+                    && (stats.getHealth().getCurrent() < healthBefore
+                        || (wasDead && harmfulHealth && stats.isRagdollDeathHit(spellParams.getRagdollFallbackHit())
+                            && !(target == getPlayer() && world->getGodModeState()))))
+                    impact = &spellParams.addRagdollFallbackImpact(effect.mEffectIndex);
                 if (impact && impact->mHit && effect.mMagnitude > 0.f
                     && (stats.getHealth().getCurrent() < healthBefore
                         || (wasDead && stats.isRagdollDeathHit(impact->mHit) && harmfulHealth
                             && !(target == getPlayer() && world->getGodModeState()))))
                 {
+                    Ragdoll::DeathElement element = Ragdoll::DeathElement::None;
+                    if (effect.mEffectId == ESM::MagicEffect::ShockDamage)
+                        element = Ragdoll::DeathElement::Shock;
+                    else if (effect.mEffectId == ESM::MagicEffect::Poison)
+                        element = Ragdoll::DeathElement::Poison;
+                    else if (effect.mEffectId == ESM::MagicEffect::FireDamage)
+                        element = Ragdoll::DeathElement::Fire;
+                    else if (effect.mEffectId == ESM::MagicEffect::FrostDamage)
+                        element = Ragdoll::DeathElement::Frost;
+                    // Magnitude has already been rolled, resisted and scaled for
+                    // this duration tick. Compare before clamping to remaining HP:
+                    // otherwise the first effect to reduce HP to zero would hide
+                    // a stronger effect later in the same spell/enchantment.
+                    const float effectiveDamage = harmfulHealth ? effect.mMagnitude
+                        : std::max(0.f, healthBefore - stats.getHealth().getCurrent());
                     impact->mHit->applyMagic(impact->mEffect,
                         makeRagdollMagicImpact(*impact, target.getRefData().getPosition().asVec3(),
                             Settings::ragdoll().mMagicMinDistance, Settings::ragdoll().mMagicDistanceScale,
-                            effect.mEffectId == ESM::MagicEffect::ShockDamage));
+                            element, effectiveDamage));
                     if (!wasDead && stats.isDead())
                         stats.recordRagdollDeath(impact->mHit);
                 }

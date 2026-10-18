@@ -1,4 +1,5 @@
 #include "ragdoll.hpp"
+#include "ragdollappearance.hpp"
 
 #include <components/misc/strings/lower.hpp>
 #include <components/misc/constants.hpp>
@@ -157,6 +158,8 @@ namespace MWRender
         Settings mSettings;
         std::vector<BonePose> mBones;
         std::unique_ptr<Ragdoll::Simulation> mSimulation;
+        std::unique_ptr<RagdollAppearance> mAppearance;
+        RagdollAppearance::SkinParts mSkinParts;
         std::vector<osg::Matrixf> mBodyMatrices;
         std::vector<osg::Vec3f> mCollisionVertices;
         float mElapsed = 0.f;
@@ -173,6 +176,14 @@ namespace MWRender
         osg::Vec3f mPinStart;
         osg::Vec3f mRight;
         osg::Vec3f mForward;
+
+        void updateAppearance()
+        {
+            std::array<osg::Vec3f, 11> positions;
+            for (std::size_t i = 0; i < positions.size(); ++i)
+                positions[i] = mBodyMatrices[i].getTrans();
+            mAppearance->update(mElapsed, mSkinParts, positions);
+        }
 
         void updateShock(float timeStep)
         {
@@ -447,11 +458,22 @@ namespace MWRender
         impl->mTorsoLength = torsoLength;
         impl->mChestRadius = bodies[1].mRadius;
         impl->mPelvisRadius = bodies[0].mRadius;
-        impl->mShock = impact.mValid && impact.mShock && settings.mShockDuration > 0.f;
+        impl->mShock = impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Shock
+            && settings.mShockDuration > 0.f;
         impl->mRight = right;
         impl->mForward = forward;
         impl->mCollisionVertices = std::move(vertices);
-        impl->mSimulation = std::make_unique<Ragdoll::Simulation>(std::move(bodies), std::move(joints), std::move(colliders));
+        Ragdoll::Settings physics;
+        if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Poison)
+            physics.mBodyMode = Ragdoll::BodyMode::Soft;
+        else if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Frost)
+            physics.mBodyMode = Ragdoll::BodyMode::Rigid;
+        impl->mSimulation = std::make_unique<Ragdoll::Simulation>(
+            std::move(bodies), std::move(joints), std::move(colliders), physics);
+        impl->mAppearance = std::make_unique<RagdollAppearance>(root,
+            impact.mValid ? impact.mDeathElement : Ragdoll::DeathElement::None,
+            RagdollAppearance::Settings{ settings.mPoisonTransitionTime, settings.mFireTransitionTime,
+                settings.mFrostTransitionTime, settings.mFireEffectDuration });
         if (!impl->mSimulation->isValid())
             return nullptr;
         impl->mBones = std::move(visitor.mBones);
@@ -501,6 +523,7 @@ namespace MWRender
         auto result = std::unique_ptr<RagdollController>(new RagdollController(std::move(impl)));
         result->refreshCallbacks();
         result->mImpl->applyPose();
+        result->mImpl->updateAppearance();
         return result;
     }
 
@@ -516,12 +539,13 @@ namespace MWRender
 
     void RagdollController::update(float duration)
     {
+        // Surface transitions and short-lived fire continue after a sleeping or
+        // frozen physics world has released its active-corpse budget.
+        if (duration > 0.f && std::isfinite(duration))
+            mImpl->mElapsed += duration;
         if (mImpl->mSimulation && duration > 0.f && std::isfinite(duration))
         {
             const float timeStep = std::min(duration, 0.1f);
-            // The deadline follows elapsed game time even when the solver caps a
-            // stalled frame; otherwise a corpse could simulate far beyond 10 s.
-            mImpl->mElapsed += duration;
             mImpl->mSinceSnapshot += duration;
             mImpl->updateShock(timeStep);
             if (mImpl->mSinceSnapshot >= mImpl->mSettings.mCollisionRefreshInterval)
@@ -533,6 +557,7 @@ namespace MWRender
                     // simulating against geometry that may have disappeared since the last query.
                     mImpl->freeze();
                     mImpl->applyPose();
+                    mImpl->updateAppearance();
                     return;
                 }
                 if (vertices != mImpl->mCollisionVertices)
@@ -556,7 +581,15 @@ namespace MWRender
             }
         }
         mImpl->applyPose();
+        mImpl->updateAppearance();
     }
+
+    void RagdollController::setSkinParts(std::vector<osg::ref_ptr<osg::Node>> skinParts)
+    {
+        mImpl->mSkinParts = std::move(skinParts);
+    }
+    float RagdollController::getAppearanceBlend() const { return mImpl->mAppearance->getBlend(); }
+    bool RagdollController::hasFireEffect() const { return mImpl->mAppearance->hasFire(); }
 
     float RagdollController::getMass() const { return mImpl->mMass; }
     bool RagdollController::isSimulating() const { return bool(mImpl->mSimulation); }

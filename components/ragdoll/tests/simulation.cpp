@@ -452,6 +452,150 @@ namespace
         check((simulation.getBodyTransform(0) * localPin).distance(point) < 0.3,
             "Replacing collision geometry invalidated the pin's world anchor");
     }
+
+    void testFrozenCompoundBody()
+    {
+        auto torso = capsule(btVector3(0, 0, 60), 4, 14);
+        torso.mMass = 30;
+        auto arm = capsule(btVector3(14, 0, 65), 2, 8);
+        arm.mMass = 4;
+        arm.mTransform.setRotation(btQuaternion(btVector3(0, 0, 1), 0.6));
+        auto leg = capsule(btVector3(-8, 0, 45), 3, 18);
+        leg.mMass = 10;
+        leg.mTransform.setRotation(btQuaternion(btVector3(1, 0, 0), 0.6));
+        const std::vector<Ragdoll::BodyDefinition> parts{ torso, arm, leg };
+        Ragdoll::JointDefinition joint;
+        joint.mChild = 1;
+        joint.mFrameWorld.setOrigin(btVector3(7, 0, 62));
+        Ragdoll::StaticCollider wall;
+        wall.mShape = std::make_shared<btBoxShape>(btVector3(1, 300, 200));
+        wall.mTransform.setOrigin(btVector3(60, 0, 100));
+        Ragdoll::Settings settings;
+        settings.mBodyMode = Ragdoll::BodyMode::Rigid;
+        for (const btScalar frame : { btScalar(1.0 / 30), btScalar(1.0 / 60), btScalar(1.0 / 120) })
+        {
+            Ragdoll::Simulation frozen(parts, { joint }, { plane(), wall }, settings);
+            check(frozen.getNumBodies() == parts.size(), "Frozen compound lost its visible part indices");
+            const btVector3 impulse(15000, 0, 2000);
+            frozen.applyWholeBodyImpulse(impulse);
+            btVector3 momentum(0, 0, 0);
+            for (std::size_t i = 0; i < parts.size(); ++i)
+            {
+                check(btFabs(frozen.getBodyMass(i) - parts[i].mMass) < 1e-8,
+                    "Frozen compound changed a part's mass");
+                check(frozen.getBodyTransform(i).getOrigin().distance(parts[i].mTransform.getOrigin()) < 1e-8,
+                    "Building a frozen compound snapped the captured death pose");
+                momentum += frozen.getBodyLinearVelocity(i) * frozen.getBodyMass(i);
+            }
+            check(momentum.distance(impulse) < 1e-8, "Compound launch counted the corpse's mass more than once");
+            frozen.applyImpulse(1, btVector3(0, 1000, 0), arm.mTransform.getOrigin());
+            const auto angularBefore = frozen.getBodyAngularVelocity(1);
+            frozen.applyJointTorqueImpulse(0, btVector3(5000, 10000, 20000));
+            check(frozen.getBodyAngularVelocity(1) == angularBefore,
+                "An internal joint torque deformed or launched a frozen solid body");
+            for (int step = 0; step < static_cast<int>(10 / frame); ++step)
+            {
+                check(frozen.advance(frame), "Frozen compound became invalid during an impact");
+                for (std::size_t i = 1; i < parts.size(); ++i)
+                {
+                    const btTransform expected = parts[0].mTransform.inverse() * parts[i].mTransform;
+                    const btTransform relative = frozen.getBodyTransform(0).inverse() * frozen.getBodyTransform(i);
+                    check(relative.getOrigin().distance(expected.getOrigin()) < 1e-7,
+                        "Frozen limbs stretched instead of behaving as one solid object");
+                    check((relative.getRotation().inverse() * expected.getRotation()).getAngleShortestPath() < 1e-6,
+                        "Frozen limbs bent under an off-centre impact");
+                }
+            }
+            for (std::size_t i = 0; i < parts.size(); ++i)
+            {
+                const auto transform = frozen.getBodyTransform(i);
+                const btScalar bottom = transform.getOrigin().z()
+                    - btFabs(transform.getBasis().getColumn(1).z()) * parts[i].mLength / 2 - parts[i].mRadius;
+                check(bottom > -0.5, "A frozen compound part penetrated the floor");
+                check(transform.getOrigin().x() < 60, "A frozen compound tunneled through the wall");
+            }
+        }
+
+        // Pinning a visible limb must anchor the one underlying compound body,
+        // with the same nearby-point restriction as an articulated corpse.
+        Ragdoll::Simulation pinned(parts, { joint }, {}, settings);
+        const btVector3 point = arm.mTransform.getOrigin() + btVector3(1, 0, 0);
+        const btVector3 local = arm.mTransform.inverse() * point;
+        check(pinned.pinBody(1, point), "Could not pin a compound using a visible part index");
+        pinned.applyWholeBodyImpulse(btVector3(500, 300, 200));
+        runFor(pinned, 5);
+        check((pinned.getBodyTransform(1) * local).distance(point) < 0.3,
+            "A compound pin used the wrong centre of mass or lost its anchor");
+
+        // Native Bullet CCD skips compound shapes. These narrow, aligned parts
+        // would cross the entire thin wall between two fixed physics substeps.
+        std::vector<Ragdoll::BodyDefinition> narrow;
+        for (const btScalar y : { btScalar(-4), btScalar(0), btScalar(4) })
+            narrow.push_back(capsule(btVector3(-20, y, 20), 1));
+        Ragdoll::StaticCollider thinWall;
+        thinWall.mShape = std::make_shared<btBoxShape>(btVector3(0.1, 100, 100));
+        settings.mGravity.setZero();
+        settings.mLinearDamping = 0;
+        for (const btScalar frame : { btScalar(1.0 / 30), btScalar(1.0 / 60), btScalar(1.0 / 120) })
+        {
+            Ragdoll::Simulation fast(narrow, {}, { thinWall }, settings);
+            fast.applyWholeBodyImpulse(btVector3(2000, 0, 0) * fast.getTotalMass());
+            Ragdoll::Simulation downward(narrow, {}, { plane() }, settings);
+            downward.applyWholeBodyImpulse(btVector3(0, 0, -2000) * downward.getTotalMass());
+            for (int step = 0; step < static_cast<int>(0.25 / frame); ++step)
+            {
+                check(fast.advance(frame) && downward.advance(frame), "Fast compound collision became invalid");
+                for (std::size_t part = 0; part < narrow.size(); ++part)
+                {
+                    check(fast.getBodyTransform(part).getOrigin().x() < 0,
+                        "A maximum-speed frozen compound tunneled through a thin wall");
+                    check(downward.getBodyTransform(part).getOrigin().z() > 0.8,
+                        "A maximum-speed frozen compound tunneled through the floor");
+                }
+            }
+        }
+    }
+
+    void testSoftConnectedBody()
+    {
+        auto first = capsule(btVector3(0, 8, 40), 2, 12);
+        auto second = capsule(btVector3(0, -8, 40), 2, 12);
+        first.mMass = 6;
+        second.mMass = 3;
+        Ragdoll::JointDefinition hinge;
+        hinge.mChild = 1;
+        hinge.mType = Ragdoll::JointDefinition::Type::Hinge;
+        hinge.mFrameWorld.setOrigin(btVector3(0, 0, 40));
+        hinge.mAngularLower = btVector3(0, 0, 0);
+        hinge.mAngularUpper = btVector3(0, 0, 2.4);
+        Ragdoll::Settings settings;
+        settings.mGravity.setZero();
+        Ragdoll::Simulation normal({ first, second }, { hinge }, {}, settings);
+        settings.mBodyMode = Ragdoll::BodyMode::Soft;
+        Ragdoll::Simulation soft({ first, second }, { hinge }, {}, settings);
+        normal.applyJointTorqueImpulse(0, btVector3(0, 0, -300));
+        soft.applyJointTorqueImpulse(0, btVector3(0, 0, -300));
+        const btTransform localA = first.mTransform.inverse() * hinge.mFrameWorld;
+        const btTransform localB = second.mTransform.inverse() * hinge.mFrameWorld;
+        btScalar largestSoftFlexion = 0;
+        for (int step = 0; step < 240; ++step)
+        {
+            check(normal.advance(1.0 / 120) && soft.advance(1.0 / 120), "Soft-body comparison became invalid");
+            const btTransform a = soft.getBodyTransform(0) * localA;
+            const btTransform b = soft.getBodyTransform(1) * localB;
+            largestSoftFlexion = std::max(largestSoftFlexion,
+                (a.getRotation().inverse() * b.getRotation()).getAngleShortestPath());
+            check(a.getOrigin().distance(b.getOrigin()) < 0.3, "An acid-softened body disconnected at a joint");
+            check(normal.getJointAngle(0) > -0.08, "Acid mode accidentally removed normal anatomical stops");
+        }
+        check(largestSoftFlexion > 1, "Acid death did not remove anatomical bending stiffness");
+        settings.mGravity = btVector3(0, 0, -627.2);
+        Ragdoll::Simulation falling({ first, second }, { hinge }, { plane() }, settings);
+        runFor(falling, 8);
+        check(falling.getBodyTransform(0).getOrigin().z() > 1.5
+                && falling.getBodyTransform(1).getOrigin().z() > 1.5,
+            "Acid-softened parts stopped colliding with the environment");
+    }
 }
 
 int main()
@@ -468,7 +612,9 @@ int main()
         testAnatomicalHingeLimits();
         testSelfCollisionAndOverlappingAnimation();
         testStaticRayAndWallPin();
-        std::cout << "10 ragdoll physics suites passed (actual double precision Bullet solver)\n";
+        testFrozenCompoundBody();
+        testSoftConnectedBody();
+        std::cout << "12 ragdoll physics suites passed (actual double precision Bullet solver)\n";
         return 0;
     }
     catch (const std::exception& error)

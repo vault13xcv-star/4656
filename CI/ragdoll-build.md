@@ -2,9 +2,10 @@
 
 Push the modified engine to a branch matching `experimental/ragdoll-*` to run
 `.github/workflows/realcombat-ragdoll.yml`. GitHub Actions must be enabled for the
-repository. A manual `workflow_dispatch` is also supported once GitHub exposes
-the workflow. No personal access token or repository secret is needed: the job
-uses its short-lived `GITHUB_TOKEN` with `contents: write`.
+repository. The current feature branch is `experimental/ragdoll-0.3.0-windows`.
+A manual `workflow_dispatch` is also supported once GitHub exposes the workflow.
+No personal access token or repository secret is needed: the job uses its
+short-lived `GITHUB_TOKEN` with `contents: write`.
 
 The Windows Server 2022 runner activates MSVC 2022 x64. It downloads the same
 OpenMW vcpkg bundle selected by `CI/deps_versions.msvc.sh`, but from the manifest
@@ -20,11 +21,17 @@ resources, default settings, configuration, DLLs, OSG plugins, app-local MSVC CR
 OpenMW license, dependency copyright notices and commit/build metadata. It does
 not include Morrowind assets. The whole ZIP must be extracted. The normal
 OpenMW user configuration is reused; no stable installation is overwritten.
+The package also includes `OpenMW-Russian.cmd` and `OpenMW-Cyrillic-Fonts.cmd`,
+which select bundled Cyrillic-capable fonts, and `CYRILLIC-README.md`.
+Packaging requires their existing
+MysticCards/DejaVu font files and licenses and runs both launchers with
+`--version` to check command-line forwarding. This does not validate rendered
+text or the encoding of the user's game data.
 
 Successful jobs publish an immutable GitHub prerelease containing the runtime
 ZIP, its SHA256 checksum and the complete corresponding engine source archive.
 Runtime/source ZIP names, the prerelease title, tag and package metadata include
-the ragdoll feature version (currently `0.2.0`) separately from OpenMW `0.51.0`.
+the ragdoll feature version (currently `0.3.0`) separately from OpenMW `0.51.0`.
 Actions also stores these as a 30-day artifact. Physics, synthetic OSG skeleton,
 lethal-hit attribution and component tests,
 the installed executable's `--version` command, and ZIP integrity must pass
@@ -32,9 +39,12 @@ before publication. This is not an in-game playtest.
 
 The standalone tests are configured with `-DRAGDOLL_TEST_RENDERING=ON` and the
 same vcpkg toolchain/prefix as the engine, so the Bullet and OpenSceneGraph ABIs
-match the runtime. These three standalone test suites build and run before the
+match the runtime. All standalone test suites build and run before the
 full engine compilation, so a Windows solver regression fails within minutes.
 The complete engine and component tests still build and pass before packaging.
+MSVC precompiled headers remain enabled; no unverified CMake build directory is
+restored between jobs. Compiler-cache tools that reject MSVC precompiled headers
+would require a separate measured build configuration before being enabled.
 Release tags begin with `ragdoll-windows-`; they do not match
 the upstream release workflow's `openmw-**` tag trigger.
 
@@ -46,19 +56,23 @@ Each run creates its own report branch:
 build-results/ragdoll-<full source commit>-<run ID>-<attempt>
 ```
 
-For example, after pushing source commit `SOURCE_SHA`:
+In the cloud checkout, `origin` refers to upstream OpenMW and `publish` refers
+to `vault13xcv-star/4656`. After pushing source commit `SOURCE_SHA`, use the
+publication remote and a dedicated report ref:
 
 ```sh
-git ls-remote origin 'refs/heads/build-results/ragdoll-SOURCE_SHA-*'
-git fetch origin refs/heads/build-results/ragdoll-SOURCE_SHA-RUN_ID-1
-git show FETCH_HEAD:status.json
-git show FETCH_HEAD:logs/build.log
+git ls-remote publish 'refs/heads/build-results/ragdoll-SOURCE_SHA-*'
+git fetch --depth 1 --no-tags publish \
+  +refs/heads/build-results/ragdoll-SOURCE_SHA-RUN_ID-1:refs/remotes/publish/ragdoll-monitor-RUN_ID
+git show refs/remotes/publish/ragdoll-monitor-RUN_ID:status.json
+git show refs/remotes/publish/ragdoll-monitor-RUN_ID:logs/build.log
 ```
 
 Replace the placeholders with the actual values. `status.json` identifies the
 phase, overall result, source commit, run URL, package checksum and release URL.
-During compilation a background reporter updates this branch every 60 seconds,
+During compilation a background reporter requests an update every 60 seconds,
 including the last compiler output, so long builds have a visible heartbeat.
+A busy runner and Git publication can delay visible updates by several minutes.
 It finishes before the next workflow phase can publish a report. A temporary
 heartbeat failure does not interrupt compilation; phase/final reports remain
 required.

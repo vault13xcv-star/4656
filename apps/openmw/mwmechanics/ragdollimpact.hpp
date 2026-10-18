@@ -51,10 +51,16 @@ namespace MWMechanics
         {
             // A duration effect replaces its own contribution; ticks never multiply
             // the impulse. Only effects that really removed health enter this map.
-            mMagic[id] = impact;
+            const bool contributes = impact.mValid && std::isfinite(impact.mDominantMagicDamage)
+                && impact.mDominantMagicDamage > 0.f;
+            if (contributes)
+                mMagic[id] = impact;
+            else
+                mMagic.erase(id);
             mApplied.mMagicDistance = 0.f;
             mApplied.mMagicDirection = {};
-            mApplied.mShock = false;
+            mApplied.mDeathElement = Ragdoll::DeathElement::None;
+            mApplied.mDominantMagicDamage = 0.f;
             for (const auto& [key, contribution] : mMagic)
             {
                 // A multi-effect explosion has one spatial radius, not one
@@ -64,10 +70,22 @@ namespace MWMechanics
                     mApplied.mMagicDistance = contribution.mMagicDistance;
                     mApplied.mMagicDirection = contribution.mMagicDirection;
                 }
-                mApplied.mShock = mApplied.mShock || contribution.mShock;
+                // Presentation is selected by effective damage, never by radius.
+                // Strict comparison makes equal damage deterministic: the first
+                // effect in native effect order wins. Ordinary health damage also
+                // participates and can suppress a weaker elemental presentation.
+                if (contribution.mDominantMagicDamage > mApplied.mDominantMagicDamage)
+                {
+                    mApplied.mDominantMagicDamage = contribution.mDominantMagicDamage;
+                    mApplied.mDeathElement = contribution.mDeathElement;
+                }
             }
-            mApplied.mPosition = impact.mPosition;
-            mApplied.mValid = true;
+            mApplied.mShock = mApplied.mDeathElement == Ragdoll::DeathElement::Shock;
+            if (contributes)
+            {
+                mApplied.mPosition = impact.mPosition;
+                mApplied.mValid = true;
+            }
         }
     };
 
@@ -79,11 +97,19 @@ namespace MWMechanics
         osg::Vec3f mDirection;
         float mRadius = 0.f; // metres; ESM effect area is stored in feet
         bool mExploded = false;
+        bool mHasImpulse = true; // False when only the effect survives a save/load.
     };
     inline Ragdoll::Impact makeRagdollMagicImpact(const RagdollMagicImpact& context,
-        const osg::Vec3f& targetPosition, float minimumDistance, float scale, bool shock)
+        const osg::Vec3f& targetPosition, float minimumDistance, float scale,
+        Ragdoll::DeathElement element, float effectiveDamage)
     {
         Ragdoll::Impact impact;
+        impact.mDeathElement = element;
+        impact.mDominantMagicDamage = effectiveDamage;
+        impact.mShock = element == Ragdoll::DeathElement::Shock;
+        impact.mValid = true;
+        if (!context.mHasImpulse)
+            return impact;
         impact.mPosition = context.mOrigin;
         impact.mMagicDirection = context.mDirection;
         float distance = 0.f;
@@ -99,8 +125,6 @@ namespace MWMechanics
                 impact.mMagicDirection.set(0, 1, 0);
         }
         impact.mMagicDistance = std::max(minimumDistance, context.mRadius - distance) * scale;
-        impact.mShock = shock;
-        impact.mValid = true;
         return impact;
     }
 }

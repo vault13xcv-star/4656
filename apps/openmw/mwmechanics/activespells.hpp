@@ -38,6 +38,7 @@ namespace MWMechanics
             std::vector<ActiveEffect> mEffects;
             // Runtime-only provenance, deliberately absent from ESM/save data.
             std::map<int, RagdollMagicImpact> mRagdollImpacts;
+            std::shared_ptr<RagdollHit> mRagdollFallbackHit;
             std::string mDisplayName;
             ESM::RefNum mCaster;
             ESM::RefNum mItem;
@@ -78,6 +79,22 @@ namespace MWMechanics
             {
                 const auto found = mRagdollImpacts.find(index);
                 return found == mRagdollImpacts.end() ? nullptr : &found->second;
+            }
+
+            const std::shared_ptr<RagdollHit>& getRagdollFallbackHit() const { return mRagdollFallbackHit; }
+            const RagdollMagicImpact& addRagdollFallbackImpact(int index)
+            {
+                // Loaded effects and constant abilities retain effect identity,
+                // but cannot reconstruct the original contact or explosion.
+                if (!mRagdollFallbackHit)
+                    mRagdollFallbackHit = std::make_shared<RagdollHit>();
+                RagdollMagicImpact impact;
+                impact.mHit = mRagdollFallbackHit;
+                // Use native effect index for deterministic ties, even if effects
+                // first become damaging on different duration ticks.
+                impact.mEffect = static_cast<std::uint64_t>(std::max(0, index)) + 1;
+                impact.mHasImpulse = false;
+                return mRagdollImpacts.insert_or_assign(index, std::move(impact)).first->second;
             }
 
             int getWorsenings() const { return mWorsenings; }

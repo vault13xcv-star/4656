@@ -106,6 +106,7 @@ namespace MWRender
 
     protected:
         void addControllers() override;
+        std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const override;
         bool isArrowAttached() const override;
         std::string getSheathedShieldMesh(const MWWorld::ConstPtr& shield) const override;
 
