@@ -1,0 +1,22 @@
+
+7-Zip 26.04 (x64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-10-05
+
+Scanning the drive for archives:
+1 file, 93074688 bytes (89 MiB)
+
+Extracting archive: D:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24.7z
+--
+Path = D:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24.7z
+Type = 7z
+Physical Size = 93074688
+Headers Size = 153975
+Method = LZMA2:25 BCJ
+Solid = +
+Blocks = 2
+
+Everything is Ok
+
+Folders: 1153
+Files: 13410
+Size:       624269597
+Compressed: 93074688
