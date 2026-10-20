@@ -6,9 +6,9 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/39480688752",
   "resultsBranch": "build-results/ragdoll-f3a5b662f43d6a57a1dac0693ff48f1d5043f683-39480688752-1",
-  "stage": "configure",
+  "stage": "ragdoll-tests",
   "result": "running",
-  "updatedUtc": "2026-10-20T19:08:47.8688066Z",
+  "updatedUtc": "2026-10-20T19:09:33.6970295Z",
   "releaseUrl": null,
   "package": null
 }
