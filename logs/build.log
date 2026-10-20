@@ -97,3 +97,15 @@
 [95/995] Building CXX object components\CMakeFiles\components.dir\lua\storage.cpp.obj
 [96/995] Building CXX object components\CMakeFiles\components.dir\lua\shapes\box.cpp.obj
 [97/995] Building CXX object components\CMakeFiles\components.dir\lua\yamlloader.cpp.obj
+[98/995] Building CXX object components\CMakeFiles\components.dir\lua\inputactions.cpp.obj
+[99/995] Building CXX object components\CMakeFiles\components.dir\l10n\messagebundles.cpp.obj
+[100/995] Building CXX object components\CMakeFiles\components.dir\lua\scripttracker.cpp.obj
+[101/995] Building CXX object components\CMakeFiles\components.dir\l10n\manager.cpp.obj
+[102/995] Building CXX object components\CMakeFiles\components.dir\settings\parser.cpp.obj
+[103/995] Building CXX object components\CMakeFiles\components.dir\settings\sanitizerimpl.cpp.obj
+[104/995] Building CXX object components\CMakeFiles\components.dir\settings\settings.cpp.obj
+[105/995] Building CXX object components\CMakeFiles\components.dir\settings\values.cpp.obj
+[106/995] Building CXX object components\CMakeFiles\components.dir\bgsm\stream.cpp.obj
+[107/995] Building CXX object components\CMakeFiles\components.dir\bgsm\file.cpp.obj
+[108/995] Building CXX object components\CMakeFiles\components.dir\bsa\bsafile.cpp.obj
+[109/995] Building CXX object components\CMakeFiles\components.dir\bsa\compressedbsafile.cpp.obj
