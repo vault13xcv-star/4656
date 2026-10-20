@@ -23,6 +23,7 @@ namespace SceneUtil
     RigGeometry::RigGeometry(const RigGeometry& copy, const osg::CopyOp& copyop)
         : Drawable(copy, copyop)
         , mData(copy.mData)
+        , mBonePoseOverride(copy.mBonePoseOverride)
     {
         setSourceGeometry(copy.mSourceGeometry);
         setNumChildrenRequiringUpdateTraversal(1);
