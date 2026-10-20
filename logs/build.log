@@ -1,7 +1,3 @@
-[573/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ragdoll.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(254): warning C4244: 'initializing': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(253): warning C4244: 'initializing': conversion from 'btScalar' to 'const float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(264): warning C4244: 'argument': conversion from 'btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(662): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
         with
         [
@@ -178,3 +174,7 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1010): warning C4244: '=': conve
 [700/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\localscripts.cpp.obj
 [701/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\contentbindings.cpp.obj
 [702/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\cellbindings.cpp.obj
+[703/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\coremwscriptbindings.cpp.obj
+[704/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\mwscriptbindings.cpp.obj
+[705/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\camerabindings.cpp.obj
+[706/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\vfsbindings.cpp.obj
