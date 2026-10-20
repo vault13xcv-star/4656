@@ -311,8 +311,10 @@ namespace
 
     TEST_F(ItemPhysicsIntegration, DownwardMeleeUsesBodyReachRatherThanEyeDistance)
     {
+        Reference<ESM::Static> floor(0, 0, -1);
         Reference<ESM::Potion> bottle(50, 0, 4);
         Reference<ESM::Static> wall(25, 0, 60);
+        insert(floor.ptr(), "meshes/floor.osgt");
         insert(bottle.ptr());
         const osg::Vec3f eye(0, 0, 120), center(0, 0, 60);
         const osg::Vec3f direction = osg::Vec3f(50, 0, 4) - eye;
@@ -326,6 +328,7 @@ namespace
         advance(.1f);
         EXPECT_GT(bottle.ptr().getRefData().getPosition().pos[0], 55);
         mPhysics->remove(bottle.ptr());
+        mPhysics->remove(floor.ptr());
     }
 
     TEST_F(ItemPhysicsIntegration, CellUnloadDropsPoseMemoryAndTimersButRetainsReferencePlacement)
