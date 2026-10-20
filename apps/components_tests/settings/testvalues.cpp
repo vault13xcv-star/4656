@@ -177,6 +177,10 @@ namespace Settings
             physics.mPinMaxDistance.set(5.f);
             physics.mMaxActive.set(200);
             physics.mMaxActiveItems.set(200);
+            physics.mDismembermentChance.set(.6f);
+            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .6f);
+            physics.mDismembermentChance.set(.15f);
+            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .15f);
             EXPECT_EQ(physics.mMaxActive.get(), 200);
             EXPECT_EQ(physics.mMaxActiveItems.get(), 200);
             physics.mMagicDistanceScale.reset();
@@ -185,12 +189,14 @@ namespace Settings
             physics.mPinMaxDistance.reset();
             physics.mMaxActive.reset();
             physics.mMaxActiveItems.reset();
+            physics.mDismembermentChance.reset();
             EXPECT_FLOAT_EQ(physics.mMagicDistanceScale.get(), 1.f);
             EXPECT_FLOAT_EQ(physics.mMaxSimulationTime.get(), 10.f);
             EXPECT_FLOAT_EQ(physics.mItemSimulationTime.get(), 10.f);
             EXPECT_FLOAT_EQ(physics.mPinMaxDistance.get(), 2.5f);
             EXPECT_EQ(physics.mMaxActive.get(), 100);
             EXPECT_EQ(physics.mMaxActiveItems.get(), 100);
+            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .3f);
             EXPECT_EQ(Manager::getFloat("bow impulse scale", "Ragdoll"), 1.f);
         }
         TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToHalfAndDoubleItsActualDefault)
@@ -228,8 +234,10 @@ namespace Settings
                         ASSERT_NE(index.find<float>("Ragdoll", name), nullptr);
                         base = Manager::getFloat(name, "Ragdoll");
                     }
-                    EXPECT_DOUBLE_EQ(std::stod(metadata["SettingMin"]), base * .5);
-                    EXPECT_DOUBLE_EQ(std::stod(metadata["SettingMax"]), base * 2);
+                    // Widgets and settings both store float boundaries. Decimal
+                    // probabilities such as 0.3 do not have exact binary doubles.
+                    EXPECT_FLOAT_EQ(std::stof(metadata["SettingMin"]), static_cast<float>(base * .5));
+                    EXPECT_FLOAT_EQ(std::stof(metadata["SettingMax"]), static_cast<float>(base * 2));
                     for (const auto& [messages, locale] : { std::pair(english, "en"), std::pair(russian, "ru") })
                     {
                         const auto message = messages[metadata["SettingLabelCaption"]];
@@ -245,7 +253,10 @@ namespace Settings
                     visit(child.current());
             };
             visit(document.getRoot());
-            EXPECT_EQ(seen.size(), 11);
+            EXPECT_EQ(seen, (std::set<std::string>{ "melee impulse scale", "crossbow impulse scale",
+                "bow impulse scale", "thrown impulse scale", "magic distance scale", "max simulation time",
+                "item simulation time", "max active", "max active items", "pin max distance",
+                "status duration scale", "dismemberment chance" }));
         }
     }
 }
