@@ -22,6 +22,7 @@ namespace MWPhysics
         }
 
         btScalar addSingleResult(btCollisionWorld::LocalConvexResult& result, bool normalInWorldSpace) override;
+        void commitHit();
 
     private:
         const btCollisionObject* mCaster;

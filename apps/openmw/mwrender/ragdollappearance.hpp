@@ -18,8 +18,8 @@ namespace osg
 
 namespace MWRender
 {
-    // Only explicitly supplied, bare skin body-part roots are traversed. Clothing,
-    // armour and other actors may share the original assets without being changed.
+    // Explicit per-actor worn surfaces include skin, hair, clothes and armour.
+    // Original cached textures and the materials of other actors stay immutable.
     class RagdollAppearance
     {
     public:

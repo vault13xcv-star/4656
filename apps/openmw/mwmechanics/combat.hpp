@@ -79,6 +79,7 @@ namespace MWMechanics
 
     // Similarly cursed hit target selection
     std::pair<MWWorld::Ptr, osg::Vec3f> getHitContact(const MWWorld::Ptr& actor, float reach);
+    std::pair<MWWorld::Ptr, osg::Vec3f> getItemHitContact(const MWWorld::Ptr& actor, float reach);
 
     bool friendlyHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& target, bool complain);
 }

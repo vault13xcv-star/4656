@@ -26,7 +26,7 @@ namespace MWRender
         if (mWeapon)
             mWeapon->getNode()->setUserValue("RealCombatPreserveMaterial", true);
         if (mShield)
-            mShield->getNode()->setUserValue("RealCombatPreserveMaterial", true);
+            mShield->getNode()->setUserValue("RealCombatPreserveMaterial", false);
         return { mObjectRoot.get() };
     }
 

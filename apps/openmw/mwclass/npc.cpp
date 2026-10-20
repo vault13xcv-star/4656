@@ -615,18 +615,25 @@ namespace MWClass
 
         MWMechanics::applyFatigueLoss(ptr, weapon, attackStrength);
 
+        // PrepareHit runs during wind-up; clutter must be sampled again at the
+        // actual animation contact key, with the current aim and reach.
+        const auto contact = MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon));
+        if (!contact.first.isEmpty())
+        {
+            osg::Vec3f direction = contact.second - ptr.getRefData().getPosition().asVec3();
+            direction.z() = std::max(0.15f * direction.length(), direction.z() * 0.1f);
+            direction.normalize();
+            const float weight = weapon.isEmpty() ? 1.f : weapon.getClass().getWeight(weapon);
+            MWBase::Environment::get().getWorld()->applyItemImpulse(
+                contact.first, direction * ((200.f + weight * 100.f) * (0.25f + attackStrength)), contact.second);
+            MWMechanics::applyOnStrikeEnchantment(ptr, contact.first, weapon, contact.second, false);
+            return;
+        }
         if (victim.isEmpty()) // Didn't hit anything
             return;
 
         if (!victim.getClass().isActor())
         {
-            osg::Vec3f direction = hitPosition - ptr.getRefData().getPosition().asVec3();
-            direction.z() = std::max(0.15f * direction.length(), direction.z() * 0.1f);
-            direction.normalize();
-            const float weight = weapon.isEmpty() ? 1.f : weapon.getClass().getWeight(weapon);
-            MWBase::Environment::get().getWorld()->applyItemImpulse(victim,
-                direction * ((200.f + weight * 100.f) * (0.25f + attackStrength)), hitPosition);
-            MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false);
             return;
         }
         const MWWorld::Class& othercls = victim.getClass();

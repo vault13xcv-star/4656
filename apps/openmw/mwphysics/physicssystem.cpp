@@ -512,6 +512,13 @@ namespace MWPhysics
         {
             mActors.erase(foundActor);
         }
+        if (mItems && mItems->empty())
+        {
+            mItems.reset();
+            std::vector<osg::Vec3f>().swap(mItemCollisionVertices);
+            std::vector<osg::Vec3f>().swap(mItemRegions);
+            mItemActorPositions.clear();
+        }
     }
 
     void PhysicsSystem::removeProjectile(const int projectileId)

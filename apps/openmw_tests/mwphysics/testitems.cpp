@@ -1,5 +1,10 @@
 #include "apps/openmw/mwclass/classes.hpp"
+#include "apps/openmw/mwphysics/itemhit.hpp"
+#include "apps/openmw/mwphysics/object.hpp"
 #include "apps/openmw/mwphysics/physicssystem.hpp"
+#include "apps/openmw/mwphysics/projectile.hpp"
+#include "apps/openmw/mwphysics/projectileconvexcallback.hpp"
+#include "apps/openmw/mwworld/cellvisitors.hpp"
 #include "apps/openmw/mwworld/class.hpp"
 #include "apps/openmw/mwworld/livecellref.hpp"
 
@@ -80,7 +85,7 @@ namespace
         const bool mOldEnabled = Settings::ragdoll().mItemPhysics;
         const int mOldThreads = Settings::physics().mAsyncNumThreads;
         ToUTF8::Utf8Encoder mEncoder{ ToUTF8::WINDOWS_1252 };
-        std::unique_ptr<TestingOpenMW::VFSTestFile> mBox, mFloor;
+        std::unique_ptr<TestingOpenMW::VFSTestFile> mBox, mFloor, mWall;
         std::unique_ptr<VFS::Manager> mVfs;
         std::unique_ptr<Resource::ResourceSystem> mResources;
         std::unique_ptr<MWPhysics::PhysicsSystem> mPhysics;
@@ -92,9 +97,11 @@ namespace
             Settings::physics().mAsyncNumThreads.set(0);
             mBox = std::make_unique<TestingOpenMW::VFSTestFile>(boxMesh(4, 4, 4));
             mFloor = std::make_unique<TestingOpenMW::VFSTestFile>(boxMesh(800, 800, 2));
+            mWall = std::make_unique<TestingOpenMW::VFSTestFile>(boxMesh(2, 800, 800));
             mVfs = TestingOpenMW::createTestVFS({
                 { VFS::Path::NormalizedView("meshes/box.osgt"), mBox.get() },
                 { VFS::Path::NormalizedView("meshes/floor.osgt"), mFloor.get() },
+                { VFS::Path::NormalizedView("meshes/wall.osgt"), mWall.get() },
             });
             mResources = std::make_unique<Resource::ResourceSystem>(mVfs.get(), 60, &mEncoder.getStatelessEncoder());
             auto* scene = mResources->getSceneManager();
@@ -250,6 +257,92 @@ namespace
         advance(0.3f);
         EXPECT_EQ(item.ptr().getRefData().getPosition(), frozen);
         mPhysics->remove(item.ptr());
+        mPhysics->remove(floor.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, ProjectileChoosesBottleBeforeWallRegardlessOfCandidateOrder)
+    {
+        Reference<ESM::Static> wall(30, 0, 20);
+        Reference<ESM::Potion> bottle(0, 0, 20);
+        insert(wall.ptr());
+        insert(bottle.ptr());
+        for (bool farFirst : { false, true })
+        {
+            const auto id = mPhysics->addProjectile(
+                {}, osg::Vec3f(-40, 0, 20), VFS::Path::NormalizedView("meshes/box.osgt"), false);
+            auto* projectile = mPhysics->getProjectile(id);
+            MWPhysics::ProjectileConvexCallback sweep(
+                nullptr, nullptr, btVector3(-40, 0, 20), btVector3(40, 0, 20), *projectile);
+            btCollisionWorld::LocalConvexResult far(mPhysics->getObject(wall.ptr())->getCollisionObject(), nullptr,
+                btVector3(-1, 0, 0), btVector3(28, 0, 20), .85);
+            btCollisionWorld::LocalConvexResult near(mPhysics->getObject(bottle.ptr())->getCollisionObject(), nullptr,
+                btVector3(-1, 0, 0), btVector3(-2, 0, 20), .475);
+            sweep.addSingleResult(farFirst ? far : near, true);
+            EXPECT_TRUE(projectile->isActive());
+            sweep.addSingleResult(farFirst ? near : far, true);
+            sweep.commitHit();
+            ASSERT_FALSE(projectile->isActive());
+            EXPECT_EQ(projectile->getTarget(), bottle.ptr());
+            EXPECT_NEAR(projectile->getHitPosition().x(), -2, .001);
+            mPhysics->applyItemImpulse(projectile->getTarget(), osg::Vec3f(1000, 0, 0), osg::Vec3f(-2, 0, 20));
+            EXPECT_GT(bottle.ptr().getRefData().getItemPhysicsState().mTimeLeft, 0);
+            mPhysics->removeProjectile(id);
+        }
+        mPhysics->remove(bottle.ptr());
+        mPhysics->remove(wall.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, MeleeFindsSmallOffAxisClutterButDoesNotHitThroughFurniture)
+    {
+        Reference<ESM::Potion> bottle(0, 3, 20);
+        Reference<ESM::Static> wall(-10, 0, 20);
+        insert(bottle.ptr());
+        const osg::Vec3f from(-40, 0, 20), direction(1, 0, 0);
+        EXPECT_FALSE(mPhysics->castRay(from, from + direction * 80).mHit);
+        const auto hit = MWPhysics::itemMeleeContact(*mPhysics, from, direction, 80);
+        ASSERT_EQ(hit.mHitObject, bottle.ptr());
+        insert(wall.ptr(), "meshes/wall.osgt");
+        EXPECT_FALSE(MWPhysics::itemMeleeContact(*mPhysics, from, direction, 80).mHit);
+        mPhysics->remove(wall.ptr());
+        mPhysics->remove(bottle.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, CellUnloadDropsPoseMemoryAndTimersButRetainsReferencePlacement)
+    {
+        Reference<ESM::Potion> item(15, 25, 45);
+        auto ptr = item.ptr();
+        auto& ragdoll = ptr.getRefData().editRagdollState();
+        ragdoll.mPresent = true;
+        ragdoll.mBodies.resize(15);
+        ragdoll.mBones.resize(60);
+        ESM::ItemPhysicsState physics;
+        physics.mPresent = true;
+        physics.mTimeLeft = 7;
+        ptr.getRefData().setItemPhysicsState(physics);
+        const auto position = ptr.getRefData().getPosition();
+        MWWorld::ListAndResetObjectsVisitor unload;
+        unload(ptr);
+        const auto& cleared = ptr.getRefData().getRagdollState();
+        EXPECT_FALSE(cleared.mPresent);
+        EXPECT_EQ(cleared.mBodies.capacity(), 0);
+        EXPECT_EQ(cleared.mBones.capacity(), 0);
+        EXPECT_FALSE(ptr.getRefData().getItemPhysicsState().mPresent);
+        EXPECT_EQ(ptr.getRefData().getPosition(), position);
+    }
+
+    TEST_F(ItemPhysicsIntegration, RemovingLastItemReleasesWorldAndNextItemCanStillMove)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        insert(floor.ptr(), "meshes/floor.osgt");
+        for (int pass = 0; pass < 2; ++pass)
+        {
+            Reference<ESM::Potion> item(0, 0, 40);
+            insert(item.ptr());
+            mPhysics->applyItemImpulse(item.ptr(), osg::Vec3f(100, 0, 10), osg::Vec3f(0, 0, 40));
+            advance(.1f);
+            EXPECT_GT(item.ptr().getRefData().getPosition().pos[0], 5);
+            mPhysics->remove(item.ptr());
+        }
         mPhysics->remove(floor.ptr());
     }
 }

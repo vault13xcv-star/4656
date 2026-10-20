@@ -31,6 +31,7 @@
 #include "../mwbase/soundmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
+#include "../mwmechanics/creaturestats.hpp"
 
 #include "../mwrender/landmanager.hpp"
 #include "../mwrender/postprocessor.hpp"
@@ -385,6 +386,12 @@ namespace MWWorld
             }
             else
                 ptr.mRef->mData.mPhysicsPostponed = false;
+            if (ptr.getClass().isActor())
+            {
+                auto& stats = ptr.getClass().getCreatureStats(ptr);
+                if (stats.isDead())
+                    stats.setDeathAnimationFinished(true); // Return in the native resting death pose.
+            }
             MWBase::Environment::get().getLuaManager()->objectRemovedFromScene(ptr);
         }
 

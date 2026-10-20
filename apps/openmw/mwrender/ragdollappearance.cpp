@@ -11,6 +11,7 @@
 #include <osg/Group>
 #include <osg/Image>
 #include <osg/LineWidth>
+#include <osg/Material>
 #include <osg/MatrixTransform>
 #include <osg/NodeVisitor>
 #include <osg/Program>
@@ -21,16 +22,18 @@
 #include <array>
 #include <cmath>
 #include <map>
+#include <tuple>
 #include <utility>
 
 namespace MWRender
 {
     namespace
     {
-        constexpr int sTextureSize = 256;
+        constexpr int sTextureSize = 512;
+        constexpr int sPatternSize = 256;
         constexpr int sBlendSteps = 24;
-        constexpr unsigned sTextureOverride = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE
-            | osg::StateAttribute::PROTECTED;
+        constexpr unsigned sTextureOverride
+            = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
 
         osg::Matrixf rootWorldMatrix(osg::Node& root)
         {
@@ -45,41 +48,117 @@ namespace MWRender
             return static_cast<float>(hash & 65535u) / 65535.f;
         }
 
-        osg::Vec4f surfacePixel(Ragdoll::DeathElement element, int x, int y, const osg::Vec4f& source)
+        float smoothNoise(float x, float y)
         {
-            const float grain = noise(x, y);
-            const float waves = std::sin(x * 0.13f + std::sin(y * 0.09f) * 4.f);
-            const float brightness = 0.65f + (source.r() + source.g() + source.b()) * (0.35f / 3.f);
-            osg::Vec4f color;
+            const int ix = static_cast<int>(std::floor(x)), iy = static_cast<int>(std::floor(y));
+            float u = x - ix, v = y - iy;
+            u = u * u * (3.f - 2.f * u);
+            v = v * v * (3.f - 2.f * v);
+            const float a = noise(ix, iy) * (1 - u) + noise(ix + 1, iy) * u;
+            const float b = noise(ix, iy + 1) * (1 - u) + noise(ix + 1, iy + 1) * u;
+            return a * (1 - v) + b * v;
+        }
+
+        float clouds(float x, float y)
+        {
+            return smoothNoise(x, y) * .53f + smoothNoise(x * 2, y * 2) * .27f + smoothNoise(x * 4, y * 4) * .13f
+                + smoothNoise(x * 8, y * 8) * .07f;
+        }
+
+        struct SurfacePattern
+        {
+            std::vector<osg::Vec4f> mPixels;
+            explicit SurfacePattern(Ragdoll::DeathElement element)
+            {
+                std::vector<float> patches(sPatternSize * sPatternSize);
+                for (int y = 0; y < sPatternSize; ++y)
+                    for (int x = 0; x < sPatternSize; ++x)
+                        patches[y * sPatternSize + x] = clouds(x / 35.f + 7.1f, y / 35.f - 3.3f);
+                float threshold = 0;
+                if (element == Ragdoll::DeathElement::Fire)
+                {
+                    auto sorted = patches;
+                    const auto uncovered = sorted.begin() + sorted.size() / 10;
+                    std::nth_element(sorted.begin(), uncovered, sorted.end());
+                    threshold = *uncovered; // 10% bare islands, 90% sooted area.
+                }
+                mPixels.resize(patches.size());
+                for (int y = 0; y < sPatternSize; ++y)
+                    for (int x = 0; x < sPatternSize; ++x)
+                    {
+                        const auto i = y * sPatternSize + x;
+                        const float p = patches[i], grain = noise(x, y);
+                        auto& color = mPixels[i];
+                        if (element == Ragdoll::DeathElement::Fire)
+                        {
+                            const float ash = std::pow(std::max(0.f, (p - .54f) * 3), 2.f);
+                            color.set(.018f + ash * .15f + grain * .018f, .014f + ash * .13f + grain * .015f,
+                                .011f + ash * .11f + grain * .012f,
+                                p <= threshold ? 0.f : .72f + .14f * std::clamp((p - threshold) / .12f, 0.f, 1.f));
+                        }
+                        else if (element == Ragdoll::DeathElement::Poison)
+                        {
+                            // Continuous wet pools with small rounded droplets;
+                            // highlights follow smooth pool edges, never sine stripes.
+                            const float fine = smoothNoise(x / 4.f + 31, y / 4.f + 13);
+                            const float ridge = std::exp(-std::pow((p - .58f) * 65.f, 2.f));
+                            const float glint = std::pow(std::max(0.f, (fine - .65f) / .35f), 5.f);
+                            color.set(.035f + p * .13f + ridge * .18f + glint * .32f,
+                                .16f + p * .42f + ridge * .26f + glint * .35f,
+                                .012f + p * .035f + ridge * .07f + glint * .15f, 1.f);
+                        }
+                        else
+                        {
+                            // Irregular granular ice: nearest jittered crystal
+                            // sites create edges without repeating diagonal bands.
+                            const float gx = x / 12.f, gy = y / 12.f;
+                            const int cx = static_cast<int>(gx), cy = static_cast<int>(gy);
+                            float first = 100, second = 100;
+                            for (int dy = -1; dy <= 1; ++dy)
+                                for (int dx = -1; dx <= 1; ++dx)
+                                {
+                                    const float px = cx + dx + noise(cx + dx, cy + dy);
+                                    const float py = cy + dy + noise(cx + dx + 91, cy + dy - 53);
+                                    const float d = (gx - px) * (gx - px) + (gy - py) * (gy - py);
+                                    if (d < first)
+                                    {
+                                        second = first;
+                                        first = d;
+                                    }
+                                    else
+                                        second = std::min(second, d);
+                                }
+                            const float edge
+                                = std::clamp(1.f - (std::sqrt(second) - std::sqrt(first)) * 12.f, 0.f, 1.f);
+                            const float frost = .70f + p * .19f + grain * .035f + edge * .07f;
+                            color.set(
+                                frost, std::min(1.f, frost + .025f), std::min(1.f, frost + .055f), .72f + p * .08f);
+                        }
+                    }
+            }
+        };
+
+        const SurfacePattern& surfacePattern(Ragdoll::DeathElement element)
+        {
+            if (element == Ragdoll::DeathElement::Fire)
+            {
+                static const SurfacePattern value(element);
+                return value;
+            }
             if (element == Ragdoll::DeathElement::Poison)
             {
-                const float vein = std::pow(std::max(0.f, waves), 12.f);
-                color.set(0.04f + grain * 0.08f + vein * 0.12f,
-                    0.24f + grain * 0.25f + vein * 0.35f, 0.015f + grain * 0.035f, source.a());
+                static const SurfacePattern value(element);
+                return value;
             }
-            else if (element == Ragdoll::DeathElement::Fire)
-            {
-                const float crack = std::abs(std::sin(x * 0.19f + std::sin(y * 0.17f) * 2.f)) < 0.08f ? 1.f : 0.f;
-                color.set(0.018f + grain * 0.04f + crack * 0.055f,
-                    0.014f + grain * 0.03f + crack * 0.025f, 0.012f + grain * 0.022f, source.a());
-            }
-            else
-            {
-                const float crystal = std::pow(std::abs(std::sin((x + y) * 0.17f)), 18.f);
-                color.set(0.40f + grain * 0.22f + crystal * 0.3f,
-                    0.65f + grain * 0.15f + crystal * 0.16f, 0.85f + grain * 0.1f, source.a());
-            }
-            color.r() *= brightness;
-            color.g() *= brightness;
-            color.b() *= brightness;
-            return color;
+            static const SurfacePattern value(Ragdoll::DeathElement::Frost);
+            return value;
         }
 
         struct Paint
         {
             osg::ref_ptr<osg::Texture2D> mSource;
-            std::vector<osg::Vec4f> mOriginal;
-            std::vector<osg::Vec4f> mTarget;
+            std::vector<unsigned char> mOriginal;
+            std::vector<unsigned char> mTarget;
             osg::ref_ptr<osg::Texture2D> mCurrent;
             int mWidth = 0;
             int mHeight = 0;
@@ -91,15 +170,25 @@ namespace MWRender
                 const osg::Image& image = *source.getImage();
                 mWidth = std::min(sTextureSize, image.s());
                 mHeight = std::min(sTextureSize, image.t());
-                mOriginal.reserve(mWidth * mHeight);
-                mTarget.reserve(mWidth * mHeight);
+                mOriginal.reserve(mWidth * mHeight * 4);
+                mTarget.reserve(mWidth * mHeight * 4);
+                const auto& pattern = surfacePattern(element);
                 for (int y = 0; y < mHeight; ++y)
                     for (int x = 0; x < mWidth; ++x)
                     {
                         // OSG 3.6 getColor also decodes stock DDS/DXT textures.
                         const auto pixel = image.getColor(x * image.s() / mWidth, y * image.t() / mHeight);
-                        mOriginal.push_back(pixel);
-                        mTarget.push_back(surfacePixel(element, x, y, pixel));
+                        const auto layer
+                            = pattern.mPixels[(y * sPatternSize / mHeight) * sPatternSize + x * sPatternSize / mWidth];
+                        for (int channel = 0; channel < 4; ++channel)
+                        {
+                            const float original = pixel[channel];
+                            const float target
+                                = channel == 3 ? original : original * (1 - layer.a()) + layer[channel] * layer.a();
+                            mOriginal.push_back(
+                                static_cast<unsigned char>(std::clamp(original, 0.f, 1.f) * 255.f + .5f));
+                            mTarget.push_back(static_cast<unsigned char>(std::clamp(target, 0.f, 1.f) * 255.f + .5f));
+                        }
                     }
             }
 
@@ -113,16 +202,13 @@ namespace MWRender
                     mCurrent = mSource;
                     return;
                 }
-                const float blend = static_cast<float>(step) / sBlendSteps;
                 osg::ref_ptr<osg::Image> image = new osg::Image;
                 image->setOrigin(mSource->getImage()->getOrigin());
                 image->allocateImage(mWidth, mHeight, 1, GL_RGBA, GL_UNSIGNED_BYTE);
-                for (int y = 0; y < mHeight; ++y)
-                    for (int x = 0; x < mWidth; ++x)
-                    {
-                        const auto index = y * mWidth + x;
-                        image->setColor(mOriginal[index] * (1.f - blend) + mTarget[index] * blend, x, y);
-                    }
+                auto* bytes = image->data();
+                for (std::size_t i = 0; i < mOriginal.size(); ++i)
+                    bytes[i] = static_cast<unsigned char>(
+                        (mOriginal[i] * (sBlendSteps - step) + mTarget[i] * step) / sBlendSteps);
                 // Publish a new immutable image/texture; drawing the preceding
                 // frame can never race with writes to its pixels or StateSet.
                 mCurrent = new osg::Texture2D(image);
@@ -133,8 +219,8 @@ namespace MWRender
                 mCurrent->setMaxAnisotropy(mSource->getMaxAnisotropy());
                 if (step == sBlendSteps)
                 {
-                    std::vector<osg::Vec4f>().swap(mOriginal);
-                    std::vector<osg::Vec4f>().swap(mTarget);
+                    std::vector<unsigned char>().swap(mOriginal);
+                    std::vector<unsigned char>().swap(mTarget);
                 }
             }
         };
@@ -147,14 +233,20 @@ namespace MWRender
             osg::ref_ptr<osg::Node> mOverlay;
             osg::ref_ptr<osg::StateSet> mOriginalStates;
             bool mDrawableClone = false;
+            osg::ref_ptr<osg::Material> mWetMaterial;
             std::shared_ptr<Paint> mPaint;
         };
 
         class FindTextures : public osg::NodeVisitor
         {
         public:
-            std::vector<std::pair<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::Texture2D>>> mFound;
-            FindTextures() : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN) { setNodeMaskOverride(~0u); }
+            std::vector<std::tuple<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::Texture2D>, osg::ref_ptr<osg::Group>>>
+                mFound;
+            FindTextures()
+                : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
+            {
+                setNodeMaskOverride(~0u);
+            }
             void apply(osg::Node& node) override
             {
                 bool preserve = false;
@@ -162,10 +254,19 @@ namespace MWRender
                 if (preserve || node.getNodeMask() == Mask_Effect)
                     return;
                 if (auto* states = node.getStateSet())
-                    if (auto* texture = dynamic_cast<osg::Texture2D*>(states->getTextureAttribute(0, osg::StateAttribute::TEXTURE)))
-                        if (texture->getImage() && texture->getImage()->data()
-                            && texture->getImage()->s() > 0 && texture->getImage()->t() > 0)
-                            mFound.emplace_back(&node, texture);
+                    if (auto* texture
+                        = dynamic_cast<osg::Texture2D*>(states->getTextureAttribute(0, osg::StateAttribute::TEXTURE)))
+                        if (texture->getImage() && texture->getImage()->data() && texture->getImage()->s() > 0
+                            && texture->getImage()->t() > 0)
+                        {
+                            osg::Group* parent = node.getNumParents() == 1 ? node.getParent(0) : nullptr;
+                            // Static hair/armour Drawables may be shared between
+                            // instances. Clone only this traversal's Geode edge.
+                            if (node.asDrawable() && getNodePath().size() > 1)
+                                parent = getNodePath()[getNodePath().size() - 2]->asGroup();
+                            if (parent)
+                                mFound.emplace_back(&node, texture, parent);
+                        }
                 traverse(node);
             }
         };
@@ -199,8 +300,8 @@ namespace MWRender
         {
             osg::ref_ptr<osg::StateSet> state = new osg::StateSet;
             state->setTextureAttributeAndModes(0, particleTexture(smoke, element), sTextureOverride);
-            state->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA,
-                smoke ? GL_ONE_MINUS_SRC_ALPHA : GL_ONE), sTextureOverride);
+            state->setAttributeAndModes(
+                new osg::BlendFunc(GL_SRC_ALPHA, smoke ? GL_ONE_MINUS_SRC_ALPHA : GL_ONE), sTextureOverride);
             state->setAttributeAndModes(new SceneUtil::AutoDepth(osg::Depth::LEQUAL, 0, 1, false), sTextureOverride);
             state->setMode(GL_ALPHA_TEST, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
             state->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
@@ -225,10 +326,10 @@ namespace MWRender
         osg::ref_ptr<osg::Geometry> quad(float width, float height, float alpha)
         {
             osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
-            const std::array<osg::Vec3f, 4> vertices{ osg::Vec3f(-width, -height, 0),
-                osg::Vec3f(width, -height, 0), osg::Vec3f(width, height, 0), osg::Vec3f(-width, height, 0) };
-            const std::array<osg::Vec2f, 4> coordinates{ osg::Vec2f(0, 0), osg::Vec2f(1, 0),
-                osg::Vec2f(1, 1), osg::Vec2f(0, 1) };
+            const std::array<osg::Vec3f, 4> vertices{ osg::Vec3f(-width, -height, 0), osg::Vec3f(width, -height, 0),
+                osg::Vec3f(width, height, 0), osg::Vec3f(-width, height, 0) };
+            const std::array<osg::Vec2f, 4> coordinates{ osg::Vec2f(0, 0), osg::Vec2f(1, 0), osg::Vec2f(1, 1),
+                osg::Vec2f(0, 1) };
             geometry->setVertexArray(new osg::Vec3Array(vertices.size(), vertices.data()));
             geometry->setTexCoordArray(0, new osg::Vec2Array(coordinates.size(), coordinates.data()));
             osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
@@ -300,18 +401,29 @@ namespace MWRender
                     continue;
                 FindTextures visitor;
                 part->accept(visitor);
-                for (const auto& [node, texture] : visitor.mFound)
+                for (const auto& [node, texture, parent] : visitor.mFound)
                 {
-                    if (node->getNumParents() != 1)
-                        continue; // Do not mutate a multiply attached custom mesh.
                     auto& paint = mPaints[texture];
                     if (!paint)
                         paint = std::make_shared<Paint>(*texture, mElement);
                     Binding binding;
-                    binding.mParent = node->getParent(0);
+                    binding.mParent = parent;
                     binding.mOriginal = node;
                     binding.mPartRoot = part;
                     binding.mPaint = paint;
+                    if (mElement == Ragdoll::DeathElement::Poison)
+                    {
+                        const auto* states = node->getStateSet();
+                        const auto* original = states
+                            ? dynamic_cast<const osg::Material*>(states->getAttribute(osg::StateAttribute::MATERIAL))
+                            : nullptr;
+                        binding.mWetMaterial = original ? new osg::Material(*original) : new osg::Material;
+                        if (!original)
+                            binding.mWetMaterial->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(1, 1, 1, 1));
+                        binding.mWetMaterial->setSpecular(
+                            osg::Material::FRONT_AND_BACK, osg::Vec4f(.55f, .75f, .4f, 1));
+                        binding.mWetMaterial->setShininess(osg::Material::FRONT_AND_BACK, 80.f);
+                    }
                     if (auto* geode = dynamic_cast<osg::Geode*>(binding.mParent.get()))
                     {
                         auto* original = node->asDrawable();
@@ -320,8 +432,8 @@ namespace MWRender
                         // Geode children must stay Drawables. Clone just this
                         // instance, retaining immutable geometry arrays through
                         // mOriginal while replacing its private StateSet.
-                        osg::ref_ptr<osg::Drawable> clone = static_cast<osg::Drawable*>(
-                            original->clone(osg::CopyOp::DEEP_COPY_CALLBACKS));
+                        osg::ref_ptr<osg::Drawable> clone
+                            = static_cast<osg::Drawable*>(original->clone(osg::CopyOp::DEEP_COPY_CALLBACKS));
                         binding.mOverlay = clone;
                         binding.mOriginalStates = original->getStateSet();
                         binding.mDrawableClone = true;
@@ -349,8 +461,8 @@ namespace MWRender
             if (mParts != parts)
                 setParts(parts);
             const float duration = mElement == Ragdoll::DeathElement::Poison ? mSettings.mPoisonTransitionTime
-                : mElement == Ragdoll::DeathElement::Fire ? mSettings.mFireTransitionTime
-                : mSettings.mFrostTransitionTime;
+                : mElement == Ragdoll::DeathElement::Fire                    ? mSettings.mFireTransitionTime
+                                                                             : mSettings.mFrostTransitionTime;
             mBlend = duration > 0 ? std::clamp(elapsed / duration, 0.f, 1.f) : 1.f;
             const int step = std::min(sBlendSteps, static_cast<int>(mBlend * sBlendSteps));
             if (step == mStep)
@@ -361,8 +473,11 @@ namespace MWRender
             for (const auto& binding : mBindings)
             {
                 osg::ref_ptr<osg::StateSet> state = binding.mOriginalStates
-                    ? new osg::StateSet(*binding.mOriginalStates, osg::CopyOp::SHALLOW_COPY) : new osg::StateSet;
+                    ? new osg::StateSet(*binding.mOriginalStates, osg::CopyOp::SHALLOW_COPY)
+                    : new osg::StateSet;
                 state->setTextureAttributeAndModes(0, binding.mPaint->mCurrent, sTextureOverride);
+                if (binding.mWetMaterial)
+                    state->setAttributeAndModes(binding.mWetMaterial, sTextureOverride);
                 binding.mOverlay->setStateSet(state);
             }
         }
@@ -453,8 +568,8 @@ namespace MWRender
                     point += osg::Vec3f(std::sin(i * 2.1f + age * 4.f) * (smoke ? 9.f : 4.f),
                         std::cos(i * 1.7f + age * 3.f) * 5.f, age * (smoke ? 55.f : 22.f));
                     const float size = smoke ? 8.f + age * 15.f : 4.f + age * 4.f;
-                    billboard->addDrawable(quad(size, smoke ? size : size * 1.8f,
-                        std::sin(age * 3.14159265f) * ending), point);
+                    billboard->addDrawable(
+                        quad(size, smoke ? size : size * 1.8f, std::sin(age * 3.14159265f) * ending), point);
                 }
                 particles->addChild(billboard);
             }
@@ -477,7 +592,10 @@ namespace MWRender
         mImpl->updateSkin(elapsed, skinParts);
         mImpl->updateFire(elapsed, bodyPositions);
     }
-    float RagdollAppearance::getBlend() const { return mImpl->mBlend; }
+    float RagdollAppearance::getBlend() const
+    {
+        return mImpl->mBlend;
+    }
     bool RagdollAppearance::hasFire() const
     {
         return mImpl->mElement == Ragdoll::DeathElement::Fire && bool(mImpl->mFire);

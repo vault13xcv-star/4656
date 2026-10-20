@@ -691,11 +691,11 @@ namespace MWRender
         std::vector<osg::ref_ptr<osg::Node>> result;
         for (int part = 0; part < ESM::PRT_Count; ++part)
         {
-            // Bare race skin (including the face) is installed at priority 1,
-            // group -1. Every garment/armour mesh belongs to an inventory slot.
-            if (part == ESM::PRT_Hair || part == ESM::PRT_Weapon || part == ESM::PRT_Shield)
+            // Every worn part, including hair, uses its own appearance overlay.
+            // Carried weapons remain separate; shields are worn armour too.
+            if (part == ESM::PRT_Weapon)
                 continue;
-            if (mObjectParts[part] && mPartslots[part] == -1 && mPartPriorities[part] == 1)
+            if (mObjectParts[part])
                 result.push_back(mObjectParts[part]->getNode());
         }
         return result;

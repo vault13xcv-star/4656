@@ -276,15 +276,20 @@ namespace MWClass
 
         MWMechanics::applyFatigueLoss(ptr, weapon, attackStrength);
 
+        const auto contact = MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon));
+        if (!contact.first.isEmpty())
+        {
+            osg::Vec3f direction = contact.second - ptr.getRefData().getPosition().asVec3();
+            direction.normalize();
+            MWBase::Environment::get().getWorld()->applyItemImpulse(
+                contact.first, direction * (400.f + 800.f * attackStrength), contact.second);
+            return;
+        }
         if (victim.isEmpty())
             return; // Didn't hit anything
 
         if (!victim.getClass().isActor())
         {
-            osg::Vec3f direction = hitPosition - ptr.getRefData().getPosition().asVec3();
-            direction.normalize();
-            MWBase::Environment::get().getWorld()->applyItemImpulse(victim,
-                direction * (400.f + 800.f * attackStrength), hitPosition);
             return;
         }
         const MWWorld::Class& othercls = victim.getClass();

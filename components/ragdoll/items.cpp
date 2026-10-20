@@ -289,6 +289,10 @@ namespace Ragdoll
         mImpl->mItems.erase(it);
     }
     bool ItemSimulation::contains(Id id) const { return mImpl->mItems.contains(id); }
+    bool ItemSimulation::empty() const
+    {
+        return mImpl->mItems.empty();
+    }
     void ItemSimulation::move(Id id, const btTransform& transform)
     {
         const auto it = mImpl->mItems.find(id);

@@ -1589,8 +1589,7 @@ namespace MWRender
         }
         if (mRagdoll)
         {
-            // Equipment may have changed while looting the corpse. Re-whitelist
-            // its current bare parts; never inherit a previous armour selection.
+            // Looting can change the worn surfaces that need this corpse's coating.
             mRagdoll->setSkinParts(getRagdollSkinParts());
             mRagdoll->setArmorMass(equippedArmorMass());
             std::optional<float> water;

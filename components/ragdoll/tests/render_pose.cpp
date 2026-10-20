@@ -8,10 +8,10 @@
 #include <components/sceneutil/skeleton.hpp>
 
 #include <osg/FrameStamp>
-#include <osg/Texture2D>
-#include <osg/Geometry>
 #include <osg/Geode>
+#include <osg/Geometry>
 #include <osg/MatrixTransform>
+#include <osg/Texture2D>
 #include <osgUtil/UpdateVisitor>
 
 #include <array>
@@ -60,8 +60,8 @@ namespace
 
         SkeletonFixture()
         {
-            mWorld->setMatrix(osg::Matrixf::scale(1.2f, 1.2f, 1.2f)
-                * osg::Matrixf::rotate(0.4f, osg::Vec3f(0, 0, 1)) * osg::Matrixf::translate(50, 30, 0));
+            mWorld->setMatrix(osg::Matrixf::scale(1.2f, 1.2f, 1.2f) * osg::Matrixf::rotate(0.4f, osg::Vec3f(0, 0, 1))
+                * osg::Matrixf::translate(50, 30, 0));
             mWorld->addChild(mSkeleton);
             auto pelvis = add("Pelvis", mSkeleton, { 0, 0, 65 });
             auto spine = add("Spine", pelvis, { 0, 0, 8 });
@@ -93,8 +93,8 @@ namespace
 
     std::vector<osg::Vec3f> floorSnapshot(const osg::Vec3f&, float)
     {
-        return { { -1000, -1000, 0 }, { 1000, -1000, 0 }, { 1000, 1000, 0 },
-            { -1000, -1000, 0 }, { 1000, 1000, 0 }, { -1000, 1000, 0 } };
+        return { { -1000, -1000, 0 }, { 1000, -1000, 0 }, { 1000, 1000, 0 }, { -1000, -1000, 0 }, { 1000, 1000, 0 },
+            { -1000, 1000, 0 } };
     }
 
     class OverwritePose : public SceneUtil::NodeCallback<OverwritePose, osg::MatrixTransform*>
@@ -146,7 +146,8 @@ namespace
         MWRender::RagdollController::Settings settings;
         settings.mMaxSimulationTime = 3;
         settings.mMaxActive = 1;
-        auto ragdoll = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings);
+        auto ragdoll
+            = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings);
         require(bool(ragdoll), "first corpse must start");
         SkeletonFixture second;
         const float originalHeight = ragdoll->getPosition().z();
@@ -358,7 +359,8 @@ namespace
         const auto enchanted = displacement(1, 5, 0);
         require(std::abs(dagger.first.x()) < 1, "dagger/arrow must not launch the corpse");
         require(oneHand.first.x() > dagger.first.x() + 1 && twoHand.first.x() > oneHand.first.x() + 3
-            && bolt.first.x() > twoHand.first.x() + 3, "weapon distance classes must produce increasing launch motion");
+                && bolt.first.x() > twoHand.first.x() + 3,
+            "weapon distance classes must produce increasing launch motion");
         require(heavy.first.x() < bolt.first.x() * 0.6f, "equipped armour mass must reduce recoil");
         require(std::abs(tall.second / dagger.second - 1.728f) < 0.01f,
             "body mass must scale with the cube of skeletal stature");
@@ -385,8 +387,8 @@ namespace
         impact.mCrossbow = true;
         impact.mWeaponDistance = 2;
         impact.mWeaponDirection.set(1, 0, 0);
-        auto corpse = MWRender::RagdollController::create(
-            *fixture.mSkeleton, *fixture.mSkeleton, wallSnapshot, {}, impact);
+        auto corpse
+            = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, wallSnapshot, {}, impact);
         require(bool(corpse), "crossbow wall fixture must start");
         for (int frame = 0; frame < 600; ++frame)
             corpse->update(1.f / 60);
@@ -453,8 +455,8 @@ namespace
         impact.mDeathElement = Ragdoll::DeathElement::Shock;
         impact.mMagicDistance = 5;
         impact.mMagicDirection.set(1, 1, 0);
-        auto corpse = MWRender::RagdollController::create(
-            *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {}, impact);
+        auto corpse
+            = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {}, impact);
         require(bool(corpse), "shock anatomy fixture must start");
         struct Joint
         {
@@ -462,8 +464,7 @@ namespace
             osg::Vec3f axis;
         };
         std::array<Joint, 4> hinges{ Joint{ "L Thigh", "L Calf", "L Foot", {} },
-            Joint{ "R Thigh", "R Calf", "R Foot", {} },
-            Joint{ "L UpperArm", "L Forearm", "L Hand", {} },
+            Joint{ "R Thigh", "R Calf", "R Foot", {} }, Joint{ "L UpperArm", "L Forearm", "L Hand", {} },
             Joint{ "R UpperArm", "R Forearm", "R Hand", {} } };
         for (std::size_t i = 0; i < hinges.size(); ++i)
         {
@@ -521,10 +522,96 @@ namespace
         return texture->getImage()->getColor(0, 0);
     }
 
+    void sharedWornDrawableIsPaintedOnlyOnSelectedActor()
+    {
+        osg::ref_ptr<osg::Group> root = new osg::Group;
+        osg::ref_ptr<osg::Geode> selected = new osg::Geode, other = new osg::Geode;
+        osg::ref_ptr<osg::Geometry> shared = new osg::Geometry;
+        auto texture = testSkinTexture();
+        shared->getOrCreateStateSet()->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+        selected->addDrawable(shared);
+        other->addDrawable(shared);
+        root->addChild(selected);
+        root->addChild(other);
+        {
+            MWRender::RagdollAppearance coating(*root, Ragdoll::DeathElement::Poison, {});
+            coating.update(2, { selected }, {});
+            require(selected->getDrawable(0) != shared && other->getDrawable(0) == shared,
+                "shared armour/hair Drawable was skipped or another NPC was painted");
+        }
+        require(selected->getDrawable(0) == shared && other->getDrawable(0) == shared,
+            "unload did not restore shared worn mesh attachments");
+        std::cout << "PASS shared armour/hair drawables and per-actor cleanup\n";
+    }
+
+    void wornSurfaceCoverageAndDetail()
+    {
+        for (auto element :
+            { Ragdoll::DeathElement::Fire, Ragdoll::DeathElement::Poison, Ragdoll::DeathElement::Frost })
+        {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            std::array<osg::ref_ptr<osg::Group>, 3> parts{ new osg::Group, new osg::Group, new osg::Group };
+            const std::array<osg::Vec4f, 3> colors{ osg::Vec4f(.8, .2, .1, .6), osg::Vec4f(.2, .4, .8, .6),
+                osg::Vec4f(.5, .5, .5, .6) };
+            std::array<osg::ref_ptr<osg::StateSet>, 3> originals;
+            for (int part = 0; part < 3; ++part)
+            {
+                osg::ref_ptr<osg::Image> image = new osg::Image;
+                image->allocateImage(256, 256, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+                for (int y = 0; y < 256; ++y)
+                    for (int x = 0; x < 256; ++x)
+                        image->setColor(colors[part], x, y);
+                originals[part] = new osg::StateSet;
+                originals[part]->setTextureAttributeAndModes(0, new osg::Texture2D(image), osg::StateAttribute::ON);
+                parts[part]->setStateSet(originals[part]);
+                root->addChild(parts[part]);
+            }
+            {
+                MWRender::RagdollAppearance effect(*root, element, {});
+                effect.update(3, { parts[0], parts[1], parts[2] }, {});
+                std::array<const osg::Image*, 3> images;
+                for (int part = 0; part < 3; ++part)
+                {
+                    auto* wrapper = parts[part]->getParent(0);
+                    require(wrapper != root, "worn armour/hair was omitted from coating");
+                    images[part] = static_cast<const osg::Texture2D*>(
+                        wrapper->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE))
+                                       ->getImage();
+                }
+                int covered = 0;
+                for (int y = 0; y < 256; ++y)
+                    for (int x = 0; x < 256; ++x)
+                    {
+                        const auto a = images[0]->getColor(x, y), b = images[1]->getColor(x, y);
+                        require(std::abs(a.a() - .6f) < .005f, "coating filled transparent hair cutouts");
+                        const float transmission = (a.r() - b.r()) / .6f;
+                        if (element == Ragdoll::DeathElement::Fire)
+                        {
+                            if (std::abs(transmission - 1.f) > .02f)
+                                ++covered;
+                            require(transmission > .11f, "soot erased original texture detail");
+                        }
+                        else if (element == Ragdoll::DeathElement::Frost)
+                            require(transmission > .19f && transmission < .31f,
+                                "frost opacity left the requested 70–80 percent interval");
+                        else
+                            require(std::abs(a.r() - b.r()) < .005f && std::abs(a.g() - b.g()) < .005f,
+                                "slime failed to cover the whole worn surface");
+                    }
+                if (element == Ragdoll::DeathElement::Fire)
+                    require(std::abs(covered / (256.f * 256) - .9f) < .005f, "soot coverage must be 90 percent");
+            }
+            for (int part = 0; part < 3; ++part)
+                require(parts[part]->getParent(0) == root && parts[part]->getStateSet() == originals[part],
+                    "cell unload left coating overrides attached");
+        }
+        std::cout << "PASS whole-actor coatings, 90% soot, 70–80% frost and original-detail preservation\n";
+    }
+
     void skinSurfacesAndCleanup()
     {
-        for (const auto element : { Ragdoll::DeathElement::Poison, Ragdoll::DeathElement::Fire,
-                 Ragdoll::DeathElement::Frost })
+        for (const auto element :
+            { Ragdoll::DeathElement::Poison, Ragdoll::DeathElement::Fire, Ragdoll::DeathElement::Frost })
         {
             osg::ref_ptr<osg::Group> root = new osg::Group;
             osg::ref_ptr<osg::Group> skin = new osg::Group;
@@ -541,22 +628,28 @@ namespace
                 MWRender::RagdollAppearance effect(*root, element, {});
                 const std::array<osg::Vec3f, 2> positions{ osg::Vec3f(0, 0, 10), osg::Vec3f(0, 10, 10) };
                 effect.update(0, { skin }, positions);
-                require(paintedPixel(*skin->getParent(0)) == original, "fade must start with the original skin texture");
+                require(
+                    paintedPixel(*skin->getParent(0)) == original, "fade must start with the original skin texture");
                 const float duration = element == Ragdoll::DeathElement::Fire ? 2.f : 1.5f;
                 effect.update(duration / 2, { skin }, positions);
-                require(std::abs(effect.getBlend() - 0.5f) < 0.001f, "skin transformation must blend over the element's duration");
+                require(std::abs(effect.getBlend() - 0.5f) < 0.001f,
+                    "skin transformation must blend over the element's duration");
                 const auto halfway = paintedPixel(*skin->getParent(0));
                 effect.update(duration, { skin }, positions);
                 const auto final = paintedPixel(*skin->getParent(0));
                 require((halfway - original).length() > 0.01f && (final - halfway).length() > 0.01f,
                     "surface texture must change gradually, not switch a global colour");
-                require(std::abs(final.a() - original.a()) < 0.005f, "skin painting must preserve texture transparency");
+                require(
+                    std::abs(final.a() - original.a()) < 0.005f, "skin painting must preserve texture transparency");
                 if (element == Ragdoll::DeathElement::Poison)
-                    require(final.g() > final.r() * 2 && final.g() > final.b() * 2, "poison must produce green slime texture");
+                    require(final.g() > final.r() * 2 && final.g() > final.b() * 2,
+                        "poison must produce green slime texture");
                 else if (element == Ragdoll::DeathElement::Fire)
-                    require(final.r() < 0.15f && final.g() < 0.15f && final.b() < 0.15f, "fire must produce charred skin");
+                    require(final.r() > .06f && final.r() < original.r() * .65f,
+                        "soot must darken but retain original texture");
                 else
-                    require(final.b() > final.r() && final.g() > original.g(), "frost must produce an icy surface");
+                    require(final.g() > original.g() && std::abs(final.r() - final.b()) < .2f,
+                        "frost must whiten the original surface without painting it solid blue");
                 require(armour->getStateSet() == shared && armour->getParent(0) == root,
                     "armour sharing skin assets must retain its original state and attachment");
                 require(texture->getImage()->getColor(0, 0) == original,
@@ -582,8 +675,10 @@ namespace
                 "a Geode must keep a per-instance Drawable, never a Group child");
             require(paintedPixel(*skin->getDrawable(0)).g() > paintedPixel(*skin->getDrawable(0)).r(),
                 "direct Drawable materials must receive slime texture");
-            require(static_cast<osg::Texture2D*>(geometry->getStateSet()->getTextureAttribute(0,
-                osg::StateAttribute::TEXTURE)) == texture, "shared source Drawable must remain unchanged");
+            require(static_cast<osg::Texture2D*>(
+                        geometry->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE))
+                    == texture,
+                "shared source Drawable must remain unchanged");
         }
         require(skin->getDrawable(0) == geometry, "Geode drawable must restore after effect destruction");
         {
@@ -638,37 +733,39 @@ namespace
 
         SkeletonFixture frozen;
         impact.mDeathElement = Ragdoll::DeathElement::Frost;
-        auto ice = MWRender::RagdollController::create(
-            *frozen.mSkeleton, *frozen.mSkeleton, floorSnapshot, {}, impact);
+        auto ice = MWRender::RagdollController::create(*frozen.mSkeleton, *frozen.mSkeleton, floorSnapshot, {}, impact);
         const auto pelvisBefore = worldMatrix(*frozen.mBones.at("Pelvis"));
         const auto headRelative = worldMatrix(*frozen.mBones.at("Head")) * osg::Matrixf::inverse(pelvisBefore);
         for (int i = 0; i < 120; ++i)
             ice->update(1.f / 60);
-        const auto headAfter = worldMatrix(*frozen.mBones.at("Head"))
-            * osg::Matrixf::inverse(worldMatrix(*frozen.mBones.at("Pelvis")));
-        require(near(headRelative, headAfter, 0.003f), "frost must preserve all relative bone transforms as one rigid object");
+        const auto headAfter
+            = worldMatrix(*frozen.mBones.at("Head")) * osg::Matrixf::inverse(worldMatrix(*frozen.mBones.at("Pelvis")));
+        require(near(headRelative, headAfter, 0.003f),
+            "frost must preserve all relative bone transforms as one rigid object");
         std::cout << "PASS elemental timers after physics freeze and rigid frost skeleton\n";
     }
 
     void visibleShockAndFrozenFall()
     {
-        for (int facing=0; facing<8; ++facing)
+        for (int facing = 0; facing < 8; ++facing)
         {
             SkeletonFixture radial;
-            radial.mWorld->setMatrix(osg::Matrixf::rotate(facing*0.785398f, osg::Vec3f(0,0,1))
-                * osg::Matrixf::translate(0,0,200));
+            radial.mWorld->setMatrix(
+                osg::Matrixf::rotate(facing * 0.785398f, osg::Vec3f(0, 0, 1)) * osg::Matrixf::translate(0, 0, 200));
             MWRender::RagdollController::Settings settings;
             settings.mArmorMass = 1000;
             Ragdoll::Impact wave;
             wave.mValid = true;
             wave.mDeathElement = Ragdoll::DeathElement::Frost;
-            wave.mMagicDirection.set(1,0,0);
+            wave.mMagicDirection.set(1, 0, 0);
             wave.mMagicDistance = 0.5f;
-            auto body = MWRender::RagdollController::create(*radial.mSkeleton, *radial.mSkeleton, floorSnapshot, settings, wave);
+            auto body = MWRender::RagdollController::create(
+                *radial.mSkeleton, *radial.mSkeleton, floorSnapshot, settings, wave);
             const auto start = body->getPosition();
-            for (int i=0; i<6; ++i) body->update(1.f/120);
+            for (int i = 0; i < 6; ++i)
+                body->update(1.f / 120);
             const auto motion = body->getPosition() - start;
-            require(motion.x()>0.1 && std::abs(motion.y())<0.001,
+            require(motion.x() > 0.1 && std::abs(motion.y()) < 0.001,
                 "A facing-dependent toppling kick redirected the explosion of a heavy corpse");
         }
         SkeletonFixture frozen;
@@ -676,9 +773,11 @@ namespace
         Ragdoll::Impact impact;
         impact.mValid = true;
         impact.mDeathElement = Ragdoll::DeathElement::Frost;
-        auto statue = MWRender::RagdollController::create(*frozen.mSkeleton, *frozen.mSkeleton, floorSnapshot, {}, impact);
+        auto statue
+            = MWRender::RagdollController::create(*frozen.mSkeleton, *frozen.mSkeleton, floorSnapshot, {}, impact);
         const float height = worldMatrix(*frozen.mBones.at("Head")).getTrans().z();
-        for (int i=0; i<240; ++i) statue->update(1.f/60);
+        for (int i = 0; i < 240; ++i)
+            statue->update(1.f / 60);
         require(statue->isSimulating(), "Frost ragdoll was destroyed before the ten second deadline");
         require(worldMatrix(*frozen.mBones.at("Head")).getTrans().z() < height - 30,
             "An upright frozen death did not topple under gravity");
@@ -687,14 +786,15 @@ namespace
         SkeletonFixture electric;
         electric.mWorld->setMatrix(osg::Matrixf::identity());
         impact.mDeathElement = Ragdoll::DeathElement::Shock;
-        auto corpse = MWRender::RagdollController::create(*electric.mSkeleton, *electric.mSkeleton, floorSnapshot, {}, impact);
+        auto corpse
+            = MWRender::RagdollController::create(*electric.mSkeleton, *electric.mSkeleton, floorSnapshot, {}, impact);
         float torsoTravel = 0, legTravel = 0;
         auto previous = electric.pose();
-        for (int i=0; i<300; ++i)
+        for (int i = 0; i < 300; ++i)
         {
-            corpse->update(1.f/60);
+            corpse->update(1.f / 60);
             const auto current = electric.pose();
-            if (i>180)
+            if (i > 180)
             {
                 torsoTravel += (current.at("Spine2").getTrans() - previous.at("Spine2").getTrans()).length();
                 legTravel += (current.at("L Foot").getTrans() - previous.at("L Foot").getTrans()).length();
@@ -727,6 +827,8 @@ int main(int argc, char** argv)
         pinAndDeadline();
         anatomicalLimitsAndShock();
         skinSurfacesAndCleanup();
+        wornSurfaceCoverageAndDetail();
+        sharedWornDrawableIsPaintedOnlyOnSelectedActor();
         elementalLifecycle();
         visibleShockAndFrozenFall();
         return 0;

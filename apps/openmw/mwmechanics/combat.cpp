@@ -23,11 +23,12 @@
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
+#include "../mwphysics/itemhit.hpp"
+#include "../mwphysics/raycasting.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/globals.hpp"
 #include "../mwworld/inventorystore.hpp"
-#include "../mwphysics/raycasting.hpp"
 
 #include "actorutil.hpp"
 #include "difficultyscaling.hpp"
@@ -804,19 +805,29 @@ namespace MWMechanics
             hitPos.z() += world->getHalfExtents(result).z() * 2.f * zOffset;
         }
 
-        // Pickable clutter uses an actual contact ray; it must never be passed
-        // to actor-stat or probabilistic actor-hit code.
+        // Clutter has a small contact area, independent of actor hit-chance rolls.
         if (Settings::ragdoll().mItemPhysics)
         {
-            const osg::Vec3f aim = Misc::Convert::makeOsgQuat(posdata) * osg::Vec3f(0, 1, 0);
-            const auto contact = world->getRayCasting()->castRay(actorEyePos, actorEyePos + aim * reach, { actor }, {},
-                MWPhysics::CollisionType_World | MWPhysics::CollisionType_HeightMap
-                    | MWPhysics::CollisionType_Door | MWPhysics::CollisionType_VisualOnly);
-            if (contact.mHit && !contact.mHitObject.isEmpty() && contact.mHitObject.getClass().isItem(contact.mHitObject)
-                && (result.isEmpty() || (contact.mHitPos - actorEyePos).length() < minDist))
-                return { contact.mHitObject, contact.mHitPos };
+            const auto contact = getItemHitContact(actor, reach);
+            if (!contact.first.isEmpty())
+                return contact;
         }
         return std::make_pair(result, hitPos);
+    }
+
+    std::pair<MWWorld::Ptr, osg::Vec3f> getItemHitContact(const MWWorld::Ptr& actor, float reach)
+    {
+        if (!Settings::ragdoll().mItemPhysics)
+            return {};
+        auto world = MWBase::Environment::get().getWorld();
+        const auto& position = actor.getRefData().getPosition();
+        osg::Vec3f origin = world->getActorHeadTransform(actor).getTrans();
+        if (!std::isfinite(origin.length2()) || (origin - position.asVec3()).length2() > 1024.f * 1024.f
+            || origin == osg::Vec3f())
+            origin = position.asVec3() + osg::Vec3f(0, 0, world->getHalfExtents(actor, true).z() * 1.7f);
+        const auto contact = MWPhysics::itemMeleeContact(
+            *world->getRayCasting(), origin, Misc::Convert::makeOsgQuat(position) * osg::Vec3f(0, 1, 0), reach, actor);
+        return { contact.mHitObject, contact.mHitPos };
     }
 
     bool friendlyHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& target, bool complain)

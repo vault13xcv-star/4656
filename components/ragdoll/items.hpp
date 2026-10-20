@@ -34,6 +34,7 @@ namespace Ragdoll
         void add(Id id, const btCollisionShape& shape, const btTransform& transform, btScalar mass);
         void remove(Id id, bool wakeNeighbours = true);
         bool contains(Id id) const;
+        bool empty() const;
         void move(Id id, const btTransform& transform);
         void impulse(Id id, const btVector3& momentum, const btVector3& point);
         void wake(Id id);
