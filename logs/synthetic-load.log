@@ -1,0 +1,8 @@
+LOAD corpses=0 items=0 mean_ms=0.00296833 max_ms=0.0564
+LOAD corpses=10 items=0 mean_ms=4.05795 max_ms=13.6944
+LOAD corpses=50 items=0 mean_ms=15.2798 max_ms=33.896
+LOAD corpses=100 items=0 mean_ms=32.1716 max_ms=50.0341
+LOAD corpses=0 items=10 mean_ms=0.0639467 max_ms=0.1285
+LOAD corpses=0 items=50 mean_ms=0.320803 max_ms=0.513
+LOAD corpses=0 items=100 mean_ms=0.535822 max_ms=0.8901
+LOAD corpses=100 items=100 mean_ms=32.4559 max_ms=55.8595
