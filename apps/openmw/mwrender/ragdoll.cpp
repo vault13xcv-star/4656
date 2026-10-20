@@ -1,8 +1,9 @@
 #include "ragdoll.hpp"
 #include "ragdollappearance.hpp"
 
-#include <components/misc/strings/lower.hpp>
+#include <components/esm3/ragdollstate.hpp>
 #include <components/misc/constants.hpp>
+#include <components/misc/strings/lower.hpp>
 #include <components/ragdoll/simulation.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
@@ -18,7 +19,11 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <limits>
 #include <map>
+#include <mutex>
+#include <set>
+#include <tuple>
 #include <utility>
 
 namespace MWRender
@@ -28,7 +33,10 @@ namespace MWRender
         // Animation destruction may happen on the resource-unref thread.
         std::atomic<int> sSimulatingCorpses{ 0 };
 
-        btVector3 toBullet(const osg::Vec3f& v) { return { v.x(), v.y(), v.z() }; }
+        btVector3 toBullet(const osg::Vec3f& v)
+        {
+            return { v.x(), v.y(), v.z() };
+        }
         osg::Vec3f toOsg(const btVector3& v)
         {
             return { static_cast<float>(v.x()), static_cast<float>(v.y()), static_cast<float>(v.z()) };
@@ -39,6 +47,20 @@ namespace MWRender
             const btQuaternion rotation = transform.getRotation();
             return osg::Matrixf::rotate(osg::Quat(rotation.x(), rotation.y(), rotation.z(), rotation.w()))
                 * osg::Matrixf::translate(toOsg(transform.getOrigin()));
+        }
+
+        std::array<float, 7> packTransform(const btTransform& transform)
+        {
+            const auto p = transform.getOrigin();
+            const auto q = transform.getRotation();
+            return { float(p.x()), float(p.y()), float(p.z()), float(q.x()), float(q.y()), float(q.z()), float(q.w()) };
+        }
+        btTransform unpackTransform(const std::array<float, 7>& value)
+        {
+            const btQuaternion rotation(value[3], value[4], value[5], value[6]);
+            if (!std::isfinite(rotation.length2()) || std::abs(rotation.length2() - 1) > 0.01)
+                throw std::invalid_argument("Invalid saved ragdoll rotation");
+            return btTransform(rotation.normalized(), btVector3(value[0], value[1], value[2]));
         }
 
         osg::Vec3f unit(osg::Vec3f value, const osg::Vec3f& fallback = osg::Vec3f(0, 1, 0))
@@ -64,8 +86,8 @@ namespace MWRender
         {
             osg::Quat rotation;
             rotation.makeRotate(osg::Vec3f(0, 1, 0), end - start);
-            return btTransform(btQuaternion(rotation.x(), rotation.y(), rotation.z(), rotation.w()),
-                toBullet((start + end) * 0.5f));
+            return btTransform(
+                btQuaternion(rotation.x(), rotation.y(), rotation.z(), rotation.w()), toBullet((start + end) * 0.5f));
         }
 
         osg::Matrixf rootWorldMatrix(const osg::Node& node)
@@ -141,7 +163,8 @@ namespace MWRender
                 return {};
             auto mesh = std::make_shared<CollisionMesh>();
             for (std::size_t i = 0; i < vertices.size(); i += 3)
-                mesh->mTriangles.addTriangle(toBullet(vertices[i]), toBullet(vertices[i + 1]), toBullet(vertices[i + 2]));
+                mesh->mTriangles.addTriangle(
+                    toBullet(vertices[i]), toBullet(vertices[i + 1]), toBullet(vertices[i + 2]));
             mesh->mShape = std::make_unique<btBvhTriangleMeshShape>(&mesh->mTriangles, true);
             Ragdoll::StaticCollider collider;
             collider.mShape = std::shared_ptr<btCollisionShape>(mesh, mesh->mShape.get());
@@ -152,6 +175,12 @@ namespace MWRender
 
     struct RagdollController::Impl
     {
+        // Keep weak leases only. Temporarily locking a lease during eviction
+        // prevents destruction by the resource-unref thread while it is frozen.
+        inline static std::mutex sRegistryMutex;
+        inline static std::vector<std::weak_ptr<Impl>> sRegistry;
+        inline static std::atomic<std::uint64_t> sNextActivation{ 0 };
+        std::uint64_t mActivation = 0;
         osg::ref_ptr<osg::Group> mRoot;
         osg::ref_ptr<SceneUtil::Skeleton> mSkeleton;
         CollisionSnapshot mSnapshot;
@@ -161,25 +190,35 @@ namespace MWRender
         std::unique_ptr<RagdollAppearance> mAppearance;
         RagdollAppearance::SkinParts mSkinParts;
         std::vector<osg::Matrixf> mBodyMatrices;
+        std::vector<Ragdoll::BodyDefinition> mDefinitions;
+        std::vector<Ragdoll::JointDefinition> mJoints;
+        Ragdoll::BodyMode mMode = Ragdoll::BodyMode::Articulated;
         std::vector<osg::Vec3f> mCollisionVertices;
         float mElapsed = 0.f;
+        float mSimulationAge = 0.f;
         float mSinceSnapshot = 0.f;
         bool mBudgetSlot = false;
-        float mMass = 80.f;
+        float mMass = 70.f;
+        float mBodyBaseMass = 70.f;
+        bool mFloating = false;
         float mTorsoLength = 40.f;
         float mChestRadius = 8.f;
         float mPelvisRadius = 8.f;
+        Ragdoll::DeathElement mAppearanceElement = Ragdoll::DeathElement::None;
         bool mShock = false;
         bool mPinPending = false;
         bool mPinned = false;
         osg::Vec3f mPinDirection;
         osg::Vec3f mPinStart;
+        std::size_t mPinBody = 1;
+        bool mPinSpecific = false;
+        osg::Vec3f mPinPoint;
         osg::Vec3f mRight;
         osg::Vec3f mForward;
 
         void updateAppearance()
         {
-            std::array<osg::Vec3f, 11> positions;
+            std::vector<osg::Vec3f> positions(mBodyMatrices.size());
             for (std::size_t i = 0; i < positions.size(); ++i)
                 positions[i] = mBodyMatrices[i].getTrans();
             mAppearance->update(mElapsed, mSkinParts, positions);
@@ -192,9 +231,9 @@ namespace MWRender
             // Internal equal-and-opposite impulses flex joints without launching
             // the centre of mass. Smooth decay and solver limits bound every spasm.
             const float envelope = std::min(1.f, (mSettings.mShockDuration - mElapsed) / 0.5f);
-            const float strength = mMass * mTorsoLength * mTorsoLength * 1.6f
-                * mSettings.mShockStrength * envelope * timeStep;
-            for (const std::size_t joint : { 0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u })
+            const float strength
+                = mMass * mTorsoLength * mTorsoLength * 1.6f * mSettings.mShockStrength * envelope * timeStep;
+            for (std::size_t joint = 0; joint < mJoints.size(); ++joint)
             {
                 const float pulse = std::sin(mElapsed * 18.f + joint * 1.3f);
                 const osg::Vec3f axis = joint >= 6 || joint < 2 ? mRight : mForward;
@@ -206,26 +245,30 @@ namespace MWRender
         {
             if (!mPinPending || mPinned)
                 return;
-            const osg::Vec3f chest = toOsg(mSimulation->getBodyTransform(1).getOrigin());
-            if (mElapsed > 2.f || (chest - mPinStart).length() > mSettings.mPinMaxDistance * Constants::UnitsPerMeter)
+            const osg::Vec3f partPosition = toOsg(mSimulation->getBodyTransform(mPinBody).getOrigin());
+            if (mElapsed > 2.f
+                || (partPosition - mPinStart).length() > mSettings.mPinMaxDistance * Constants::UnitsPerMeter)
             {
                 mPinPending = false;
                 return;
             }
-            for (const std::size_t body : { 1u, 0u })
+            // Legacy/scripted contacts without a point retain the torso fallback.
+            // Native contacts may pin only their explicitly struck segment.
+            const std::array<std::size_t, 2> candidates{ mPinBody, mPinSpecific ? mPinBody : 0u };
+            for (const std::size_t body : candidates)
             {
-                const osg::Vec3f center = toOsg(mSimulation->getBodyTransform(body).getOrigin());
-                const float radius = body == 1 ? mChestRadius : mPelvisRadius;
                 btVector3 point, normal;
-                const osg::Vec3f end = center + mPinDirection * (radius + mSettings.mPinContactDistance);
-                if (mSimulation->raycastStatic(toBullet(center), toBullet(end), point, normal)
+                if (mSimulation->sweepPartStatic(
+                        body, toBullet(mPinDirection * mSettings.mPinContactDistance), point, normal)
                     && std::abs(normal.z()) < 0.65 && normal.dot(toBullet(mPinDirection)) < -0.2)
                 {
-                    // Attach the torso/pelvis that actually reached the surface.
-                    // Limbs striking first cannot create a long invisible tether.
+                    // Attach the struck segment only after its capsule reaches
+                    // the surface. Another limb cannot create an invisible tether.
                     mPinned = mSimulation->pinBody(body, point);
                     if (mPinned)
                     {
+                        mPinBody = body;
+                        mPinPoint = toOsg(point);
                         mPinPending = false;
                         return;
                     }
@@ -254,10 +297,44 @@ namespace MWRender
             }
         }
 
+        void acquireBudget(const std::shared_ptr<Impl>& self)
+        {
+            std::vector<std::shared_ptr<Impl>> active;
+            {
+                std::lock_guard lock(sRegistryMutex);
+                std::erase_if(sRegistry, [](const auto& value) { return value.expired(); });
+                for (const auto& value : sRegistry)
+                    if (auto corpse = value.lock(); corpse && corpse->mBudgetSlot)
+                        active.push_back(std::move(corpse));
+            }
+            const auto priority = [&](const std::shared_ptr<Impl>& corpse) {
+                return std::tuple(corpse->mSimulation->isSleeping(),
+                    (corpse->mBodyMatrices.front().getTrans() - mSettings.mObserverPosition).length2(),
+                    std::numeric_limits<std::uint64_t>::max() - corpse->mActivation);
+            };
+            const int limit = std::clamp(mSettings.mMaxActive, 1, 100);
+            while (sSimulatingCorpses.load() >= limit)
+            {
+                auto victim = active.end();
+                for (auto it = active.begin(); it != active.end(); ++it)
+                    if ((*it)->mBudgetSlot && (victim == active.end() || priority(*it) > priority(*victim)))
+                        victim = it;
+                if (victim == active.end())
+                    break;
+                (*victim)->freeze();
+            }
+            mActivation = ++sNextActivation;
+            mBudgetSlot = true;
+            ++sSimulatingCorpses;
+            std::lock_guard lock(sRegistryMutex);
+            sRegistry.push_back(self);
+        }
+
         void freeze()
         {
             // Keep the final matrices and pose overrides, but release physics world and mesh memory.
             mSimulation.reset();
+            mFloating = false;
             std::vector<osg::Vec3f>().swap(mCollisionVertices);
             releaseBudget();
         }
@@ -281,17 +358,17 @@ namespace MWRender
         }
     };
 
-    RagdollController::RagdollController(std::unique_ptr<Impl> impl)
+    RagdollController::RagdollController(std::shared_ptr<Impl> impl)
         : mImpl(std::move(impl))
     {
     }
 
     RagdollController::~RagdollController() = default;
 
-    std::unique_ptr<RagdollController> RagdollController::create(osg::Group& root,
-        SceneUtil::Skeleton& skeleton, CollisionSnapshot snapshot, const Settings& settings, const Ragdoll::Impact& impact)
+    std::unique_ptr<RagdollController> RagdollController::create(osg::Group& root, SceneUtil::Skeleton& skeleton,
+        CollisionSnapshot snapshot, const Settings& settings, const Ragdoll::Impact& impact)
     {
-        if (&root != &skeleton || sSimulatingCorpses.load() >= settings.mMaxActive)
+        if (&root != &skeleton || settings.mMaxActive < 1)
             return nullptr;
 
         CollectBones visitor(rootWorldMatrix(root));
@@ -304,162 +381,282 @@ namespace MWRender
         };
 
         // Morrowind's standard humanoid skeleton. Custom or creature skeletons are not guessed.
-        const std::array<int, 11> driven = { find({ "bip01 pelvis" }),
+        const std::array<int, 15> driven = { find({ "bip01 pelvis" }),
             find({ "bip01 spine2", "bip01 spine1", "bip01 spine" }), find({ "bip01 head" }),
-            find({ "bip01 l upperarm" }), find({ "bip01 l forearm" }),
-            find({ "bip01 r upperarm" }), find({ "bip01 r forearm" }),
-            find({ "bip01 l thigh" }), find({ "bip01 l calf" }),
-            find({ "bip01 r thigh" }), find({ "bip01 r calf" }) };
-        const std::array<int, 5> ends = { find({ "bip01 neck" }), find({ "bip01 l hand" }),
-            find({ "bip01 r hand" }), find({ "bip01 l foot" }), find({ "bip01 r foot" }) };
-        if (std::ranges::any_of(driven, [](int i) { return i < 0; })
-            || std::ranges::any_of(ends, [](int i) { return i < 0; }))
-            return nullptr;
+            find({ "bip01 l upperarm" }), find({ "bip01 l forearm" }), find({ "bip01 r upperarm" }),
+            find({ "bip01 r forearm" }), find({ "bip01 l thigh" }), find({ "bip01 l calf" }), find({ "bip01 r thigh" }),
+            find({ "bip01 r calf" }), find({ "bip01 l hand" }), find({ "bip01 r hand" }), find({ "bip01 l foot" }),
+            find({ "bip01 r foot" }) };
+        const std::array<int, 5> ends = { find({ "bip01 neck" }), find({ "bip01 l hand" }), find({ "bip01 r hand" }),
+            find({ "bip01 l foot" }), find({ "bip01 r foot" }) };
+        const bool humanoid = !std::ranges::any_of(driven, [](int i) { return i < 0; })
+            && !std::ranges::any_of(ends, [](int i) { return i < 0; });
+        float torsoLength = 40, legLength = 40, mass = settings.mBaseMass;
+        std::vector<Ragdoll::BodyDefinition> bodies;
+        std::vector<Ragdoll::JointDefinition> joints;
+        const osg::Matrixf rootMatrix = rootWorldMatrix(root);
+        const osg::Vec3f forward = unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), rootMatrix));
+        const osg::Vec3f right = unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), rootMatrix));
+        if (humanoid)
+        {
+            const auto position = [&](int index) { return osg::Vec3f(visitor.mBones[index].mRestWorld.getTrans()); };
+            const osg::Vec3f pelvis = position(driven[0]);
+            const osg::Vec3f neck = position(ends[0]);
+            torsoLength = (neck - pelvis).length();
+            // Degenerate transforms, unusual scale or an uninitialised skeleton fall back to native death.
+            if (!std::isfinite(torsoLength) || torsoLength < 8.f || torsoLength > 512.f)
+                return nullptr;
 
-        const auto position = [&](int index) { return osg::Vec3f(visitor.mBones[index].mRestWorld.getTrans()); };
-        const osg::Vec3f pelvis = position(driven[0]);
-        const osg::Vec3f neck = position(ends[0]);
-        const float torsoLength = (neck - pelvis).length();
-        // Degenerate transforms, unusual scale or an uninitialised skeleton fall back to native death.
-        if (!std::isfinite(torsoLength) || torsoLength < 8.f || torsoLength > 512.f)
-            return nullptr;
+            std::array<osg::Vec3f, 15> starts;
+            std::array<osg::Vec3f, 15> stops;
+            for (std::size_t i = 0; i < driven.size(); ++i)
+                starts[i] = position(driven[i]);
+            // Torso includes the intermediate spine bones, preserving their captured local offsets.
+            stops[0] = pelvis + (neck - pelvis) * 0.3f;
+            starts[1] = stops[0];
+            stops[1] = neck;
+            osg::Vec3f headAxis = position(driven[2]) - neck;
+            if (headAxis.length2() < 1.f)
+                headAxis = (neck - pelvis) * 0.2f;
+            starts[2] = neck;
+            stops[2] = position(driven[2]) + headAxis * 0.5f;
+            stops[3] = position(driven[4]);
+            stops[4] = position(ends[1]);
+            stops[5] = position(driven[6]);
+            stops[6] = position(ends[2]);
+            stops[7] = position(driven[8]);
+            stops[8] = position(ends[3]);
+            stops[9] = position(driven[10]);
+            stops[10] = position(ends[4]);
+            stops[11] = starts[11] + unit(stops[4] - starts[4]) * (torsoLength * 0.14f);
+            stops[12] = starts[12] + unit(stops[6] - starts[6]) * (torsoLength * 0.14f);
+            stops[13] = starts[13] + forward * (torsoLength * 0.2f);
+            stops[14] = starts[14] + forward * (torsoLength * 0.2f);
 
-        auto vertices = snapshot(pelvis, settings.mCollisionRadius);
+            legLength = ((stops[7] - starts[7]).length() + (stops[8] - starts[8]).length()
+                            + (stops[9] - starts[9]).length() + (stops[10] - starts[10]).length())
+                * 0.5f;
+            const float stature = legLength + torsoLength + (stops[2] - starts[2]).length();
+            const float heightRatio = std::clamp(stature / settings.mReferenceHeight, 0.25f, 4.f);
+            const auto scale = rootMatrix.getScale();
+            const float volumeCorrection = std::abs(scale.z()) > 1e-6
+                ? static_cast<float>(std::abs(scale.x() * scale.y()) / (scale.z() * scale.z()))
+                : 1.f;
+            mass = std::clamp(settings.mBaseMass * heightRatio * heightRatio * heightRatio * volumeCorrection
+                    + std::max(0.f, settings.mArmorMass),
+                5.f, 5000.f);
+            constexpr std::array<float, 15> masses{ 10.f, 20.f, 5.f, 3.f, 1.6f, 3.f, 1.6f, 7.f, 3.5f, 7.f, 3.5f, .4f,
+                .4f, .5f, .5f };
+            constexpr std::array<float, 15> radii{ 0.22f, 0.22f, 0.16f, 0.09f, 0.075f, 0.09f, 0.075f, 0.13f, 0.10f,
+                0.13f, 0.10f, .07f, .07f, .09f, .09f };
+            bodies.reserve(driven.size());
+            for (std::size_t i = 0; i < driven.size(); ++i)
+            {
+                const float length = (stops[i] - starts[i]).length();
+                if (!std::isfinite(length) || length < 1.f || length > torsoLength * 4.f)
+                    return nullptr;
+                Ragdoll::BodyDefinition body;
+                body.mTransform = capsuleTransform(starts[i], stops[i]);
+                body.mRadius
+                    = std::max(1.f, i == 0 ? torsoLength * radii[i] : std::min(torsoLength * radii[i], length * 0.45f));
+                body.mLength = std::max(btScalar(0), length - 2.f * body.mRadius);
+                body.mMass = masses[i] * mass / 67.f;
+                BonePose& bone = visitor.mBones[driven[i]];
+                bone.mBody = static_cast<int>(i);
+                // Include original scale and the offset between bone pivot and capsule centre.
+                bone.mBoneToBody = bone.mRestWorld * osg::Matrixf::inverse(toOsg(body.mTransform));
+                bodies.push_back(body);
+            }
+
+            constexpr std::array<std::size_t, 15> parents{ 0, 0, 1, 1, 3, 1, 5, 0, 7, 0, 9, 4, 6, 8, 10 };
+            joints.reserve(10);
+            for (std::size_t child = 1; child < bodies.size(); ++child)
+            {
+                Ragdoll::JointDefinition joint;
+                joint.mParent = parents[child];
+                joint.mChild = child;
+                const std::size_t parent = parents[child];
+                const osg::Vec3f pivot = starts[child];
+                const osg::Vec3f proximal = unit(stops[parent] - starts[parent]);
+                const osg::Vec3f distal = unit(stops[child] - starts[child]);
+                const bool hinge = child == 4 || child == 6 || child == 8 || child == 10;
+                joint.mUseLocalFrames = true;
+                if (hinge)
+                {
+                    const bool knee = child == 8 || child == 10;
+                    // Knees flex behind the thigh, elbows in front of the upper arm.
+                    // For an arm pointed straight forward use the character's right
+                    // axis, never a random capsule twist from makeRotate().
+                    const osg::Vec3f desiredBend = knee ? -forward : forward;
+                    const osg::Vec3f bendAxis = knee
+                        ? unit(-right + proximal * (right * proximal), unit(proximal ^ desiredBend, -right))
+                        : unit(proximal ^ desiredBend, right);
+                    const btTransform parentWorld = hingeFrame(pivot, proximal, bendAxis);
+                    const btTransform childWorld = hingeFrame(pivot, distal, bendAxis);
+                    joint.mFrameInParent = bodies[parent].mTransform.inverse() * parentWorld;
+                    joint.mFrameInChild = bodies[child].mTransform.inverse() * childWorld;
+                    joint.mType = Ragdoll::JointDefinition::Type::Hinge;
+                    joint.mAngularLower = btVector3(0, 0, -0.035);
+                    joint.mAngularUpper = btVector3(0, 0, 2.53);
+                }
+                else
+                {
+                    // Torso/head frames follow their real skeletal direction. Hip
+                    // and shoulder reference axes share the torso anatomical frame;
+                    // their child frames encode each actual limb direction.
+                    const osg::Vec3f torsoUp = unit(neck - pelvis, osg::Vec3f(0, 0, 1));
+                    const bool spine = child == 1 || child == 2;
+                    const osg::Vec3f reference = spine ? proximal : -torsoUp;
+                    const osg::Vec3f axis = unit(reference ^ forward, right);
+                    const btTransform parentWorld = hingeFrame(pivot, reference, axis);
+                    const btTransform childWorld = hingeFrame(pivot, distal, axis);
+                    joint.mFrameInParent = bodies[parent].mTransform.inverse() * parentWorld;
+                    joint.mFrameInChild = bodies[child].mTransform.inverse() * childWorld;
+                    if (spine)
+                    {
+                        const float angle = child == 1 ? 0.3f : 0.55f;
+                        joint.mAngularLower = btVector3(-0.35, -angle, -angle);
+                        joint.mAngularUpper = btVector3(0.35, angle, angle);
+                    }
+                    else if (child >= 11)
+                    {
+                        joint.mAngularLower = btVector3(-.25, -.5, -.6);
+                        joint.mAngularUpper = btVector3(.25, .5, .6);
+                    }
+                    else if (child == 7 || child == 9)
+                    {
+                        joint.mAngularLower = btVector3(-0.35, -0.6, -1.65);
+                        joint.mAngularUpper = btVector3(0.35, 0.6, 0.45);
+                    }
+                    else
+                    {
+                        joint.mAngularLower = btVector3(-0.75, -1.75, -2.2);
+                        joint.mAngularUpper = btVector3(0.75, 1.75, 1.2);
+                    }
+                }
+                joints.push_back(joint);
+            }
+        }
+        else
+        {
+            if (!settings.mAllowGenericSkeleton)
+                return nullptr;
+            std::vector<std::size_t> selected;
+            std::map<osg::Node*, std::size_t> bodyForNode;
+            osg::Vec3f minimum(1e8, 1e8, 1e8), maximum(-1e8, -1e8, -1e8);
+            for (std::size_t bone = 0; bone < visitor.mBones.size() && selected.size() < 64; ++bone)
+            {
+                const auto name = Misc::StringUtils::lowerCase(visitor.mBones[bone].mNode->getName());
+                if (name == "bip01" || name == "root" || name == "rootbone" || name.empty()
+                    || name.find("weapon") != name.npos || name.find("shield") != name.npos)
+                    continue;
+                bool anatomical = false;
+                for (const auto key :
+                    { "bip", "bone", "joint", "head", "spine", "neck", "tail", "wing", "leg", "arm", "pelvis" })
+                    anatomical |= name.find(key) != name.npos;
+                if (!anatomical)
+                    continue;
+                const osg::Vec3f point(visitor.mBones[bone].mRestWorld.getTrans());
+                if (!std::isfinite(point.length2()))
+                    return nullptr;
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    minimum[axis] = std::min(minimum[axis], point[axis]);
+                    maximum[axis] = std::max(maximum[axis], point[axis]);
+                }
+                bodyForNode[visitor.mBones[bone].mNode] = selected.size();
+                selected.push_back(bone);
+            }
+            if (selected.size() < 2)
+                return nullptr;
+            const auto span = maximum - minimum;
+            const float size = std::max({ span.x(), span.y(), span.z() });
+            if (!std::isfinite(size) || size < 2 || size > 4096)
+                return nullptr;
+            const float ratio = std::clamp(size / settings.mReferenceHeight, .1f, 10.f);
+            mass = std::clamp(
+                settings.mBaseMass * ratio * ratio * ratio + std::max(0.f, settings.mArmorMass), .25f, 5000.f);
+            torsoLength = std::max(4.f, size * .4f);
+            legLength = size * .3f;
+            std::vector<int> parents(selected.size(), -1);
+            for (std::size_t part = 0; part < selected.size(); ++part)
+            {
+                const auto& path = visitor.mBones[selected[part]].mParents;
+                for (auto parent = path.rbegin(); parent != path.rend(); ++parent)
+                    if (auto found = bodyForNode.find(*parent); found != bodyForNode.end())
+                    {
+                        parents[part] = found->second;
+                        break;
+                    }
+            }
+            float volume = 0;
+            for (std::size_t part = 0; part < selected.size(); ++part)
+            {
+                auto& bone = visitor.mBones[selected[part]];
+                const osg::Vec3f start = bone.mRestWorld.getTrans();
+                osg::Vec3f end = start + forward * std::max(1.f, size * .04f);
+                float longest = 0;
+                for (std::size_t child = 0; child < selected.size(); ++child)
+                    if (parents[child] == static_cast<int>(part))
+                    {
+                        const osg::Vec3f point = visitor.mBones[selected[child]].mRestWorld.getTrans();
+                        if ((point - start).length2() > longest)
+                        {
+                            longest = (point - start).length2();
+                            end = point;
+                        }
+                    }
+                const float length = std::max(1.f, (end - start).length());
+                Ragdoll::BodyDefinition body;
+                body.mTransform = capsuleTransform(start, end);
+                body.mRadius = std::clamp(length * .18f, .4f, std::max(.4f, size * .12f));
+                body.mLength = std::max(0.f, length - 2.f * float(body.mRadius));
+                body.mMass = body.mRadius * body.mRadius * (body.mLength + 2.f * body.mRadius);
+                volume += body.mMass;
+                bone.mBody = part;
+                bone.mBoneToBody = bone.mRestWorld * osg::Matrixf::inverse(toOsg(body.mTransform));
+                bodies.push_back(body);
+            }
+            const float minimumMass = std::min(.002f, mass / (2.f * bodies.size()));
+            const float remainingMass = mass - minimumMass * bodies.size();
+            for (auto& body : bodies)
+                body.mMass = minimumMass + body.mMass * (remainingMass / volume);
+            for (std::size_t part = 1; part < selected.size(); ++part)
+            {
+                const auto parent = parents[part] >= 0 ? std::size_t(parents[part]) : 0;
+                Ragdoll::JointDefinition joint;
+                joint.mParent = parent;
+                joint.mChild = part;
+                joint.mUseLocalFrames = true;
+                auto frame = btTransform::getIdentity();
+                frame.setOrigin(toBullet(visitor.mBones[selected[part]].mRestWorld.getTrans()));
+                joint.mFrameInParent = bodies[parent].mTransform.inverse() * frame;
+                joint.mFrameInChild = bodies[part].mTransform.inverse() * frame;
+                joint.mAngularLower = btVector3(-.6, -.8, -.8);
+                joint.mAngularUpper = btVector3(.6, .8, .8);
+                joints.push_back(joint);
+            }
+        }
+        auto vertices = snapshot(toOsg(bodies.front().mTransform.getOrigin()), settings.mCollisionRadius);
         auto colliders = makeCollisionMesh(vertices);
         if (colliders.empty())
             return nullptr;
 
-        std::array<osg::Vec3f, 11> starts;
-        std::array<osg::Vec3f, 11> stops;
-        for (std::size_t i = 0; i < driven.size(); ++i)
-            starts[i] = position(driven[i]);
-        // Torso includes the intermediate spine bones, preserving their captured local offsets.
-        stops[0] = pelvis + (neck - pelvis) * 0.3f;
-        starts[1] = stops[0];
-        stops[1] = neck;
-        osg::Vec3f headAxis = position(driven[2]) - neck;
-        if (headAxis.length2() < 1.f)
-            headAxis = (neck - pelvis) * 0.2f;
-        starts[2] = neck;
-        stops[2] = position(driven[2]) + headAxis * 0.5f;
-        stops[3] = position(driven[4]);
-        stops[4] = position(ends[1]);
-        stops[5] = position(driven[6]);
-        stops[6] = position(ends[2]);
-        stops[7] = position(driven[8]);
-        stops[8] = position(ends[3]);
-        stops[9] = position(driven[10]);
-        stops[10] = position(ends[4]);
-
-        const float legLength = ((stops[7] - starts[7]).length() + (stops[8] - starts[8]).length()
-            + (stops[9] - starts[9]).length() + (stops[10] - starts[10]).length()) * 0.5f;
-        const float stature = legLength + torsoLength + (stops[2] - starts[2]).length();
-        const float heightRatio = std::clamp(stature / settings.mReferenceHeight, 0.25f, 4.f);
-        const float mass = std::clamp(settings.mBaseMass * heightRatio * heightRatio * heightRatio
-            + std::max(0.f, settings.mArmorMass), 5.f, 5000.f);
-        const osg::Matrixf rootMatrix = rootWorldMatrix(root);
-        const osg::Vec3f forward = unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), rootMatrix));
-        const osg::Vec3f right = unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), rootMatrix));
-        constexpr std::array<float, 11> masses{ 10.f, 20.f, 5.f, 3.f, 2.f, 3.f, 2.f, 7.f, 4.f, 7.f, 4.f };
-        constexpr std::array<float, 11> radii{ 0.22f, 0.22f, 0.16f, 0.09f, 0.075f,
-            0.09f, 0.075f, 0.13f, 0.10f, 0.13f, 0.10f };
-        std::vector<Ragdoll::BodyDefinition> bodies;
-        bodies.reserve(driven.size());
-        for (std::size_t i = 0; i < driven.size(); ++i)
-        {
-            const float length = (stops[i] - starts[i]).length();
-            if (!std::isfinite(length) || length < 1.f || length > torsoLength * 4.f)
-                return nullptr;
-            Ragdoll::BodyDefinition body;
-            body.mTransform = capsuleTransform(starts[i], stops[i]);
-            body.mRadius = std::max(1.f, i == 0 ? torsoLength * radii[i]
-                : std::min(torsoLength * radii[i], length * 0.45f));
-            body.mLength = std::max(btScalar(0), length - 2.f * body.mRadius);
-            body.mMass = masses[i] * mass / 67.f;
-            BonePose& bone = visitor.mBones[driven[i]];
-            bone.mBody = static_cast<int>(i);
-            // Include original scale and the offset between bone pivot and capsule centre.
-            bone.mBoneToBody = bone.mRestWorld * osg::Matrixf::inverse(toOsg(body.mTransform));
-            bodies.push_back(body);
-        }
-
-        constexpr std::array<std::size_t, 11> parents{ 0, 0, 1, 1, 3, 1, 5, 0, 7, 0, 9 };
-        std::vector<Ragdoll::JointDefinition> joints;
-        joints.reserve(10);
-        for (std::size_t child = 1; child < bodies.size(); ++child)
-        {
-            Ragdoll::JointDefinition joint;
-            joint.mParent = parents[child];
-            joint.mChild = child;
-            const std::size_t parent = parents[child];
-            const osg::Vec3f pivot = starts[child];
-            const osg::Vec3f proximal = unit(stops[parent] - starts[parent]);
-            const osg::Vec3f distal = unit(stops[child] - starts[child]);
-            const bool hinge = child == 4 || child == 6 || child == 8 || child == 10;
-            joint.mUseLocalFrames = true;
-            if (hinge)
-            {
-                const bool knee = child == 8 || child == 10;
-                // Knees flex behind the thigh, elbows in front of the upper arm.
-                // For an arm pointed straight forward use the character's right
-                // axis, never a random capsule twist from makeRotate().
-                const osg::Vec3f desiredBend = knee ? -forward : forward;
-                const osg::Vec3f bendAxis = knee
-                    ? unit(-right + proximal * (right * proximal), unit(proximal ^ desiredBend, -right))
-                    : unit(proximal ^ desiredBend, right);
-                const btTransform parentWorld = hingeFrame(pivot, proximal, bendAxis);
-                const btTransform childWorld = hingeFrame(pivot, distal, bendAxis);
-                joint.mFrameInParent = bodies[parent].mTransform.inverse() * parentWorld;
-                joint.mFrameInChild = bodies[child].mTransform.inverse() * childWorld;
-                joint.mType = Ragdoll::JointDefinition::Type::Hinge;
-                joint.mAngularLower = btVector3(0, 0, -0.035);
-                joint.mAngularUpper = btVector3(0, 0, 2.53);
-            }
-            else
-            {
-                // Torso/head frames follow their real skeletal direction. Hip
-                // and shoulder reference axes share the torso anatomical frame;
-                // their child frames encode each actual limb direction.
-                const osg::Vec3f torsoUp = unit(neck - pelvis, osg::Vec3f(0, 0, 1));
-                const bool spine = child == 1 || child == 2;
-                const osg::Vec3f reference = spine ? proximal : -torsoUp;
-                const osg::Vec3f axis = unit(reference ^ forward, right);
-                const btTransform parentWorld = hingeFrame(pivot, reference, axis);
-                const btTransform childWorld = hingeFrame(pivot, distal, axis);
-                joint.mFrameInParent = bodies[parent].mTransform.inverse() * parentWorld;
-                joint.mFrameInChild = bodies[child].mTransform.inverse() * childWorld;
-                if (spine)
-                {
-                    const float angle = child == 1 ? 0.3f : 0.55f;
-                    joint.mAngularLower = btVector3(-0.35, -angle, -angle);
-                    joint.mAngularUpper = btVector3(0.35, angle, angle);
-                }
-                else if (child == 7 || child == 9)
-                {
-                    joint.mAngularLower = btVector3(-0.35, -0.6, -1.65);
-                    joint.mAngularUpper = btVector3(0.35, 0.6, 0.45);
-                }
-                else
-                {
-                    joint.mAngularLower = btVector3(-0.75, -1.75, -2.2);
-                    joint.mAngularUpper = btVector3(0.75, 1.75, 1.2);
-                }
-            }
-            joints.push_back(joint);
-        }
-
-        auto impl = std::make_unique<Impl>();
+        auto impl = std::make_shared<Impl>();
         impl->mRoot = &root;
         impl->mSkeleton = &skeleton;
         impl->mSnapshot = std::move(snapshot);
         impl->mSettings = settings;
         impl->mMass = mass;
+        impl->mBodyBaseMass = std::max(.25f, mass - std::max(0.f, settings.mArmorMass));
         impl->mElapsed = std::max(0.f, settings.mDeathAge);
+        impl->mSimulationAge = impl->mElapsed;
         impl->mTorsoLength = torsoLength;
         impl->mChestRadius = bodies[1].mRadius;
         impl->mPelvisRadius = bodies[0].mRadius;
-        impl->mShock = impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Shock
-            && settings.mShockDuration > 0.f;
+        impl->mAppearanceElement = impact.mValid ? impact.mDeathElement : Ragdoll::DeathElement::None;
+        impl->mShock
+            = impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Shock && settings.mShockDuration > 0.f;
         impl->mRight = right;
         impl->mForward = forward;
         impl->mCollisionVertices = std::move(vertices);
@@ -468,20 +665,25 @@ namespace MWRender
             physics.mBodyMode = Ragdoll::BodyMode::Soft;
         else if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Frost)
             physics.mBodyMode = Ragdoll::BodyMode::Rigid;
+        impl->mMode = physics.mBodyMode;
+        impl->mDefinitions = bodies;
+        impl->mJoints = joints;
         impl->mSimulation = std::make_unique<Ragdoll::Simulation>(
             std::move(bodies), std::move(joints), std::move(colliders), physics);
         impl->mAppearance = std::make_unique<RagdollAppearance>(root,
             impact.mValid ? impact.mDeathElement : Ragdoll::DeathElement::None,
             RagdollAppearance::Settings{ settings.mPoisonTransitionTime, settings.mFireTransitionTime,
-                settings.mFrostTransitionTime, settings.mFireEffectDuration });
+                settings.mFrostTransitionTime, settings.mFireEffectDuration, settings.mPoisonEffectDuration,
+                settings.mShockDuration });
         if (!impl->mSimulation->isValid())
             return nullptr;
         impl->mBones = std::move(visitor.mBones);
-        impl->mBodyMatrices.reserve(driven.size());
-        for (std::size_t i = 0; i < driven.size(); ++i)
+        impl->mBodyMatrices.reserve(impl->mDefinitions.size());
+        for (std::size_t i = 0; i < impl->mDefinitions.size(); ++i)
             impl->mBodyMatrices.push_back(toOsg(impl->mSimulation->getBodyTransform(i)));
-        ++sSimulatingCorpses;
-        impl->mBudgetSlot = true;
+        impl->acquireBudget(impl);
+        if (std::isfinite(settings.mInitialVelocity.length2()) && settings.mInitialVelocity.length2() > 0)
+            impl->mSimulation->applyWholeBodyImpulse(toBullet(settings.mInitialVelocity * mass));
 
         bool launched = false;
         if (impact.mValid)
@@ -497,38 +699,310 @@ namespace MWRender
                 const float flightTime = (lift + std::sqrt(lift * lift + 2.f * 627.2f * fallHeight)) / 627.2f;
                 return unit(direction) * (distance / flightTime) + osg::Vec3f(0, 0, lift);
             };
-            osg::Vec3f velocity = (launchVelocity(impact.mWeaponDistance, impact.mWeaponDirection)
-                + launchVelocity(impact.mMagicDistance, impact.mMagicDirection))
-                * (settings.mBaseMass / mass * settings.mImpulseMultiplier);
+            osg::Vec3f weaponVelocity
+                = launchVelocity(impact.mWeaponDistance, impact.mWeaponDirection) * impact.mWeaponMultiplier;
+            osg::Vec3f magicVelocity = impact.mMagicAttraction
+                ? osg::Vec3f()
+                : launchVelocity(impact.mMagicDistance, impact.mMagicDirection);
+            osg::Vec3f velocity
+                = (weaponVelocity
+                      + (impact.mMagicAttraction ? osg::Vec3f()
+                                                 : launchVelocity(impact.mMagicDistance, impact.mMagicDirection)))
+                * (settings.mImpulseReferenceMass / mass * settings.mImpulseMultiplier);
             const float speed = velocity.length();
             if (speed > settings.mMaxLaunchSpeed)
-                velocity *= settings.mMaxLaunchSpeed / speed;
+            {
+                const float factor = settings.mMaxLaunchSpeed / speed;
+                velocity *= factor;
+                weaponVelocity *= factor;
+                magicVelocity *= factor;
+            }
             launched = velocity.length2() > 0.01f;
-            impl->mSimulation->applyWholeBodyImpulse(toBullet(velocity * mass));
+            if (impact.mHasWeaponContact && weaponVelocity.length2() > 0.f)
+            {
+                std::size_t closest = 0;
+                float distance = std::numeric_limits<float>::max();
+                for (std::size_t part = 0; part < impl->mSimulation->getNumBodies(); ++part)
+                {
+                    const float d
+                        = (toOsg(impl->mSimulation->getBodyTransform(part).getOrigin()) - impact.mWeaponPosition)
+                              .length2();
+                    if (d < distance)
+                    {
+                        distance = d;
+                        closest = part;
+                    }
+                }
+                impl->mSimulation->applyImpulse(closest,
+                    toBullet(weaponVelocity * (settings.mImpulseReferenceMass * settings.mImpulseMultiplier)),
+                    toBullet(impact.mWeaponPosition));
+                impl->mPinBody = closest;
+                impl->mPinSpecific = true;
+                impl->mSimulation->applyWholeBodyImpulse(
+                    toBullet(magicVelocity * (settings.mImpulseReferenceMass * settings.mImpulseMultiplier)));
+            }
+            else
+                impl->mSimulation->applyWholeBodyImpulse(toBullet(velocity * mass));
+            if (impact.mMagicAttraction && impact.mMagicDistance > 0.f)
+                impl->mSimulation->attract(toBullet(impact.mMagicOrigin),
+                    impact.mMagicDistance * Constants::UnitsPerMeter, settings.mImpulseReferenceMass);
             if (impact.mCrossbow && settings.mPinEnabled && impact.mWeaponDirection.length2() > 0.0001f)
             {
                 impl->mPinDirection = unit(impact.mWeaponDirection);
-                impl->mPinStart = toOsg(impl->mSimulation->getBodyTransform(1).getOrigin());
+                impl->mPinStart = toOsg(impl->mSimulation->getBodyTransform(impl->mPinBody).getOrigin());
                 btVector3 point, normal;
                 // Enchantment momentum can carry a bolt victim farther than the
                 // weapon-only throw. Probe the configured range; actual near
                 // contact below remains mandatory before attaching the body.
                 const float reach = settings.mPinMaxDistance * Constants::UnitsPerMeter;
-                impl->mPinPending = impl->mSimulation->raycastStatic(toBullet(impl->mPinStart),
-                    toBullet(impl->mPinStart + impl->mPinDirection * reach), point, normal)
+                impl->mPinPending = impl->mSimulation->sweepPartStatic(
+                                        impl->mPinBody, toBullet(impl->mPinDirection * reach), point, normal)
                     && std::abs(normal.z()) < 0.65 && normal.dot(toBullet(impl->mPinDirection)) < -0.2;
             }
         }
         // Tiny off-centre imbalance for dagger/arrow/no-impact deaths: no launch.
         const float imbalance = physics.mBodyMode == Ragdoll::BodyMode::Rigid ? 18.f : 0.6f;
         if (!launched)
-            impl->mSimulation->applyImpulse(1, toBullet(forward * (mass * imbalance)), toBullet(neck));
+            impl->mSimulation->applyImpulse(1, toBullet(forward * (mass * imbalance)),
+                impl->mDefinitions[1].mTransform
+                    * btVector3(0, impl->mDefinitions[1].mLength * .5 + impl->mDefinitions[1].mRadius, 0));
 
         auto result = std::unique_ptr<RagdollController>(new RagdollController(std::move(impl)));
         result->refreshCallbacks();
         result->mImpl->applyPose();
         result->mImpl->updateAppearance();
         return result;
+    }
+
+    void RagdollController::writeState(ESM::RagdollState& state) const
+    {
+        auto& impl = *mImpl;
+        const float effectsEnd = std::max({ impl.mSettings.mFireEffectDuration, impl.mSettings.mPoisonEffectDuration,
+            impl.mSettings.mShockDuration });
+        if (!impl.mSimulation && state.mPresent && state.mTimeLeft == 0 && state.mElapsed >= effectsEnd
+            && state.mMass == impl.mMass && state.mFloating == impl.mFloating
+            && state.mMode == static_cast<int>(impl.mMode))
+            return;
+        state.mElement = static_cast<int>(impl.mAppearanceElement);
+        state.mMode = static_cast<int>(impl.mMode);
+        state.mElapsed = impl.mElapsed;
+        state.mTimeLeft
+            = impl.mSimulation ? std::max(0.f, impl.mSettings.mMaxSimulationTime - impl.mSimulationAge) : 0.f;
+        state.mMass = impl.mMass;
+        state.mTorsoLength = impl.mTorsoLength;
+        state.mArmorMass = impl.mSettings.mArmorMass;
+        state.mFloating = impl.mFloating;
+        state.mFireDuration = impl.mSettings.mFireEffectDuration;
+        state.mPoisonDuration = impl.mSettings.mPoisonEffectDuration;
+        state.mShockDuration = impl.mSettings.mShockDuration;
+        state.mPinnedBody = impl.mPinned ? static_cast<int>(impl.mPinBody) : -1;
+        state.mPinPoint = { impl.mPinPoint.x(), impl.mPinPoint.y(), impl.mPinPoint.z() };
+        if (!state.mPresent)
+        {
+            state.mJoints.clear();
+            state.mBones.clear();
+            for (const auto& joint : impl.mJoints)
+            {
+                ESM::RagdollJointState saved;
+                saved.mParent = joint.mParent;
+                saved.mChild = joint.mChild;
+                saved.mType = static_cast<int>(joint.mType);
+                saved.mParentFrame = packTransform(joint.mFrameInParent);
+                saved.mChildFrame = packTransform(joint.mFrameInChild);
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    saved.mLower[axis] = joint.mAngularLower[axis];
+                    saved.mUpper[axis] = joint.mAngularUpper[axis];
+                }
+                state.mJoints.push_back(std::move(saved));
+            }
+            std::set<std::string> savedNames;
+            for (const auto& bone : impl.mBones)
+            {
+                if (bone.mNode->getName().empty())
+                    continue;
+                if (!savedNames.insert(Misc::StringUtils::lowerCase(bone.mNode->getName())).second)
+                    continue;
+                if (bone.mBody < 0 && state.mBones.size() >= 960)
+                    continue;
+                ESM::RagdollBoneState saved;
+                saved.mName = bone.mNode->getName();
+                saved.mBody = bone.mBody;
+                std::copy_n(bone.mRestLocal.ptr(), 16, saved.mRest.begin());
+                std::copy_n(bone.mBoneToBody.ptr(), 16, saved.mBoneToBody.begin());
+                state.mBones.push_back(std::move(saved));
+            }
+        }
+        state.mBodies.resize(impl.mDefinitions.size());
+        for (std::size_t part = 0; part < impl.mDefinitions.size(); ++part)
+        {
+            const auto& definition = impl.mDefinitions[part];
+            auto& saved = state.mBodies[part];
+            const auto matrix = impl.mBodyMatrices[part];
+            const auto q = matrix.getRotate();
+            const auto position = matrix.getTrans();
+            saved.mTransform = { float(position.x()), float(position.y()), float(position.z()), float(q.x()),
+                float(q.y()), float(q.z()), float(q.w()) };
+            saved.mRadius = definition.mRadius;
+            saved.mLength = definition.mLength;
+            saved.mMass = definition.mMass;
+            saved.mLinearVelocity = {};
+            saved.mAngularVelocity = {};
+            if (impl.mSimulation)
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    saved.mLinearVelocity[axis] = impl.mSimulation->getBodyLinearVelocity(part)[axis];
+                    saved.mAngularVelocity[axis] = impl.mSimulation->getBodyAngularVelocity(part)[axis];
+                }
+        }
+        state.mAttractionLeft = 0;
+        if (impl.mSimulation)
+        {
+            const auto attraction = impl.mSimulation->attractionState();
+            if (attraction.mTimeLeft > 0)
+            {
+                state.mAttractionTarget
+                    = { float(attraction.mTarget.x()), float(attraction.mTarget.y()), float(attraction.mTarget.z()) };
+                state.mAttractionDistance = attraction.mDistance;
+                state.mAttractionDuration = attraction.mDuration;
+                state.mAttractionLeft = attraction.mTimeLeft;
+            }
+        }
+        state.mPresent = true;
+    }
+
+    std::unique_ptr<RagdollController> RagdollController::restore(osg::Group& root, SceneUtil::Skeleton& skeleton,
+        CollisionSnapshot snapshot, const Settings& settings, const ESM::RagdollState& saved)
+    {
+        if (!saved.mPresent || saved.mBodies.empty() || saved.mBones.empty() || &root != &skeleton)
+            return nullptr;
+        auto impl = std::make_shared<Impl>();
+        impl->mRoot = &root;
+        impl->mSkeleton = &skeleton;
+        impl->mSnapshot = std::move(snapshot);
+        impl->mSettings = settings;
+        impl->mSettings.mFireEffectDuration = saved.mFireDuration;
+        impl->mSettings.mPoisonEffectDuration = saved.mPoisonDuration;
+        impl->mSettings.mShockDuration = saved.mShockDuration;
+        impl->mElapsed = saved.mElapsed;
+        impl->mMass = saved.mMass;
+        impl->mTorsoLength = saved.mTorsoLength;
+        impl->mBodyBaseMass = std::max(.25f, saved.mMass - saved.mArmorMass);
+        impl->mSettings.mArmorMass = saved.mArmorMass;
+        impl->mFloating = saved.mFloating;
+        impl->mMode = static_cast<Ragdoll::BodyMode>(saved.mMode);
+        impl->mAppearanceElement = static_cast<Ragdoll::DeathElement>(saved.mElement);
+        impl->mShock = impl->mAppearanceElement == Ragdoll::DeathElement::Shock;
+        const auto rootMatrix = rootWorldMatrix(root);
+        impl->mForward = unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), rootMatrix));
+        impl->mRight = unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), rootMatrix));
+        CollectBones visitor(rootMatrix);
+        root.accept(visitor);
+        for (const auto& bone : saved.mBones)
+        {
+            const auto found = visitor.mNames.find(Misc::StringUtils::lowerCase(bone.mName));
+            if (found == visitor.mNames.end())
+            {
+                if (bone.mBody >= 0)
+                    return nullptr;
+                continue;
+            }
+            auto& pose = visitor.mBones[found->second];
+            pose.mBody = bone.mBody;
+            pose.mRestLocal = osg::Matrixf(bone.mRest.data());
+            pose.mBoneToBody = osg::Matrixf(bone.mBoneToBody.data());
+        }
+        impl->mBones = std::move(visitor.mBones);
+        for (const auto& body : saved.mBodies)
+        {
+            Ragdoll::BodyDefinition definition;
+            definition.mTransform = unpackTransform(body.mTransform);
+            definition.mRadius = body.mRadius;
+            definition.mLength = body.mLength;
+            definition.mMass = body.mMass;
+            impl->mDefinitions.push_back(definition);
+            impl->mBodyMatrices.push_back(toOsg(definition.mTransform));
+        }
+        for (const auto& joint : saved.mJoints)
+        {
+            Ragdoll::JointDefinition definition;
+            definition.mParent = joint.mParent;
+            definition.mChild = joint.mChild;
+            definition.mType = static_cast<Ragdoll::JointDefinition::Type>(joint.mType);
+            definition.mUseLocalFrames = true;
+            definition.mFrameInParent = unpackTransform(joint.mParentFrame);
+            definition.mFrameInChild = unpackTransform(joint.mChildFrame);
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                definition.mAngularLower[axis] = joint.mLower[axis];
+                definition.mAngularUpper[axis] = joint.mUpper[axis];
+            }
+            impl->mJoints.push_back(definition);
+        }
+        if (saved.mTimeLeft > 0 || saved.mFloating)
+        {
+            auto vertices = impl->mSnapshot(impl->mBodyMatrices.front().getTrans(), settings.mCollisionRadius);
+            auto colliders = makeCollisionMesh(vertices);
+            if (colliders.empty())
+                return nullptr;
+            impl->mCollisionVertices = std::move(vertices);
+            Ragdoll::Settings physics;
+            physics.mBodyMode = impl->mMode;
+            impl->mSimulation = std::make_unique<Ragdoll::Simulation>(
+                impl->mDefinitions, impl->mJoints, std::move(colliders), physics);
+            for (std::size_t part = 0; part < saved.mBodies.size(); ++part)
+            {
+                const auto& body = saved.mBodies[part];
+                impl->mSimulation->setBodyVelocity(part,
+                    btVector3(body.mLinearVelocity[0], body.mLinearVelocity[1], body.mLinearVelocity[2]),
+                    btVector3(body.mAngularVelocity[0], body.mAngularVelocity[1], body.mAngularVelocity[2]));
+            }
+            if (saved.mAttractionLeft > 0)
+                impl->mSimulation->restoreAttraction(
+                    { btVector3(saved.mAttractionTarget[0], saved.mAttractionTarget[1], saved.mAttractionTarget[2]),
+                        saved.mAttractionDistance, settings.mImpulseReferenceMass, saved.mAttractionDuration,
+                        saved.mAttractionLeft });
+            impl->mSettings.mMaxSimulationTime = saved.mTimeLeft;
+            impl->acquireBudget(impl);
+        }
+        impl->mPinned = saved.mPinnedBody >= 0;
+        if (impl->mPinned)
+        {
+            impl->mPinBody = saved.mPinnedBody;
+            impl->mPinPoint = osg::Vec3f(saved.mPinPoint[0], saved.mPinPoint[1], saved.mPinPoint[2]);
+            if (impl->mSimulation)
+                impl->mPinned = impl->mSimulation->pinBody(impl->mPinBody, toBullet(impl->mPinPoint));
+        }
+        impl->mAppearance = std::make_unique<RagdollAppearance>(root, impl->mAppearanceElement,
+            RagdollAppearance::Settings{ settings.mPoisonTransitionTime, settings.mFireTransitionTime,
+                settings.mFrostTransitionTime, saved.mFireDuration, saved.mPoisonDuration, saved.mShockDuration });
+        auto result = std::unique_ptr<RagdollController>(new RagdollController(std::move(impl)));
+        result->refreshCallbacks();
+        result->mImpl->applyPose();
+        result->mImpl->updateAppearance();
+        return result;
+    }
+
+    void RagdollController::setWaterLevel(std::optional<float> level)
+    {
+        mImpl->mSettings.mWaterLevel = level;
+    }
+
+    void RagdollController::setArmorMass(float armor)
+    {
+        if (!std::isfinite(armor))
+            return;
+        armor = std::max(0.f, armor);
+        if (std::abs(armor - mImpl->mSettings.mArmorMass) < .001f)
+            return;
+        const float mass = std::clamp(mImpl->mBodyBaseMass + armor, .25f, 5000.f);
+        const float ratio = mass / mImpl->mMass;
+        for (auto& definition : mImpl->mDefinitions)
+            definition.mMass *= ratio;
+        if (mImpl->mSimulation)
+            mImpl->mSimulation->setTotalMass(mass);
+        mImpl->mMass = mass;
+        mImpl->mSettings.mArmorMass = armor;
     }
 
     void RagdollController::refreshCallbacks()
@@ -549,7 +1023,10 @@ namespace MWRender
             mImpl->mElapsed += duration;
         if (mImpl->mSimulation && duration > 0.f && std::isfinite(duration))
         {
+            mImpl->mSimulationAge += duration;
             const float timeStep = std::min(duration, 0.1f);
+            mImpl->mSimulation->setWaterLevel(
+                mImpl->mSettings.mWaterLevel ? std::optional<btScalar>(*mImpl->mSettings.mWaterLevel) : std::nullopt);
             mImpl->mSinceSnapshot += duration;
             mImpl->updateShock(timeStep);
             if (mImpl->mSinceSnapshot >= mImpl->mSettings.mCollisionRefreshInterval)
@@ -578,8 +1055,41 @@ namespace MWRender
                 mImpl->updatePin();
                 for (std::size_t i = 0; i < mImpl->mBodyMatrices.size(); ++i)
                     mImpl->mBodyMatrices[i] = toOsg(mImpl->mSimulation->getBodyTransform(i));
-                if (mImpl->mElapsed >= mImpl->mSettings.mMaxSimulationTime)
-                    mImpl->freeze();
+                if (mImpl->mSimulationAge >= mImpl->mSettings.mMaxSimulationTime)
+                {
+                    if (mImpl->mSimulation->isBelowWaterSurface() && !mImpl->mPinned)
+                    {
+                        if (!mImpl->mFloating)
+                        {
+                            // The articulated window ends on time. Continue only
+                            // one rigid shape until the corpse reaches the surface.
+                            std::vector<Ragdoll::BodyDefinition> bodies = mImpl->mDefinitions;
+                            btVector3 velocity(0, 0, 0), angular(0, 0, 0), center(0, 0, 0);
+                            for (std::size_t i = 0; i < bodies.size(); ++i)
+                            {
+                                bodies[i].mTransform = mImpl->mSimulation->getBodyTransform(i);
+                                center += bodies[i].mTransform.getOrigin() * bodies[i].mMass;
+                                velocity += mImpl->mSimulation->getBodyLinearVelocity(i) * bodies[i].mMass;
+                                angular += mImpl->mSimulation->getBodyAngularVelocity(i) * bodies[i].mMass;
+                            }
+                            velocity /= mImpl->mMass;
+                            angular /= mImpl->mMass;
+                            center /= mImpl->mMass;
+                            Ragdoll::Settings physics;
+                            physics.mBodyMode = Ragdoll::BodyMode::Rigid;
+                            mImpl->mSimulation = std::make_unique<Ragdoll::Simulation>(
+                                bodies, mImpl->mJoints, makeCollisionMesh(mImpl->mCollisionVertices), physics);
+                            mImpl->mDefinitions = std::move(bodies);
+                            mImpl->mMode = Ragdoll::BodyMode::Rigid;
+                            const auto pointVelocity = velocity
+                                + angular.cross(mImpl->mSimulation->getBodyTransform(0).getOrigin() - center);
+                            mImpl->mSimulation->setBodyVelocity(0, pointVelocity, angular);
+                            mImpl->mFloating = true;
+                        }
+                    }
+                    else
+                        mImpl->freeze();
+                }
             }
         }
         mImpl->applyPose();
@@ -590,12 +1100,27 @@ namespace MWRender
     {
         mImpl->mSkinParts = std::move(skinParts);
     }
-    float RagdollController::getAppearanceBlend() const { return mImpl->mAppearance->getBlend(); }
-    bool RagdollController::hasFireEffect() const { return mImpl->mAppearance->hasFire(); }
+    float RagdollController::getAppearanceBlend() const
+    {
+        return mImpl->mAppearance->getBlend();
+    }
+    bool RagdollController::hasFireEffect() const
+    {
+        return mImpl->mAppearance->hasFire();
+    }
 
-    float RagdollController::getMass() const { return mImpl->mMass; }
-    bool RagdollController::isSimulating() const { return bool(mImpl->mSimulation); }
-    bool RagdollController::isPinned() const { return mImpl->mPinned; }
+    float RagdollController::getMass() const
+    {
+        return mImpl->mMass;
+    }
+    bool RagdollController::isSimulating() const
+    {
+        return bool(mImpl->mSimulation);
+    }
+    bool RagdollController::isPinned() const
+    {
+        return mImpl->mPinned;
+    }
 
     osg::Vec3f RagdollController::getPosition() const
     {

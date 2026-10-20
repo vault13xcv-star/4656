@@ -1,4 +1,6 @@
 #include "esmstore.hpp"
+#include <cmath>
+#include <limits>
 
 #include <algorithm>
 #include <fstream>
@@ -530,6 +532,16 @@ namespace MWWorld
         getWritable<ESM4::Reference>().preprocessReferences(get<ESM4::Cell>());
         getWritable<ESM4::ActorCharacter>().preprocessReferences(get<ESM4::Cell>());
         getWritable<ESM4::ActorCreature>().preprocessReferences(get<ESM4::Cell>());
+
+        float minimum = std::numeric_limits<float>::max(), maximum = 0.f;
+        for (const auto& weapon : get<ESM::Weapon>())
+            if (weapon.mData.mType >= ESM::Weapon::ShortBladeOneHand && weapon.mData.mType <= ESM::Weapon::SpearTwoWide
+                && std::isfinite(weapon.mData.mWeight) && weapon.mData.mWeight >= 0.f)
+            {
+                minimum = std::min(minimum, weapon.mData.mWeight);
+                maximum = std::max(maximum, weapon.mData.mWeight);
+            }
+        mMeleeWeaponWeightRange = minimum <= maximum ? std::pair(minimum, maximum) : std::pair(0.f, 0.f);
 
         rebuildIdsIndex();
         mStoreImp->mStaticIds = mStoreImp->mIds;

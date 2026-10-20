@@ -48,6 +48,7 @@ if(RAGDOLL_TEST_RENDERING)
     add_executable(ragdoll-render-tests
         tests/render_pose.cpp
         simulation.cpp
+        items.cpp
         ../../apps/openmw/mwrender/ragdoll.cpp
         ../../apps/openmw/mwrender/ragdollappearance.cpp
         ../sceneutil/skeleton.cpp
@@ -77,5 +78,9 @@ if(RAGDOLL_TEST_RENDERING)
         target_link_libraries(ragdoll-gl-tests PRIVATE ${OPENSCENEGRAPH_LIBRARIES} OpenGL::GL OpenGL::EGL)
         add_test(NAME ragdoll-gl-normal COMMAND ragdoll-gl-tests)
         add_test(NAME ragdoll-gl-reversed COMMAND ragdoll-gl-tests reversed)
+        add_test(NAME ragdoll-gl-poison COMMAND ragdoll-gl-tests normal poison)
+        add_test(NAME ragdoll-gl-poison-reversed COMMAND ragdoll-gl-tests reversed poison)
+        add_test(NAME ragdoll-gl-shock COMMAND ragdoll-gl-tests normal shock)
+        add_test(NAME ragdoll-gl-shock-reversed COMMAND ragdoll-gl-tests reversed shock)
     endif()
 endif()

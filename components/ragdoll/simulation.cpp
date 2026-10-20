@@ -165,6 +165,12 @@ namespace Ragdoll
         std::unique_ptr<btPoint2PointConstraint> mPin;
         std::vector<std::pair<std::size_t, std::size_t>> mInitiallyOverlapping;
         btScalar mTotalMass = 0;
+        std::optional<btScalar> mWaterLevel;
+        btVector3 mAttractionTarget{ 0, 0, 0 };
+        btScalar mAttractionLeft = 0;
+        btScalar mAttractionDuration = 0;
+        btScalar mAttractionDistance = 0;
+        btScalar mAttractionMass = 0;
         std::vector<StaticCollider> mStaticShapes;
         std::vector<std::unique_ptr<btCollisionObject>> mStaticObjects;
         std::vector<btTransform> mLastFinitePose;
@@ -558,6 +564,18 @@ namespace Ragdoll
 
     Simulation::~Simulation() = default;
 
+    void Simulation::attract(const btVector3& target, btScalar distance, btScalar mass, btScalar duration)
+    {
+        if (!finite(target) || !finite(distance) || !finite(mass) || !finite(duration) || distance < 0 || mass <= 0
+            || duration <= 0 || duration > 10)
+            throw std::invalid_argument("Invalid corpse attraction");
+        mImpl->mAttractionTarget = target;
+        mImpl->mAttractionDistance = distance;
+        mImpl->mAttractionMass = mass;
+        mImpl->mAttractionDuration = duration;
+        mImpl->mAttractionLeft = duration;
+    }
+
     bool Simulation::advance(btScalar dt)
     {
         if (!mImpl->mValid || !finite(dt))
@@ -570,6 +588,62 @@ namespace Ragdoll
         {
             mImpl->restoreSeparatedCollisions();
             mImpl->anticipateHingeStops(step);
+            for (const auto& body : mImpl->mBodies)
+            {
+                btVector3 minimum, maximum;
+                body->getAabb(minimum, maximum);
+                const btScalar submerged = mImpl->mWaterLevel && !mImpl->mPin
+                    ? std::clamp(
+                          (*mImpl->mWaterLevel - minimum.z()) / std::max(btScalar(.1), maximum.z() - minimum.z()),
+                          btScalar(0), btScalar(1))
+                    : 0;
+                if (submerged > 0)
+                {
+                    body->activate(true);
+                    // All included corpses float, including heavy equipped ones.
+                    // This gameplay buoyancy uses the body's current mass once.
+                    body->applyCentralForce(
+                        btVector3(0, 0, -mImpl->mSettings.mGravity.z() * body->getMass() * 1.4 * submerged)
+                        - body->getLinearVelocity() * (body->getMass() * 4 * submerged));
+                }
+                body->setDamping(mImpl->mSettings.mLinearDamping,
+                    std::max(mImpl->mSettings.mBodyMode == BodyMode::Rigid ? btScalar(.08)
+                                                                           : mImpl->mSettings.mAngularDamping,
+                        btScalar(.7) * submerged));
+            }
+            if (mImpl->mAttractionLeft > 0 && !mImpl->mPin)
+            {
+                btVector3 center(0, 0, 0), velocity(0, 0, 0);
+                for (const auto& body : mImpl->mBodies)
+                {
+                    center += body->getCenterOfMassPosition() * body->getMass();
+                    velocity += body->getLinearVelocity() * body->getMass();
+                }
+                center /= mImpl->mTotalMass;
+                velocity /= mImpl->mTotalMass;
+                const btVector3 delta = mImpl->mAttractionTarget - center;
+                const btScalar distance = delta.length();
+                if (distance > 0.01)
+                {
+                    const auto direction = delta / distance;
+                    const auto duration = mImpl->mAttractionDuration;
+                    const auto referenceMass = mImpl->mAttractionMass;
+                    const auto spring = 16 * referenceMass / (duration * duration);
+                    const auto drag = 8 * referenceMass / duration;
+                    const auto maximum = 9.143 * referenceMass * mImpl->mAttractionDistance / (duration * duration);
+                    // Critical damping for the reference mass; light bodies are
+                    // overdamped and heavy bodies accelerate less. No target
+                    // transform, per-limb compression, or teleport is imposed.
+                    const auto force
+                        = std::clamp(spring * distance - drag * velocity.dot(direction), -maximum, maximum);
+                    for (const auto& body : mImpl->mBodies)
+                    {
+                        body->activate(true);
+                        body->applyCentralForce(direction * force * (body->getMass() / mImpl->mTotalMass));
+                    }
+                }
+            }
+            mImpl->mAttractionLeft = std::max(btScalar(0), mImpl->mAttractionLeft - step);
             mImpl->mWorld->stepSimulation(step, 0, step);
             mImpl->mAccumulator = std::max(btScalar(0), mImpl->mAccumulator - step);
             for (const auto& body : mImpl->mBodies)
@@ -586,6 +660,69 @@ namespace Ragdoll
                 mImpl->mLastFinitePose[i] = mImpl->mBodies[i]->getWorldTransform();
         }
         return true;
+    }
+
+    Simulation::AttractionState Simulation::attractionState() const
+    {
+        return { mImpl->mAttractionTarget, mImpl->mAttractionDistance, mImpl->mAttractionMass,
+            mImpl->mAttractionDuration, mImpl->mAttractionLeft };
+    }
+    void Simulation::restoreAttraction(const AttractionState& state)
+    {
+        if (state.mTimeLeft <= 0)
+            return;
+        if (!finite(state.mTimeLeft) || state.mTimeLeft > state.mDuration)
+            throw std::invalid_argument("Invalid remaining attraction time");
+        attract(state.mTarget, state.mDistance, state.mReferenceMass, state.mDuration);
+        mImpl->mAttractionLeft = state.mTimeLeft;
+    }
+    void Simulation::setBodyVelocity(std::size_t part, const btVector3& linear, const btVector3& angular)
+    {
+        if (!finite(linear) || !finite(angular))
+            throw std::invalid_argument("Invalid saved body velocity");
+        auto& body = mImpl->bodyForPart(part);
+        body.setAngularVelocity(angular);
+        body.setLinearVelocity(
+            linear - angular.cross(getBodyTransform(part).getOrigin() - body.getCenterOfMassPosition()));
+        body.activate(true);
+        limitVelocity(body, mImpl->mSettings);
+    }
+    void Simulation::setWaterLevel(std::optional<btScalar> level)
+    {
+        if (level && !finite(*level))
+            throw std::invalid_argument("Invalid water level");
+        mImpl->mWaterLevel = level;
+    }
+    bool Simulation::isBelowWaterSurface() const
+    {
+        if (!mImpl->mWaterLevel || mImpl->mPin)
+            return false;
+        btVector3 minimum(1e20, 1e20, 1e20), maximum(-1e20, -1e20, -1e20);
+        for (const auto& body : mImpl->mBodies)
+        {
+            btVector3 a, b;
+            body->getAabb(a, b);
+            minimum.setMin(a);
+            maximum.setMax(b);
+        }
+        return (minimum.z() + maximum.z()) * .5 < *mImpl->mWaterLevel - (maximum.z() - minimum.z()) * .4;
+    }
+    void Simulation::setTotalMass(btScalar mass)
+    {
+        if (!finite(mass) || mass <= 0 || mass > 5000)
+            throw std::invalid_argument("Invalid updated corpse mass");
+        const auto ratio = mass / mImpl->mTotalMass;
+        for (auto& partMass : mImpl->mPartMasses)
+            partMass *= ratio;
+        for (const auto& body : mImpl->mBodies)
+        {
+            btVector3 inertia;
+            const auto bodyMass = body->getMass() * ratio;
+            body->getCollisionShape()->calculateLocalInertia(bodyMass, inertia);
+            body->setMassProps(bodyMass, inertia);
+            body->updateInertiaTensor();
+        }
+        mImpl->mTotalMass = mass;
     }
 
     void Simulation::replaceStaticColliders(std::vector<StaticCollider> colliders)
@@ -616,6 +753,43 @@ namespace Ragdoll
         // A floor can disappear or a door can change its collision snapshot.
         for (const auto& body : mImpl->mBodies)
             body->activate(true);
+    }
+
+    bool Simulation::sweepPartStatic(
+        std::size_t part, const btVector3& displacement, btVector3& point, btVector3& normal) const
+    {
+        if (!finite(displacement) || displacement.fuzzyZero())
+            return false;
+        const auto from = getBodyTransform(part);
+        auto to = from;
+        to.setOrigin(from.getOrigin() + displacement);
+        struct Sweep : btCollisionWorld::ClosestConvexResultCallback
+        {
+            btVector3 mDirection;
+            Sweep(const btVector3& from, const btVector3& to, const btVector3& direction)
+                : ClosestConvexResultCallback(from, to)
+                , mDirection(direction)
+            {
+            }
+            btScalar addSingleResult(btCollisionWorld::LocalConvexResult& result, bool worldNormal) override
+            {
+                const auto normal = worldNormal
+                    ? result.m_hitNormalLocal
+                    : result.m_hitCollisionObject->getWorldTransform().getBasis() * result.m_hitNormalLocal;
+                if (btFabs(normal.z()) >= 0.65 || normal.dot(mDirection) >= -0.2)
+                    return 1;
+                return ClosestConvexResultCallback::addSingleResult(result, worldNormal);
+            }
+        } sweep(from.getOrigin(), to.getOrigin(), displacement.normalized());
+        sweep.m_collisionFilterGroup = sBodyGroup;
+        sweep.m_collisionFilterMask = sStaticGroup;
+        mImpl->mWorld->convexSweepTest(
+            static_cast<const btConvexShape*>(mImpl->mShapes.at(part).get()), from, to, sweep);
+        if (!sweep.hasHit())
+            return false;
+        point = sweep.m_hitPointWorld;
+        normal = sweep.m_hitNormalWorld;
+        return true;
     }
 
     void Simulation::applyImpulse(std::size_t body, const btVector3& impulse, const btVector3& worldPoint)

@@ -1,19 +1,20 @@
 // Optional Linux/EGL regression for the real OpenMW projection/depth contract.
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
+#include <array>
 #include <components/sceneutil/depth.hpp>
+#include <iostream>
 #include <osg/AlphaFunc>
-#include <osg/Geometry>
 #include <osg/Geode>
+#include <osg/Geometry>
 #include <osg/Group>
 #include <osg/Program>
 #include <osg/Shader>
-#include <osgViewer/Viewer>
 #include <osgViewer/GraphicsWindow>
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <array>
-#include <iostream>
+#include <osgViewer/Viewer>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace
@@ -21,11 +22,15 @@ namespace
     void check(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
     constexpr int width = 320, height = 240;
 }
-int main(int argc, char**)
+int main(int argc, char** argv)
 {
     try
     {
-        const bool reversed = argc > 1;
+        const bool reversed = argc > 1 && std::string(argv[1]) == "reversed";
+        const std::string effect = argc > 2 ? argv[2] : "fire";
+        const auto element = effect == "poison" ? Ragdoll::DeathElement::Poison
+            : effect == "shock"                 ? Ragdoll::DeathElement::Shock
+                                                : Ragdoll::DeathElement::Fire;
         SceneUtil::AutoDepth::setReversed(reversed);
         const auto platform = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
         check(platform, "EGL surfaceless display unavailable");
@@ -73,15 +78,19 @@ int main(int argc, char**)
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->addDrawable(wall); root->addChild(geode);
         viewer.setSceneData(root); viewer.realize();
-        MWRender::RagdollAppearance appearance(*root, Ragdoll::DeathElement::Fire, {});
+        MWRender::RagdollAppearance appearance(*root, element, {});
         const std::array<osg::Vec3f, 4> positions{ osg::Vec3f(-30,0,20), osg::Vec3f(-30,0,45),
             osg::Vec3f(30,0,20), osg::Vec3f(30,0,45) };
         std::vector<unsigned char> burning, finished;
-        for (const float time : { 2.f, 5.f })
+        // Render after the normal corpse physics deadline, then after the
+        // independent fire deadline. This checks the extra five visible seconds.
+        const float activeTime = element == Ragdoll::DeathElement::Fire ? 12.f : 5.f;
+        const float endTime = element == Ragdoll::DeathElement::Fire ? 15.f : 10.f;
+        for (const float time : { activeTime, endTime })
         {
             appearance.update(time, {}, positions);
             viewer.frame(time); glFinish();
-            auto& pixels = time == 2 ? burning : finished;
+            auto& pixels = time == activeTime ? burning : finished;
             pixels.resize(width * height * 3);
             glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
             check(glGetError() == GL_NO_ERROR, "OpenGL rendering error");
@@ -96,9 +105,9 @@ int main(int argc, char**)
         }
         check(visible > 500, "Fire/smoke invisible under the native projection or inherited NPC state");
         check(occluded == 0, "Fire rendered through an opaque wall");
-        check(!appearance.hasFire(), "Fire did not end after five seconds");
-        std::cout << "PASS real GL " << (reversed ? "reversed" : "normal")
-                  << " projection, " << visible << " flame/smoke pixels, opaque occlusion and five second timer\n";
+        check(!appearance.hasParticles(), "Elemental particles did not end at their independent deadline");
+        std::cout << "PASS real GL " << (reversed ? "reversed" : "normal") << " projection, " << visible << ' '
+                  << effect << " pixels, opaque occlusion and " << endTime << " second timer\n";
     }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

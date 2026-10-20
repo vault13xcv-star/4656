@@ -224,7 +224,8 @@ namespace MWPhysics
         // Apply changed poses while suppressing feedback from native position/
         // rotation updates. The consumer preserves world reference ownership.
         void updateItems(float duration,
-            const std::function<void(const MWWorld::Ptr&, const osg::Vec3f&, const osg::Quat&)>& updateObject);
+            const std::function<void(const MWWorld::Ptr&, const osg::Vec3f&, const osg::Quat&)>& updateObject,
+            const osg::Vec3f& observer = {});
 
         RayCastingResult castSphere(const osg::Vec3f& from, const osg::Vec3f& to, float radius,
             int mask = CollisionType_Default, int group = 0xff) const override;
@@ -317,6 +318,8 @@ namespace MWPhysics
         using ObjectMap = std::unordered_map<const MWWorld::LiveCellRefBase*, std::shared_ptr<Object>>;
         ObjectMap mObjects;
         std::unique_ptr<Ragdoll::ItemSimulation> mItems;
+        void syncItemStates();
+        std::map<const MWWorld::LiveCellRefBase*, osg::Vec3f> mItemActorPositions;
         std::vector<osg::Vec3f> mItemCollisionVertices;
         std::vector<osg::Vec3f> mItemRegions;
         float mItemSnapshotAge = 1.f;

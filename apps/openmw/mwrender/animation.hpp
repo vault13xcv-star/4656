@@ -194,6 +194,9 @@ namespace MWRender
         bool mRagdollObservedAlive = false;
         bool mRagdollAttempted = false;
         float mRagdollPendingTime = 0.f;
+        osg::Vec3f mRagdollLastPosition;
+        osg::Vec3f mRagdollVelocity;
+        bool mRagdollHasPosition = false;
 
         void updateRagdoll(float duration);
         virtual std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const { return {}; }

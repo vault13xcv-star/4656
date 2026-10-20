@@ -81,9 +81,99 @@ namespace
         }
         std::cout << "PASS item-to-item contacts and thin wall CCD at 30/60/120 FPS\n";
     }
+
+    void deadlinesAndRestore()
+    {
+        Ragdoll::ItemSimulation sim;
+        btBoxShape box(btVector3(2, 2, 2));
+        sim.add(1, box, at(0, 0, 100000), 1);
+        sim.add(2, box, at(100, 0, 100000), 1);
+        sim.wake(1);
+        for (int i = 0; i < 240; ++i)
+            sim.advance(1.0 / 120);
+        sim.wake(2);
+        for (int i = 0; i < 720; ++i)
+            sim.advance(1.0 / 120);
+        sim.impulse(1, btVector3(100, 0, 0), sim.state(1).mTransform.getOrigin());
+        check(btFabs(sim.state(1).mTimeLeft - 2) < 1e-5, "hit during activity restarted the deadline");
+        const auto saved = sim.state(2);
+        const auto paused = sim.state(1);
+        sim.advance(0);
+        check(sim.state(1).mTimeLeft == paused.mTimeLeft, "pause consumed the item's timer");
+        for (int i = 0; i < 240; ++i)
+            sim.advance(1.0 / 120);
+        check(!sim.state(1).mActive && sim.velocity(1).fuzzyZero() && sim.state(2).mActive,
+            "individual ten second deadlines did not stop the first moving item alone");
+        const auto frozen = sim.state(1).mTransform;
+        sim.advance(0.1);
+        check(sim.state(1).mTransform == frozen, "frozen item continued to fall");
+        sim.impulse(1, btVector3(120, 0, 0), frozen.getOrigin());
+        check(sim.state(1).mActive && btFabs(sim.state(1).mTimeLeft - 10) < 1e-5,
+            "new external impact failed to start a fresh window");
+
+        Ragdoll::ItemSimulation restored;
+        restored.add(2, box, saved.mTransform, 1);
+        restored.restore(2, saved);
+        check(restored.state(2).mTransform == saved.mTransform && restored.velocity(2) == saved.mLinearVelocity,
+            "restore lost transform or velocity");
+        for (int i = 0; i < 480; ++i)
+            restored.advance(1.0 / 120);
+        check(!restored.state(2).mActive,
+            "restore restarted the complete lifetime instead of the remaining four seconds");
+        std::cout << "PASS independent deadlines, pause, new impacts and remaining-time restore\n";
+    }
+
+    void boundedActivation()
+    {
+        Ragdoll::ItemSimulation sim({ 2, 10 });
+        sim.setObserverPosition(btVector3(0, 0, 100000));
+        btBoxShape box(btVector3(2, 2, 2));
+        sim.add(1, box, at(1000, 0, 100000), 1);
+        sim.add(2, box, at(10, 0, 100000), 1);
+        sim.add(3, box, at(20, 0, 100000), 1);
+        sim.wake(1);
+        sim.wake(2);
+        sim.wake(3);
+        check(sim.activeCount() == 2 && !sim.state(1).mActive && sim.state(2).mActive && sim.state(3).mActive,
+            "overflow did not freeze the distant old item and admit the new one");
+        check(sim.contains(1) && sim.velocity(1).fuzzyZero(), "eviction deleted an item or retained velocity");
+
+        Ragdoll::ItemSimulation hundred;
+        for (int id = 1; id <= 101; ++id)
+        {
+            hundred.add(id, box, at(id * 20, 0, 100000), 1);
+            hundred.wake(id);
+            check(hundred.activeCount() <= 100, "101st activation exceeded the hard item budget");
+        }
+        check(hundred.activeCount() == 100 && hundred.contains(100), "budget silently removed world items");
+        std::cout << "PASS item budgets, overflow priority and 101st activation\n";
+    }
+
+    void actorContact()
+    {
+        Ragdoll::ItemSimulation sim;
+        btBoxShape box(btVector3(2, 2, 2));
+        btCapsuleShape actor(3, 8);
+        sim.add(1, box, at(0, 0, 30), 1);
+        sim.pushKinematic(actor, at(-10, 0, 30), at(0, 0, 30), 0.1);
+        check(sim.state(1).mActive && sim.velocity(1).x() > 0,
+            "resolved actor movement failed to wake/push a placed item");
+        const auto before = sim.state(1).mTimeLeft;
+        sim.advance(0.1);
+        check(sim.state(1).mTimeLeft < before, "actor contact did not retain a finite independent deadline");
+        std::cout << "PASS kinematic actor-to-item contact\n";
+    }
 }
 int main()
 {
-    try { massAndRotation(); shelfFloorAndWake(); itemContactsAndThinWalls(); }
+    try
+    {
+        massAndRotation();
+        shelfFloorAndWake();
+        itemContactsAndThinWalls();
+        deadlinesAndRestore();
+        boundedActivation();
+        actorContact();
+    }
     catch(const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

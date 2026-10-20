@@ -34,9 +34,7 @@ namespace MWMechanics
         {
             const auto& id = effect.mEffectID;
             if (id == ESM::MagicEffect::FireDamage || id == ESM::MagicEffect::FrostDamage
-                || id == ESM::MagicEffect::ShockDamage || id == ESM::MagicEffect::Poison
-                || id == ESM::MagicEffect::DamageHealth || id == ESM::MagicEffect::DrainHealth
-                || id == ESM::MagicEffect::AbsorbHealth)
+                || id == ESM::MagicEffect::ShockDamage)
                 return std::clamp(200.f + std::max(effect.mMagnMin, effect.mMagnMax) * 20.f, 0.f, 5000.f);
             return 0;
         }

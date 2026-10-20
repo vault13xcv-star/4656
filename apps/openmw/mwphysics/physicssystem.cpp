@@ -495,7 +495,12 @@ namespace MWPhysics
     void PhysicsSystem::remove(const MWWorld::Ptr& ptr)
     {
         if (mItems)
-            mItems->remove(reinterpret_cast<Ragdoll::ItemSimulation::Id>(ptr.mRef));
+        {
+            mItems->remove(reinterpret_cast<Ragdoll::ItemSimulation::Id>(ptr.mRef),
+                ptr.getCellRef().getCount() <= 0 || !ptr.getRefData().isEnabled());
+            mItems->forgetKinematic(reinterpret_cast<Ragdoll::ItemSimulation::Id>(ptr.mRef));
+        }
+        mItemActorPositions.erase(ptr.mRef);
         mItemSnapshotAge = 1.f;
         if (auto foundObject = mObjects.find(ptr.mRef); foundObject != mObjects.end())
         {

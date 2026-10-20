@@ -16,6 +16,19 @@
 
 namespace MWRender
 {
+    std::vector<osg::ref_ptr<osg::Node>> CreatureAnimation::getRagdollSkinParts() const
+    {
+        return { mObjectRoot.get() };
+    }
+
+    std::vector<osg::ref_ptr<osg::Node>> CreatureWeaponAnimation::getRagdollSkinParts() const
+    {
+        if (mWeapon)
+            mWeapon->getNode()->setUserValue("RealCombatPreserveMaterial", true);
+        if (mShield)
+            mShield->getNode()->setUserValue("RealCombatPreserveMaterial", true);
+        return { mObjectRoot.get() };
+    }
 
     CreatureAnimation::CreatureAnimation(
         const MWWorld::Ptr& ptr, const std::string& model, Resource::ResourceSystem* resourceSystem, bool animated)

@@ -1418,8 +1418,7 @@ namespace MWMechanics
                         : std::max(0.f, healthBefore - stats.getHealth().getCurrent());
                     impact->mHit->applyMagic(impact->mEffect,
                         makeRagdollMagicImpact(*impact, target.getRefData().getPosition().asVec3(),
-                            Settings::ragdoll().mMagicMinDistance, Settings::ragdoll().mMagicDistanceScale,
-                            element, effectiveDamage));
+                            Settings::ragdoll().mMagicDistanceScale, element, effectiveDamage));
                     if (!wasDead && stats.isDead())
                         stats.recordRagdollDeath(impact->mHit);
                 }

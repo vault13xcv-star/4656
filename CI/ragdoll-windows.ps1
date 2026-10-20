@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.4.1'
+$ragdollVersion = '0.5.0-preview.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -129,6 +129,7 @@ switch ($Phase) {
         Run 'cmake' @('--build', $tests, '--parallel', '3') 'build-ragdoll-tests.log'
         Copy-Runtime $tests
         Run 'ctest' @('--test-dir', $tests, '--output-on-failure') 'ragdoll-tests.log'
+        Run "$tests/ragdoll-render-tests.exe" @('--benchmark') 'synthetic-load.log'
     }
     Build {
         Invoke-WithBuildReports {
@@ -161,6 +162,7 @@ switch ($Phase) {
         if (Test-Path "$source/docs/realcombat-ragdoll.md") {
             Copy-Item "$source/docs/realcombat-ragdoll.md" (Join-Path $install 'RAGDOLL-README.md')
         }
+        Copy-Item "$source/docs/physics-tz-audit.md" (Join-Path $install 'PHYSICS-STATUS.md')
         @"
 Experimental humanoid ragdoll $ragdollVersion runtime for OpenMW 0.51.0 / Windows x64.
 Source: https://github.com/$($env:GITHUB_REPOSITORY)/tree/$($env:GITHUB_SHA)
@@ -205,7 +207,7 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Version 0.4 fixes corpse fire/smoke with reversed depth, frozen-body slope motion, explosion wave geometry and visible whole-body electrical spasms. Pickable world items now have mass, rigid-body collisions and weapon/spell impulses.
+Version 0.5 adds independent active budgets and timers, saved physical poses, remaining-time restoration, weight/Strength impulses, creature profiles, buoyancy and longer elemental effects. Read PHYSICS-STATUS.md for unfinished specification items.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

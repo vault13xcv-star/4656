@@ -1,5 +1,9 @@
 #include <apps/openmw/mwrender/ragdoll.hpp>
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
+#include <btBulletDynamicsCommon.h>
+#include <chrono>
+#include <components/esm3/ragdollstate.hpp>
+#include <components/ragdoll/items.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
 
@@ -145,8 +149,6 @@ namespace
         auto ragdoll = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings);
         require(bool(ragdoll), "first corpse must start");
         SkeletonFixture second;
-        require(!MWRender::RagdollController::create(*second.mSkeleton, *second.mSkeleton, floorSnapshot, settings),
-            "active corpse budget must reject extra simulations");
         const float originalHeight = ragdoll->getPosition().z();
         for (unsigned i = 0; i < 240; ++i)
             ragdoll->update(1.f / 60);
@@ -159,6 +161,145 @@ namespace
         auto next = MWRender::RagdollController::create(*second.mSkeleton, *second.mSkeleton, floorSnapshot, settings);
         require(bool(next), "settled corpse must release simulation budget");
         std::cout << "PASS real Bullet floor collision, freeze and active budget\n";
+    }
+
+    void overflowFreezesOldPose()
+    {
+        MWRender::RagdollController::Settings settings;
+        settings.mMaxActive = 2;
+        SkeletonFixture far, nearPlayer, incoming;
+        far.mWorld->setMatrix(osg::Matrixf::translate(1000, 0, 0));
+        nearPlayer.mWorld->setMatrix(osg::Matrixf::identity());
+        auto oldFar = MWRender::RagdollController::create(*far.mSkeleton, *far.mSkeleton, floorSnapshot, settings);
+        auto oldNear = MWRender::RagdollController::create(
+            *nearPlayer.mSkeleton, *nearPlayer.mSkeleton, floorSnapshot, settings);
+        const auto finalFar = far.pose();
+        auto next
+            = MWRender::RagdollController::create(*incoming.mSkeleton, *incoming.mSkeleton, floorSnapshot, settings);
+        require(next && next->isSimulating() && oldNear->isSimulating() && !oldFar->isSimulating(),
+            "new death must evict the distant old corpse rather than fall back to animation");
+        oldFar->update(0.2f);
+        for (const auto& [name, pose] : far.pose())
+            require(near(pose, finalFar.at(name)), "budget eviction lost a visible final pose");
+        std::cout << "PASS deterministic corpse overflow and retained frozen pose\n";
+    }
+
+    void savedPoseAndRemainingTime()
+    {
+        SkeletonFixture fixture;
+        Ragdoll::Impact impact;
+        impact.mValid = true;
+        impact.mDeathElement = Ragdoll::DeathElement::Fire;
+        auto corpse
+            = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {}, impact);
+        for (int i = 0; i < 180; ++i)
+            corpse->update(1.f / 60);
+        ESM::RagdollState saved;
+        corpse->writeState(saved);
+        const auto pose = fixture.pose();
+        require(saved.mPresent && std::abs(saved.mTimeLeft - 7) < 0.01f, "saved corpse restarted its physics lifetime");
+        corpse.reset();
+        auto loaded
+            = MWRender::RagdollController::restore(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {}, saved);
+        require(loaded && loaded->isSimulating(), "active corpse failed to restore");
+        for (const auto& [name, matrix] : fixture.pose())
+            require(near(matrix, pose.at(name), 0.003f), "restore changed the saved pose");
+        for (int i = 0; i < 426; ++i)
+            loaded->update(1.f / 60);
+        require(!loaded->isSimulating() && loaded->hasFireEffect(),
+            "physics remainder or independent fire duration was lost");
+        loaded->writeState(saved);
+        const auto frozen = fixture.pose();
+        loaded.reset();
+        auto rest
+            = MWRender::RagdollController::restore(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {}, saved);
+        require(rest && !rest->isSimulating(), "frozen corpse restarted its dynamics after loading");
+        for (const auto& [name, matrix] : fixture.pose())
+            require(near(matrix, frozen.at(name), 0.003f), "frozen pose was not restored");
+        rest->update(5);
+        require(!rest->hasFireEffect(), "loading restarted the full fire effect");
+        std::cout << "PASS active/frozen corpse pose restore and remaining physics/effect timers\n";
+    }
+
+    void genericCreatureSkeleton()
+    {
+        SkeletonFixture creature;
+        creature.mSkeleton->removeChildren(0, creature.mSkeleton->getNumChildren());
+        creature.mBones.clear();
+        const auto spine = creature.add("BoneSpine", creature.mSkeleton, { 0, 0, 30 });
+        creature.add("BoneHead", spine, { 0, 20, 4 });
+        creature.add("BoneTail", spine, { 0, -20, -2 });
+        for (const int side : { -1, 1 })
+            for (const int front : { -1, 1 })
+            {
+                const auto name = std::string("BoneLeg") + std::to_string(side) + std::to_string(front);
+                const auto upper = creature.add(name, spine, { side * 8.f, front * 12.f, -5 });
+                creature.add(name + "Lower", upper, { 0, 0, -20 });
+            }
+        MWRender::RagdollController::Settings settings;
+        settings.mAllowGenericSkeleton = true;
+        settings.mBaseMass = 3;
+        settings.mReferenceHeight = 50;
+        Ragdoll::Impact impact;
+        impact.mValid = true;
+        impact.mDeathElement = Ragdoll::DeathElement::Frost;
+        auto body = MWRender::RagdollController::create(
+            *creature.mSkeleton, *creature.mSkeleton, floorSnapshot, settings, impact);
+        require(body && body->getMass() < 20, "non-humanoid creature failed to obtain its own mass and skeleton");
+        for (int i = 0; i < 120; ++i)
+            body->update(1.f / 60);
+        ESM::RagdollState saved;
+        body->writeState(saved);
+        require(saved.mBodies.size() > 4 && saved.mMode == 2, "creature frost lost its compound body");
+        body.reset();
+        auto restored = MWRender::RagdollController::restore(
+            *creature.mSkeleton, *creature.mSkeleton, floorSnapshot, settings, saved);
+        require(bool(restored), "non-humanoid pose failed to restore");
+        std::cout << "PASS generic creature anatomy, mass, rigid frost and saved pose\n";
+    }
+
+    void loadMeasurements()
+    {
+        for (const auto [count, itemsCount] : { std::pair(0, 0), std::pair(10, 0), std::pair(50, 0), std::pair(100, 0),
+                 std::pair(0, 10), std::pair(0, 50), std::pair(0, 100), std::pair(100, 100) })
+        {
+            std::vector<std::unique_ptr<SkeletonFixture>> fixtures;
+            std::vector<std::unique_ptr<MWRender::RagdollController>> bodies;
+            for (int i = 0; i < count; ++i)
+            {
+                fixtures.push_back(std::make_unique<SkeletonFixture>());
+                bodies.push_back(MWRender::RagdollController::create(
+                    *fixtures.back()->mSkeleton, *fixtures.back()->mSkeleton, floorSnapshot, {}));
+                require(bodies.back() && bodies.back()->isSimulating(), "load test could not admit all 100 corpses");
+            }
+            Ragdoll::ItemSimulation items;
+            Ragdoll::StaticCollider floor;
+            floor.mShape = std::make_shared<btStaticPlaneShape>(btVector3(0, 0, 1), 0);
+            items.replaceStaticColliders({ floor });
+            btBoxShape box(btVector3(2, 2, 2));
+            for (int i = 1; i <= itemsCount; ++i)
+            {
+                auto t = btTransform::getIdentity();
+                t.setOrigin(btVector3(i * 20, 0, 100));
+                items.add(i, box, t, 1);
+                items.wake(i);
+            }
+            double total = 0, maximum = 0;
+            for (int frame = 0; frame < 60; ++frame)
+            {
+                const auto start = std::chrono::steady_clock::now();
+                for (auto& body : bodies)
+                    body->update(1.f / 60);
+                items.advance(1.0 / 60);
+                items.takeStateChanges();
+                const auto time
+                    = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+                total += time;
+                maximum = std::max(maximum, time);
+            }
+            std::cout << "LOAD corpses=" << count << " items=" << itemsCount << " mean_ms=" << total / 60
+                      << " max_ms=" << maximum << '\n';
+        }
     }
 
     void fallbackAndSnapshotLoss()
@@ -333,7 +474,7 @@ namespace
             axis.normalize();
             joint.axis = osg::Matrixf::transform3x3(axis, osg::Matrixf::inverse(parent));
         }
-        bool movedAfterFour = false;
+        bool movedAfterNine = false;
         auto previous = fixture.pose();
         for (int frame = 0; frame < 600; ++frame)
         {
@@ -352,13 +493,15 @@ namespace
                 require(angle > -0.16f && angle < 2.7f,
                     "knee/elbow must remain within anatomical flexion, including shock impacts");
             }
-            if (frame > 240 && frame < 290)
-                movedAfterFour |= !near(worldMatrix(*fixture.mBones.at("L Forearm")), previous.at("L Forearm"), 0.00001f);
+            if (frame > 540 && frame < 570)
+                movedAfterNine
+                    |= !near(worldMatrix(*fixture.mBones.at("L Forearm")), previous.at("L Forearm"), 0.00001f);
             previous = fixture.pose();
         }
-        require(movedAfterFour, "electrical death must remain active through the five-second spasm interval");
+        require(
+            movedAfterNine, "electrical death must retain movement during the final second of the ten-second interval");
         require(!corpse->isSimulating(), "electrical corpse must freeze by ten seconds");
-        std::cout << "PASS anatomical hinge limits under recoil and five-second electrical spasms\n";
+        std::cout << "PASS anatomical hinge limits under recoil and ten-second electrical spasms\n";
     }
 
     osg::ref_ptr<osg::Texture2D> testSkinTexture()
@@ -418,8 +561,8 @@ namespace
                     "armour sharing skin assets must retain its original state and attachment");
                 require(texture->getImage()->getColor(0, 0) == original,
                     "cached original texture pixels must remain immutable");
-                effect.update(5.01f, { skin }, positions);
-                require(!effect.hasFire(), "fire and smoke must expire at five seconds");
+                effect.update(15.01f, { skin }, positions);
+                require(!effect.hasFire(), "fire and smoke must expire at fifteen seconds");
             }
             require(skin->getParent(0) == root && skin->getStateSet() == shared && root->getNumChildren() == 2,
                 "removal/resurrection must restore original attachments and states");
@@ -483,8 +626,13 @@ namespace
         corpse->update(1.8f);
         require(corpse->getAppearanceBlend() == 1 && corpse->hasFireEffect(),
             "char transition must finish at two seconds after physics has frozen");
-        corpse->update(3.01f);
-        require(!corpse->hasFireEffect(), "frozen corpse's fire must stop at five seconds");
+        corpse->update(8.f);
+        require(corpse->hasFireEffect(), "fire must remain visible after the normal ten-second physics deadline");
+        corpse->update(4.9f);
+        require(corpse->hasFireEffect(), "fire must last until fifteen seconds");
+        corpse->update(0.11f);
+        require(!corpse->hasFireEffect() && corpse->getAppearanceBlend() == 1,
+            "fire must stop at fifteen seconds while the charred covering remains");
         corpse.reset();
         require(skin->getParent(0) == fixture.mSkeleton, "resurrection must remove skin overlay");
 
@@ -560,12 +708,20 @@ namespace
 
 }
 
-int main()
+int main(int argc, char** argv)
 {
     try
     {
+        if (argc > 1 && std::string(argv[1]) == "--benchmark")
+        {
+            loadMeasurements();
+            return 0;
+        }
         transitionAndCallbacks();
         collisionAndFreeze();
+        overflowFreezesOldPose();
+        savedPoseAndRemainingTime();
+        genericCreatureSkeleton();
         fallbackAndSnapshotLoss();
         inertiaAndMass();
         pinAndDeadline();

@@ -16,7 +16,10 @@ namespace Settings
             mIndex, "Ragdoll", "item mass scale", makeClampSanitizerFloat(0.05f, 20.f) };
         SettingValue<float> mItemImpulseScale{
             mIndex, "Ragdoll", "item impulse scale", makeClampSanitizerFloat(0.f, 10.f) };
-        SettingValue<int> mMaxActive{ mIndex, "Ragdoll", "max active", makeClampSanitizerInt(1, 32) };
+        SettingValue<int> mMaxActive{ mIndex, "Ragdoll", "max active", makeClampSanitizerInt(1, 100) };
+        SettingValue<int> mMaxActiveItems{ mIndex, "Ragdoll", "max active items", makeClampSanitizerInt(1, 100) };
+        SettingValue<float> mItemSimulationTime{ mIndex, "Ragdoll", "item simulation time",
+            makeClampSanitizerFloat(1, 60) };
         SettingValue<float> mCollisionRadius{
             mIndex, "Ragdoll", "collision radius", makeClampSanitizerFloat(256, 4096) };
         SettingValue<float> mCollisionRefreshInterval{
@@ -26,6 +29,7 @@ namespace Settings
         SettingValue<float> mBaseMass{ mIndex, "Ragdoll", "base mass", makeClampSanitizerFloat(20, 300) };
         SettingValue<float> mReferenceHeight{
             mIndex, "Ragdoll", "reference height", makeClampSanitizerFloat(16, 512) };
+        SettingValue<std::vector<std::string>> mCreatureProfiles{ mIndex, "Ragdoll", "creature profiles" };
         SettingValue<float> mLightArmorMassFactor{
             mIndex, "Ragdoll", "light armor mass factor", makeClampSanitizerFloat(0, 5) };
         SettingValue<float> mMediumArmorMassFactor{
@@ -38,14 +42,15 @@ namespace Settings
             mIndex, "Ragdoll", "max launch speed", makeClampSanitizerFloat(100, 3000) };
         SettingValue<float> mDaggerMaxWeight{
             mIndex, "Ragdoll", "dagger max weight", makeClampSanitizerFloat(0, 50) };
+        SettingValue<float> mWeaponMinWeight{ mIndex, "Ragdoll", "weapon min weight",
+            makeClampSanitizerFloat(-1, 100000) };
+        SettingValue<float> mWeaponMaxWeight{ mIndex, "Ragdoll", "weapon max weight",
+            makeClampSanitizerFloat(-1, 100000) };
         SettingValue<float> mOneHandDistance{
             mIndex, "Ragdoll", "one hand distance", makeClampSanitizerFloat(0, 10) };
         SettingValue<float> mTwoHandDistance{
             mIndex, "Ragdoll", "two hand distance", makeClampSanitizerFloat(0, 20) };
-        SettingValue<float> mCrossbowDistance{
-            mIndex, "Ragdoll", "crossbow distance", makeClampSanitizerFloat(0, 30) };
-        SettingValue<float> mMagicMinDistance{
-            mIndex, "Ragdoll", "magic min distance", makeClampSanitizerFloat(0, 20) };
+        SettingValue<float> mCrossbowDistance{ mIndex, "Ragdoll", "crossbow distance", makeClampSanitizerFloat(0, 30) };
         SettingValue<float> mMagicDistanceScale{
             mIndex, "Ragdoll", "magic distance scale", makeClampSanitizerFloat(0, 5) };
         SettingValue<float> mShockDuration{
@@ -58,8 +63,10 @@ namespace Settings
             mIndex, "Ragdoll", "fire transition time", makeClampSanitizerFloat(0, 10) };
         SettingValue<float> mFrostTransitionTime{
             mIndex, "Ragdoll", "frost transition time", makeClampSanitizerFloat(0, 10) };
-        SettingValue<float> mFireEffectDuration{
-            mIndex, "Ragdoll", "fire effect duration", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mFireEffectDuration{ mIndex, "Ragdoll", "fire effect duration",
+            makeClampSanitizerFloat(0, 60) };
+        SettingValue<float> mPoisonEffectDuration{ mIndex, "Ragdoll", "poison effect duration",
+            makeClampSanitizerFloat(0, 60) };
         SettingValue<bool> mPinEnabled{ mIndex, "Ragdoll", "pin enabled" };
         SettingValue<float> mPinMaxDistance{
             mIndex, "Ragdoll", "pin max distance", makeClampSanitizerFloat(0, 20) };

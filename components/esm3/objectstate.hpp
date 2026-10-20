@@ -10,7 +10,9 @@
 
 #include "animationstate.hpp"
 #include "cellref.hpp"
+#include "itemphysicsstate.hpp"
 #include "locals.hpp"
+#include "ragdollstate.hpp"
 
 namespace ESM
 {
@@ -34,6 +36,8 @@ namespace ESM
         LuaScripts mLuaScripts;
         Position mPosition;
         AnimationState mAnimationState;
+        ItemPhysicsState mItemPhysics;
+        RagdollState mRagdoll;
         ActorIdConverter* mActorIdConverter = nullptr;
         FormatVersion mVersion = DefaultFormatVersion;
         uint32_t mFlags = 0;

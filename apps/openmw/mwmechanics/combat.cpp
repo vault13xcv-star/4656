@@ -58,6 +58,8 @@ namespace MWMechanics
         hit->mAwaitingWeapon = true;
         auto& impact = hit->mWeapon;
         impact.mPosition = hitPosition;
+        impact.mWeaponPosition = hitPosition;
+        impact.mHasWeaponContact = true;
         impact.mValid = true;
         osg::Vec3f direction = impactDirection;
         if (projectile.isEmpty() && !attacker.isEmpty())
@@ -95,11 +97,11 @@ namespace MWMechanics
             || type == ESM::Weapon::BluntTwoWide || type == ESM::Weapon::AxeTwoHand)
             impact.mWeaponDistance = settings.mTwoHandDistance;
         else if (type == ESM::Weapon::LongBladeOneHand || type == ESM::Weapon::BluntOneHand
-            || type == ESM::Weapon::AxeOneHand || type == ESM::Weapon::SpearTwoWide
+            || type == ESM::Weapon::AxeOneHand || type == ESM::Weapon::SpearTwoWide || type == ESM::Weapon::Arrow
             || (type == ESM::Weapon::ShortBladeOneHand && !dagger))
             impact.mWeaponDistance = settings.mOneHandDistance;
         // Known dagger/tanto models are daggers; unknown short blades use the
-        // configurable weight threshold. ESM has no separate dagger subtype. Arrows/thrown weapons
+        // configurable weight threshold. ESM has no separate dagger subtype. Thrown weapons
         // and unarmed contacts carry no exaggerated translation impulse.
         if (projectile.isEmpty() && attackType == ESM::Weapon::AT_Slash)
         {
@@ -114,6 +116,19 @@ namespace MWMechanics
             direction.normalize();
         }
         impact.mWeaponDirection = direction;
+        if (projectile.isEmpty() && !attacker.isEmpty() && attacker.getClass().isActor()
+            && (!weaponData || (type >= ESM::Weapon::ShortBladeOneHand && type <= ESM::Weapon::SpearTwoWide)))
+        {
+            auto [minimum, maximum] = MWBase::Environment::get().getESMStore()->getMeleeWeaponWeightRange();
+            if (settings.mWeaponMinWeight >= 0.f)
+                minimum = settings.mWeaponMinWeight;
+            if (settings.mWeaponMaxWeight >= 0.f)
+                maximum = settings.mWeaponMaxWeight;
+            const float strength
+                = attacker.getClass().getCreatureStats(attacker).getAttribute(ESM::Attribute::Strength).getModified();
+            impact.mWeaponMultiplier = Ragdoll::meleeMultiplier(
+                weaponData ? weaponData->mWeight : 0.f, minimum, maximum, strength, weaponData != nullptr);
+        }
         return hit;
     }
 

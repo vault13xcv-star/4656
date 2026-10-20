@@ -1,4 +1,5 @@
 #include "animation.hpp"
+#include <components/ragdoll/profiles.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -55,6 +56,7 @@
 #include "../mwbase/environment.hpp"
 #include "../mwbase/luamanager.hpp"
 #include "../mwbase/world.hpp"
+#include "../mwworld/cell.hpp"
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
@@ -1469,12 +1471,23 @@ namespace MWRender
     {
         const auto& settings = Settings::ragdoll();
         const bool eligible = settings.mEnabled && mSkeleton && !mRequiresBoneMap && !mPtr.isEmpty()
-            && mPtr.getClass().isNpc() && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr();
+            && (mPtr.getClass().isNpc() || mPtr.getType() == ESM::Creature::sRecordId)
+            && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr();
         if (!eligible)
         {
             mRagdoll.reset();
+            mRagdollHasPosition = false;
             return;
         }
+        const auto currentPosition = mPtr.getRefData().getPosition().asVec3();
+        if (duration > 0.f && std::isfinite(duration) && mRagdollHasPosition && !mRagdoll && mRagdollPendingTime == 0.f)
+        {
+            const auto velocity = (currentPosition - mRagdollLastPosition) / duration;
+            mRagdollVelocity
+                = std::isfinite(velocity.length2()) && velocity.length2() < 3000.f * 3000.f ? velocity : osg::Vec3f();
+        }
+        mRagdollLastPosition = currentPosition;
+        mRagdollHasPosition = true;
         if (!mPtr.getClass().getCreatureStats(mPtr).isDead())
         {
             // Resurrection returns control to normal keyframes without touching saved state.
@@ -1482,13 +1495,38 @@ namespace MWRender
             mRagdollObservedAlive = true;
             mRagdollAttempted = false;
             mRagdollPendingTime = 0.f;
+            if (mPtr.getRefData().getRagdollState().mPresent)
+                mPtr.getRefData().editRagdollState() = {};
             return;
         }
-        if (mRagdollObservedAlive && !mRagdollAttempted)
+        const auto& savedRagdoll = mPtr.getRefData().getRagdollState();
+        const auto equippedArmorMass = [&]() {
+            float mass = 0.f;
+            if (mPtr.getClass().hasInventoryStore(mPtr))
+            {
+                const auto& inventory = mPtr.getClass().getInventoryStore(mPtr);
+                for (int slot = 0; slot < MWWorld::InventoryStore::Slots; ++slot)
+                {
+                    const auto item = inventory.getSlot(slot);
+                    if (item == inventory.end() || item->getType() != ESM::Armor::sRecordId)
+                        continue;
+                    const ESM::RefId skill = item->getClass().getEquipmentSkill(*item, false);
+                    const float factor = skill == ESM::Skill::LightArmor ? settings.mLightArmorMassFactor.get()
+                        : skill == ESM::Skill::MediumArmor               ? settings.mMediumArmorMassFactor.get()
+                                                                         : settings.mHeavyArmorMassFactor.get();
+                    const float weight = item->getClass().getWeight(*item);
+                    if (std::isfinite(weight) && weight > 0.f)
+                        mass = std::min(5000.f, mass + weight * factor);
+                }
+            }
+            return mass;
+        };
+        if ((mRagdollObservedAlive || savedRagdoll.mPresent) && !mRagdollAttempted)
         {
             // Native on-strike magic can kill before the queued Lua weapon hit
             // resolves. Give that same contact a bounded opportunity to merge.
-            if (mPtr.getClass().getCreatureStats(mPtr).isRagdollImpactPending() && mRagdollPendingTime < 0.1f)
+            if (!savedRagdoll.mPresent && mPtr.getClass().getCreatureStats(mPtr).isRagdollImpactPending()
+                && mRagdollPendingTime < 0.1f)
             {
                 if (duration > 0.f && std::isfinite(duration))
                     mRagdollPendingTime += duration;
@@ -1499,12 +1537,27 @@ namespace MWRender
             {
                 RagdollController::Settings config;
                 config.mMaxActive = settings.mMaxActive;
+                config.mObserverPosition
+                    = MWBase::Environment::get().getWorld()->getPlayerPtr().getRefData().getPosition().asVec3();
                 config.mCollisionRadius = settings.mCollisionRadius;
                 config.mCollisionRefreshInterval = settings.mCollisionRefreshInterval;
                 config.mMaxSimulationTime = settings.mMaxSimulationTime;
                 config.mBaseMass = settings.mBaseMass;
+                config.mImpulseReferenceMass = settings.mBaseMass;
                 config.mDeathAge = mRagdollPendingTime;
                 config.mReferenceHeight = settings.mReferenceHeight;
+                if (mPtr.getType() == ESM::Creature::sRecordId)
+                {
+                    const auto& record = *mPtr.get<ESM::Creature>()->mBase;
+                    const auto profile
+                        = Ragdoll::creatureProfile(record.mId.toString() + ":" + record.mOriginal.toString(),
+                            record.mModel, settings.mCreatureProfiles.get());
+                    if (profile.mExcluded)
+                        return;
+                    config.mAllowGenericSkeleton = true;
+                    config.mBaseMass = profile.mMass;
+                    config.mReferenceHeight = profile.mReferenceSize * Constants::UnitsPerMeter;
+                }
                 config.mImpulseMultiplier = settings.mImpulseMultiplier;
                 config.mMaxLaunchSpeed = settings.mMaxLaunchSpeed;
                 config.mShockDuration = settings.mShockDuration;
@@ -1516,26 +1569,17 @@ namespace MWRender
                 config.mFireTransitionTime = settings.mFireTransitionTime;
                 config.mFrostTransitionTime = settings.mFrostTransitionTime;
                 config.mFireEffectDuration = settings.mFireEffectDuration;
-                // Encumbrance includes carried loot and clothing; only equipped
-                // armour contributes additional physical body mass here.
-                const auto& inventory = mPtr.getClass().getInventoryStore(mPtr);
-                for (int slot = 0; slot < MWWorld::InventoryStore::Slots; ++slot)
-                {
-                    const auto item = inventory.getSlot(slot);
-                    if (item == inventory.end() || item->getType() != ESM::Armor::sRecordId)
-                        continue;
-                    const ESM::RefId skill = item->getClass().getEquipmentSkill(*item, false);
-                    const float factor = skill == ESM::Skill::LightArmor ? settings.mLightArmorMassFactor.get()
-                        : skill == ESM::Skill::MediumArmor ? settings.mMediumArmorMassFactor.get()
-                        : settings.mHeavyArmorMassFactor.get();
-                    config.mArmorMass += std::max(0.f, item->getClass().getWeight(*item)) * factor;
-                }
-                mRagdoll = RagdollController::create(*mObjectRoot, *mSkeleton,
-                    [](const osg::Vec3f& center, float radius) {
-                        return MWBase::Environment::get().getWorld()->getRagdollCollisionTriangles(center, radius);
-                    }, config, mPtr.getClass().getCreatureStats(mPtr).getRagdollImpact());
-                Log(Debug::Info) << (mRagdoll ? "Humanoid ragdoll started for "
-                                           : "Humanoid ragdoll unavailable; using native death for ")
+                config.mPoisonEffectDuration = settings.mPoisonEffectDuration;
+                config.mInitialVelocity = mRagdollVelocity;
+                config.mArmorMass = equippedArmorMass();
+                const auto collisionSnapshot = [](const osg::Vec3f& center, float radius) {
+                    return MWBase::Environment::get().getWorld()->getRagdollCollisionTriangles(center, radius);
+                };
+                mRagdoll = savedRagdoll.mPresent
+                    ? RagdollController::restore(*mObjectRoot, *mSkeleton, collisionSnapshot, config, savedRagdoll)
+                    : RagdollController::create(*mObjectRoot, *mSkeleton, collisionSnapshot, config,
+                          mPtr.getClass().getCreatureStats(mPtr).getRagdollImpact());
+                Log(Debug::Info) << (mRagdoll ? "Ragdoll started for " : "Ragdoll unavailable; using native death for ")
                                  << mPtr.getCellRef().getRefId();
             }
             catch (const std::exception& error)
@@ -1548,7 +1592,13 @@ namespace MWRender
             // Equipment may have changed while looting the corpse. Re-whitelist
             // its current bare parts; never inherit a previous armour selection.
             mRagdoll->setSkinParts(getRagdollSkinParts());
+            mRagdoll->setArmorMass(equippedArmorMass());
+            std::optional<float> water;
+            if (mPtr.isInCell() && mPtr.getCell()->getCell()->hasWater())
+                water = mPtr.getCell()->getWaterLevel();
+            mRagdoll->setWaterLevel(water);
             mRagdoll->update(duration);
+            mRagdoll->writeState(mPtr.getRefData().editRagdollState());
         }
     }
 

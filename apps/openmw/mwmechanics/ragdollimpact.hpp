@@ -27,6 +27,9 @@ namespace MWMechanics
         {
             mApplied.mWeaponDirection = mWeapon.mWeaponDirection;
             mApplied.mWeaponDistance = mWeapon.mWeaponDistance;
+            mApplied.mWeaponMultiplier = mWeapon.mWeaponMultiplier;
+            mApplied.mWeaponPosition = mWeapon.mWeaponPosition;
+            mApplied.mHasWeaponContact = mWeapon.mHasWeaponContact;
             mApplied.mCrossbow = mWeapon.mCrossbow;
             mApplied.mPosition = mWeapon.mPosition;
             mApplied.mValid = true;
@@ -59,18 +62,15 @@ namespace MWMechanics
                 mMagic.erase(id);
             mApplied.mMagicDistance = 0.f;
             mApplied.mMagicDirection = {};
+            mApplied.mMagicOrigin = {};
+            mApplied.mMagicTarget = {};
+            mApplied.mMagicAttraction = false;
             mApplied.mDeathElement = Ragdoll::DeathElement::None;
             mApplied.mDominantMagicDamage = 0.f;
             for (const auto& [key, contribution] : mMagic)
             {
-                // A multi-effect explosion has one spatial radius, not one
-                // independent full-strength explosion per elemental component.
-                if (contribution.mMagicDistance > mApplied.mMagicDistance)
-                {
-                    mApplied.mMagicDistance = contribution.mMagicDistance;
-                    mApplied.mMagicDirection = contribution.mMagicDirection;
-                }
-                // Presentation is selected by effective damage, never by radius.
+                // One effect supplies both motion and presentation. A weak,
+                // wide-area effect must not lend its radius to a stronger one.
                 // Strict comparison makes equal damage deterministic: the first
                 // effect in native effect order wins. Ordinary health damage also
                 // participates and can suppress a weaker elemental presentation.
@@ -78,6 +78,11 @@ namespace MWMechanics
                 {
                     mApplied.mDominantMagicDamage = contribution.mDominantMagicDamage;
                     mApplied.mDeathElement = contribution.mDeathElement;
+                    mApplied.mMagicDistance = contribution.mMagicDistance;
+                    mApplied.mMagicDirection = contribution.mMagicDirection;
+                    mApplied.mMagicOrigin = contribution.mMagicOrigin;
+                    mApplied.mMagicTarget = contribution.mMagicTarget;
+                    mApplied.mMagicAttraction = contribution.mMagicAttraction;
                 }
             }
             mApplied.mShock = mApplied.mDeathElement == Ragdoll::DeathElement::Shock;
@@ -101,9 +106,8 @@ namespace MWMechanics
         bool mExploded = false;
         bool mHasImpulse = true; // False when only the effect survives a save/load.
     };
-    inline Ragdoll::Impact makeRagdollMagicImpact(const RagdollMagicImpact& context,
-        const osg::Vec3f& targetPosition, float minimumDistance, float scale,
-        Ragdoll::DeathElement element, float effectiveDamage)
+    inline Ragdoll::Impact makeRagdollMagicImpact(const RagdollMagicImpact& context, const osg::Vec3f& targetPosition,
+        float scale, Ragdoll::DeathElement element, float effectiveDamage)
     {
         Ragdoll::Impact impact;
         impact.mDeathElement = element;
@@ -113,12 +117,18 @@ namespace MWMechanics
         if (!context.mHasImpulse)
             return impact;
         impact.mPosition = context.mOrigin;
+        impact.mMagicOrigin = context.mOrigin;
+        impact.mMagicTarget = context.mHasTargetPosition ? context.mTargetPosition : targetPosition;
+        // Health damage selects an ordinary corpse, including when it wins over
+        // an elemental effect. Zero-area magic still selects its visual status.
+        if (element == Ragdoll::DeathElement::None || !std::isfinite(context.mRadius) || context.mRadius <= 0.f
+            || !std::isfinite(scale) || scale <= 0.f)
+            return impact;
         impact.mMagicDirection = context.mDirection;
         float distance = 0.f;
-        if (context.mExploded)
+        if (context.mExploded || element == Ragdoll::DeathElement::Poison)
         {
-            impact.mMagicDirection = (context.mHasTargetPosition ? context.mTargetPosition : targetPosition)
-                - context.mOrigin;
+            impact.mMagicDirection = impact.mMagicTarget - context.mOrigin;
             distance = impact.mMagicDirection.length() / Constants::UnitsPerMeter;
         }
         if (impact.mMagicDirection.normalize() == 0.f)
@@ -127,7 +137,15 @@ namespace MWMechanics
             if (impact.mMagicDirection.normalize() == 0.f)
                 impact.mMagicDirection.set(0, 0, 1);
         }
-        impact.mMagicDistance = std::max(minimumDistance, context.mRadius - distance) * scale;
+        if (element == Ragdoll::DeathElement::Poison)
+        {
+            impact.mMagicAttraction = true;
+            impact.mMagicDirection = -impact.mMagicDirection;
+            impact.mMagicDistance
+                = distance <= context.mRadius ? std::min(distance, context.mRadius - 0.5f * distance) * scale : 0.f;
+        }
+        else
+            impact.mMagicDistance = std::max(0.f, context.mRadius - distance) * scale;
         return impact;
     }
 }

@@ -415,6 +415,7 @@ MWWorld::ContainerStoreIterator MWWorld::ContainerStore::add(
 
     // The copy of the original item we just made
     MWWorld::Ptr item = *it;
+    item.getRefData().setItemPhysicsState({});
     MWBase::Environment::get().getWorldModel()->registerPtr(item);
 
     // we may have copied an item from the world, so reset a few things first

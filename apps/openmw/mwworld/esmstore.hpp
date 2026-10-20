@@ -163,6 +163,7 @@ namespace MWWorld
         std::unique_ptr<ESMStoreImp> mStoreImp;
 
         std::unordered_map<ESM::RefId, int> mRefCount;
+        std::pair<float, float> mMeleeWeaponWeightRange{ 0.f, 0.f };
 
         std::vector<StoreBase*> mStores;
         std::vector<DynamicStore*> mDynamicStores;
@@ -284,6 +285,7 @@ namespace MWWorld
         // This method must be called once, after loading all master/plugin files. This can only be done
         //  from the outside, so it must be public.
         void setUp();
+        std::pair<float, float> getMeleeWeaponWeightRange() const { return mMeleeWeaponWeightRange; }
         void validateRecords(ESM::ReadersCache& readers);
 
         size_t countSavedGameRecords() const;

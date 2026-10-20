@@ -5,6 +5,12 @@ on:
     branches:
       - experimental/ragdoll-*
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish a downloadable prerelease after all checks pass
+        required: false
+        type: boolean
+        default: false
 
 # Only trusted source branches run this workflow; no pull-request trigger.
 permissions:
@@ -75,6 +81,7 @@ jobs:
           retention-days: 30
 
       - name: Publish the downloadable prerelease
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         run: |
           ./CI/ragdoll-report.ps1 -Stage publish -Result running
           ./CI/ragdoll-windows.ps1 -Phase Publish

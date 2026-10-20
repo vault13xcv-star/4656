@@ -55,6 +55,58 @@ namespace
             check(simulation.advance(frame), "Physics simulation became non-finite");
     }
 
+    void testPoisonField()
+    {
+        Ragdoll::Settings settings;
+        settings.mGravity = btVector3(0, 0, 0);
+        auto lightBody = capsule(btVector3(210, 0, 0));
+        lightBody.mMass = 70;
+        auto heavyBody = lightBody;
+        heavyBody.mMass = 700;
+        Ragdoll::Simulation light({ lightBody }, {}, {}, settings);
+        Ragdoll::Simulation heavy({ heavyBody }, {}, {}, settings);
+        light.attract(btVector3(0, 0, 0), 210, 70);
+        heavy.attract(btVector3(0, 0, 0), 210, 70);
+        runFor(light, 2);
+        runFor(heavy, 2);
+        const auto lightX = light.getBodyTransform(0).getOrigin().x();
+        const auto heavyX = heavy.getBodyTransform(0).getOrigin().x();
+        check(lightX < heavyX && lightX >= 0 && heavyX < 210,
+            "Poison attraction lost mass response or overshot the epicentre");
+        Ragdoll::StaticCollider wall;
+        wall.mShape = std::make_shared<btBoxShape>(btVector3(0.1, 100, 100));
+        wall.mTransform.setOrigin(btVector3(100, 0, 0));
+        Ragdoll::Simulation blocked({ lightBody }, {}, { wall }, settings);
+        blocked.attract(btVector3(0, 0, 0), 210, 70);
+        for (int frame = 0; frame < 240; ++frame)
+        {
+            check(blocked.advance(1.0 / 120), "Poison simulation diverged at a wall");
+            check(blocked.getBodyTransform(0).getOrigin().x() > 100, "Poison dragged a body through a thin wall");
+        }
+    }
+
+    void testBuoyancyAndMassUpdates()
+    {
+        for (const auto mode : { Ragdoll::BodyMode::Articulated, Ragdoll::BodyMode::Rigid })
+            for (const double mass : { 70., 700. })
+            {
+                auto body = capsule(btVector3(0, 0, -100), 8, 16);
+                body.mMass = mass;
+                Ragdoll::Settings settings;
+                settings.mBodyMode = mode;
+                Ragdoll::Simulation sim({ body }, {}, {}, settings);
+                sim.setWaterLevel(0);
+                runFor(sim, 8);
+                const auto height = sim.getBodyTransform(0).getOrigin().z();
+                check(height > -20 && height < 10, "body failed to float at a stable water surface");
+                check(!sim.isBelowWaterSurface(), "floating body never completed its surface approach");
+                const auto velocity = sim.getBodyLinearVelocity(0);
+                sim.setTotalMass(mass * .5);
+                check((sim.getBodyLinearVelocity(0) - velocity).length() < 1e-6,
+                    "removing armour injected a velocity jump");
+            }
+    }
+
     void testPlaneAndSleep()
     {
         Ragdoll::Simulation simulation({ capsule(btVector3(0, 0, 100)) }, {}, { plane() });
@@ -624,6 +676,8 @@ int main()
     try
     {
         testPlaneAndSleep();
+        testPoisonField();
+        testBuoyancyAndMassUpdates();
         testStairs();
         testMeshLifetimeAndSnapshotReplacement();
         testHumanoidJoints();
@@ -636,7 +690,7 @@ int main()
         testFrozenCompoundBody();
         testSoftConnectedBody();
         testFrozenSlope();
-        std::cout << "13 ragdoll physics suites passed (actual double precision Bullet solver)\n";
+        std::cout << "15 ragdoll physics suites passed (actual double precision Bullet solver)\n";
         return 0;
     }
     catch (const std::exception& error)

@@ -6,10 +6,11 @@
 #include <osg/Billboard>
 #include <osg/BlendFunc>
 #include <osg/Depth>
-#include <osg/Geometry>
 #include <osg/Geode>
+#include <osg/Geometry>
 #include <osg/Group>
 #include <osg/Image>
+#include <osg/LineWidth>
 #include <osg/MatrixTransform>
 #include <osg/NodeVisitor>
 #include <osg/Program>
@@ -156,6 +157,10 @@ namespace MWRender
             FindTextures() : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN) { setNodeMaskOverride(~0u); }
             void apply(osg::Node& node) override
             {
+                bool preserve = false;
+                node.getUserValue("RealCombatPreserveMaterial", preserve);
+                if (preserve || node.getNodeMask() == Mask_Effect)
+                    return;
                 if (auto* states = node.getStateSet())
                     if (auto* texture = dynamic_cast<osg::Texture2D*>(states->getTextureAttribute(0, osg::StateAttribute::TEXTURE)))
                         if (texture->getImage() && texture->getImage()->data()
@@ -165,7 +170,7 @@ namespace MWRender
             }
         };
 
-        osg::ref_ptr<osg::Texture2D> particleTexture(bool smoke)
+        osg::ref_ptr<osg::Texture2D> particleTexture(bool smoke, Ragdoll::DeathElement element)
         {
             osg::ref_ptr<osg::Image> image = new osg::Image;
             image->allocateImage(32, 32, 1, GL_RGBA, GL_UNSIGNED_BYTE);
@@ -176,8 +181,11 @@ namespace MWRender
                     const float py = (y - 15.5f) / 16.f;
                     const float radial = std::max(0.f, 1.f - px * px - py * py);
                     const float alpha = radial * radial * (smoke ? 0.5f : 1.f);
-                    image->setColor(smoke ? osg::Vec4f(0.17f, 0.15f, 0.14f, alpha)
-                        : osg::Vec4f(1.f, 0.3f + 0.65f * radial, 0.03f + 0.22f * radial, alpha), x, y);
+                    const auto color = element == Ragdoll::DeathElement::Poison ? osg::Vec4f(0.1f, 0.75f, 0.16f, alpha)
+                        : element == Ragdoll::DeathElement::Shock               ? osg::Vec4f(0.35f, 0.65f, 1.f, alpha)
+                        : smoke                                                 ? osg::Vec4f(0.17f, 0.15f, 0.14f, alpha)
+                                : osg::Vec4f(1.f, 0.3f + 0.65f * radial, 0.03f + 0.22f * radial, alpha);
+                    image->setColor(color, x, y);
                 }
             osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D(image);
             texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
@@ -187,10 +195,10 @@ namespace MWRender
             return texture;
         }
 
-        osg::ref_ptr<osg::StateSet> particleState(bool smoke)
+        osg::ref_ptr<osg::StateSet> particleState(bool smoke, Ragdoll::DeathElement element)
         {
             osg::ref_ptr<osg::StateSet> state = new osg::StateSet;
-            state->setTextureAttributeAndModes(0, particleTexture(smoke), sTextureOverride);
+            state->setTextureAttributeAndModes(0, particleTexture(smoke, element), sTextureOverride);
             state->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA,
                 smoke ? GL_ONE_MINUS_SRC_ALPHA : GL_ONE), sTextureOverride);
             state->setAttributeAndModes(new SceneUtil::AutoDepth(osg::Depth::LEQUAL, 0, 1, false), sTextureOverride);
@@ -361,9 +369,14 @@ namespace MWRender
 
         void updateFire(float elapsed, std::span<const osg::Vec3f> positions)
         {
-            if (mElement != Ragdoll::DeathElement::Fire || positions.empty())
+            if ((mElement != Ragdoll::DeathElement::Fire && mElement != Ragdoll::DeathElement::Poison
+                    && mElement != Ragdoll::DeathElement::Shock)
+                || positions.empty())
                 return;
-            if (elapsed >= mSettings.mFireEffectDuration)
+            const float duration = mElement == Ragdoll::DeathElement::Fire ? mSettings.mFireEffectDuration
+                : mElement == Ragdoll::DeathElement::Poison                ? mSettings.mPoisonEffectDuration
+                                                                           : mSettings.mShockEffectDuration;
+            if (elapsed >= duration)
             {
                 if (mFire)
                     mRoot->removeChild(mFire);
@@ -375,10 +388,14 @@ namespace MWRender
             if (!mFire)
             {
                 mFire = new osg::MatrixTransform;
-                mFire->setName("Ragdoll body fire and smoke");
+                mFire->setName(mElement == Ragdoll::DeathElement::Fire ? "Ragdoll body fire and smoke"
+                        : mElement == Ragdoll::DeathElement::Poison    ? "Ragdoll poison smoke"
+                                                                       : "Ragdoll electric discharges");
                 mFire->setNodeMask(Mask_Effect);
-                mFlameState = particleState(false);
-                mSmokeState = particleState(true);
+                mFlameState = particleState(false, mElement);
+                mSmokeState = particleState(true, mElement);
+                if (mElement == Ragdoll::DeathElement::Shock)
+                    mFlameState->setAttributeAndModes(new osg::LineWidth(3.f), sTextureOverride);
                 mRoot->addChild(mFire);
             }
             mFire->setMatrix(osg::Matrixf::inverse(rootWorldMatrix(*mRoot)));
@@ -386,9 +403,44 @@ namespace MWRender
                 return;
             mLastFireFrame = elapsed;
             osg::ref_ptr<osg::Group> particles = new osg::Group;
-            const float ending = std::clamp((mSettings.mFireEffectDuration - elapsed) / 0.5f, 0.f, 1.f);
+            const float ending = std::clamp((duration - elapsed) / 0.5f, 0.f, 1.f);
+            if (mElement == Ragdoll::DeathElement::Shock)
+            {
+                osg::ref_ptr<osg::Geode> arcs = new osg::Geode;
+                arcs->setStateSet(mFlameState);
+                for (unsigned arc = 0; arc < 16; ++arc)
+                {
+                    const auto start = positions[arc % positions.size()] + osg::Vec3f(-8, -6, 4);
+                    const auto end = positions[(arc * 3 + 1) % positions.size()] + osg::Vec3f(8, -6, 10);
+                    osg::ref_ptr<osg::Vec3Array> points = new osg::Vec3Array;
+                    osg::ref_ptr<osg::Vec2Array> uv = new osg::Vec2Array;
+                    for (int joint = 0; joint <= 8; ++joint)
+                    {
+                        const float t = joint / 8.f;
+                        const float phase = std::floor(elapsed * 24.f) * 1.7f + arc * 3.1f + joint * 2.3f;
+                        points->push_back(start * (1 - t) + end * t
+                            + osg::Vec3f(std::sin(phase) * 4, std::cos(phase * 1.3f) * 4, std::sin(phase * 0.8f) * 4));
+                        uv->push_back(osg::Vec2f(0.5f, 0.5f));
+                    }
+                    osg::ref_ptr<osg::Geometry> line = new osg::Geometry;
+                    line->setVertexArray(points);
+                    line->setTexCoordArray(0, uv);
+                    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
+                    colors->push_back(osg::Vec4f(1, 1, 1, ending));
+                    line->setColorArray(colors, osg::Array::BIND_OVERALL);
+                    line->addPrimitiveSet(new osg::DrawArrays(GL_LINE_STRIP, 0, points->size()));
+                    line->setUseDisplayList(false);
+                    arcs->addDrawable(line);
+                }
+                particles->addChild(arcs);
+                mFire->removeChildren(0, mFire->getNumChildren());
+                mFire->addChild(particles);
+                return;
+            }
             for (const bool smoke : { false, true })
             {
+                if (mElement == Ragdoll::DeathElement::Poison && !smoke)
+                    continue;
                 osg::ref_ptr<osg::Billboard> billboard = new osg::Billboard;
                 billboard->setMode(osg::Billboard::POINT_ROT_EYE);
                 billboard->setNormal(osg::Vec3f(0, 0, 1));
@@ -426,5 +478,12 @@ namespace MWRender
         mImpl->updateFire(elapsed, bodyPositions);
     }
     float RagdollAppearance::getBlend() const { return mImpl->mBlend; }
-    bool RagdollAppearance::hasFire() const { return bool(mImpl->mFire); }
+    bool RagdollAppearance::hasFire() const
+    {
+        return mImpl->mElement == Ragdoll::DeathElement::Fire && bool(mImpl->mFire);
+    }
+    bool RagdollAppearance::hasParticles() const
+    {
+        return bool(mImpl->mFire);
+    }
 }

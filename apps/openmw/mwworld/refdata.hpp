@@ -4,6 +4,8 @@
 #include <components/esm/position.hpp>
 #include <components/esm/refid.hpp>
 #include <components/esm3/animationstate.hpp>
+#include <components/esm3/itemphysicsstate.hpp>
+#include <components/esm3/ragdollstate.hpp>
 
 #include "../mwscript/locals.hpp"
 #include "../mwworld/customdata.hpp"
@@ -49,6 +51,8 @@ namespace MWWorld
         std::shared_ptr<MWLua::LocalScripts> mLuaScripts;
         ESM::Position mPosition;
         ESM::AnimationState mAnimationState;
+        ESM::ItemPhysicsState mItemPhysics;
+        ESM::RagdollState mRagdoll;
         std::unique_ptr<CustomData> mCustomData;
         unsigned int mFlags;
 
@@ -88,6 +92,18 @@ namespace MWWorld
         ~RefData();
 
         void write(ESM::ObjectState& objectState, const ESM::RefId& scriptId = ESM::RefId()) const;
+        const ESM::ItemPhysicsState& getItemPhysicsState() const { return mItemPhysics; }
+        void setItemPhysicsState(const ESM::ItemPhysicsState& state)
+        {
+            mItemPhysics = state;
+            mChanged = true;
+        }
+        const ESM::RagdollState& getRagdollState() const { return mRagdoll; }
+        ESM::RagdollState& editRagdollState()
+        {
+            mChanged = true;
+            return mRagdoll;
+        }
         ///< Ignores custom data (not enough context available here to
         /// perform this operations).
 

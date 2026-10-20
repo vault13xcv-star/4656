@@ -18,6 +18,7 @@ namespace MWRender
         CreatureAnimation(
             const MWWorld::Ptr& ptr, const std::string& model, Resource::ResourceSystem* resourceSystem, bool animated);
         virtual ~CreatureAnimation() {}
+        std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const override;
     };
 
     // For creatures with weapons and shields
@@ -31,6 +32,7 @@ namespace MWRender
         CreatureWeaponAnimation(
             const MWWorld::Ptr& ptr, const std::string& model, Resource::ResourceSystem* resourceSystem, bool animated);
         virtual ~CreatureWeaponAnimation() {}
+        std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const override;
 
         void equipmentChanged() override { updateParts(); }
 

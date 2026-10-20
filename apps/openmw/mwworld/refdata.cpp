@@ -44,6 +44,8 @@ namespace MWWorld
         mPhysicsPostponed = refData.mPhysicsPostponed;
 
         mAnimationState = refData.mAnimationState;
+        mItemPhysics = refData.mItemPhysics;
+        mRagdoll = refData.mRagdoll;
 
         mCustomData = refData.mCustomData ? refData.mCustomData->clone() : nullptr;
         mLuaScripts = refData.mLuaScripts;
@@ -112,6 +114,8 @@ namespace MWWorld
         : mBaseNode(nullptr)
         , mPosition(objectState.mPosition)
         , mAnimationState(objectState.mAnimationState)
+        , mItemPhysics(objectState.mItemPhysics)
+        , mRagdoll(objectState.mRagdoll)
         , mCustomData(nullptr)
         , mFlags(objectState.mFlags) // Loading from a savegame -> assume changed
         , mDeletedByContentFile(deletedByContentFile)
@@ -151,6 +155,8 @@ namespace MWWorld
         objectState.mFlags = mFlags;
 
         objectState.mAnimationState = mAnimationState;
+        objectState.mItemPhysics = mItemPhysics;
+        objectState.mRagdoll = mRagdoll;
     }
 
     RefData& RefData::operator=(const RefData& refData)

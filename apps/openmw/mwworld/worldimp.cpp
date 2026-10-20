@@ -1375,10 +1375,13 @@ namespace MWWorld
         mProjectileManager->processHits();
         mDiscardMovements = false;
         mPhysics->moveActors();
-        mPhysics->updateItems(duration, [this](const Ptr& ptr, const osg::Vec3f& position, const osg::Quat& rotation) {
-            rotateObject(ptr, Misc::toEulerAnglesZYX(rotation), MWBase::RotationFlag_none);
-            moveObject(ptr, position);
-        });
+        mPhysics->updateItems(
+            duration,
+            [this](const Ptr& ptr, const osg::Vec3f& position, const osg::Quat& rotation) {
+                rotateObject(ptr, Misc::toEulerAnglesZYX(rotation), MWBase::RotationFlag_none);
+                moveObject(ptr, position);
+            },
+            getPlayerPtr().getRefData().getPosition().asVec3());
     }
 
     void World::updateNavigator()

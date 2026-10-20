@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <vector>
 
 class btCollisionShape;
@@ -86,10 +87,27 @@ namespace Ragdoll
         // All segments receive the same change in velocity; total momentum is
         // exactly the supplied impulse, independent of the mass distribution.
         void applyWholeBodyImpulse(const btVector3& impulse);
+        // A finite-duration, mass-dependent spring/drag field. Forces are
+        // distributed by segment mass, keeping the skeleton connected.
+        void attract(
+            const btVector3& target, btScalar referenceDistance, btScalar referenceMass, btScalar duration = 2);
+        struct AttractionState
+        {
+            btVector3 mTarget{ 0, 0, 0 };
+            btScalar mDistance = 0, mReferenceMass = 70, mDuration = 2, mTimeLeft = 0;
+        };
+        AttractionState attractionState() const;
+        void restoreAttraction(const AttractionState& state);
+        void setBodyVelocity(std::size_t part, const btVector3& linear, const btVector3& angular);
+        void setWaterLevel(std::optional<btScalar> level);
+        bool isBelowWaterSurface() const;
+        void setTotalMass(btScalar mass);
         // Equal and opposite torque impulses, without a net linear launch.
         void applyJointTorqueImpulse(std::size_t joint, const btVector3& impulse);
         bool raycastStatic(const btVector3& from, const btVector3& to,
             btVector3& point, btVector3& normal) const;
+        bool sweepPartStatic(
+            std::size_t part, const btVector3& displacement, btVector3& point, btVector3& normal) const;
         // Anchors the current body point to the world without teleportation.
         // One pin per corpse allows the remaining articulated limbs to hang.
         bool pinBody(std::size_t body, const btVector3& worldPoint);

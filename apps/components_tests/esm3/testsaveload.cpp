@@ -12,6 +12,7 @@
 #include <components/esm3/loadregn.hpp>
 #include <components/esm3/loadscpt.hpp>
 #include <components/esm3/loadweap.hpp>
+#include <components/esm3/objectstate.hpp>
 #include <components/esm3/player.hpp>
 #include <components/esm3/quickkeys.hpp>
 
@@ -169,6 +170,12 @@ namespace ESM
             record.load(reader, deleted, true);
         }
 
+        void load(ESMReader& reader, ObjectState& record)
+        {
+            record.mRef.loadId(reader, true);
+            record.load(reader);
+        }
+
         template <NotHasLoad T>
         void load(ESMReader& reader, T& record)
         {
@@ -232,6 +239,67 @@ namespace ESM
                 std::generate_n(iterator, count, [&] { return generateRandomString(distribution(mRandom)); });
             }
         };
+
+        TEST_F(Esm3SaveLoadRecordTest, itemPhysicsShouldPreserveRemainingTimeAndVelocity)
+        {
+            ObjectState record;
+            record.blank();
+            record.mRef.mRefID = generateRandomRefId();
+            record.mItemPhysics.mPresent = true;
+            record.mItemPhysics.mTimeLeft = 3.25f;
+            record.mItemPhysics.mLinearVelocity = { 14.f, -2.f, 8.f };
+            record.mItemPhysics.mAngularVelocity = { 1.f, 2.f, -1.f };
+            ObjectState result;
+            saveAndLoadRecord(record, CurrentSaveGameFormatVersion, result);
+            EXPECT_TRUE(result.mItemPhysics.mPresent);
+            EXPECT_EQ(result.mItemPhysics.mTimeLeft, 3.25f);
+            EXPECT_EQ(result.mItemPhysics.mLinearVelocity, record.mItemPhysics.mLinearVelocity);
+            EXPECT_EQ(result.mItemPhysics.mAngularVelocity, record.mItemPhysics.mAngularVelocity);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, oldObjectWithoutItemPhysicsShouldStillLoad)
+        {
+            ObjectState record;
+            record.blank();
+            record.mRef.mRefID = generateRandomRefId();
+            ObjectState result;
+            saveAndLoadRecord(record, CurrentSaveGameFormatVersion, result);
+            EXPECT_FALSE(result.mItemPhysics.mPresent);
+            EXPECT_EQ(result.mItemPhysics.mTimeLeft, 0.f);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, ragdollPoseAndTimersShouldRoundTrip)
+        {
+            ObjectState record;
+            record.blank();
+            record.mRef.mRefID = generateRandomRefId();
+            auto& state = record.mRagdoll;
+            state.mPresent = true;
+            state.mElement = 2;
+            state.mElapsed = 3.5f;
+            state.mTimeLeft = 6.5f;
+            state.mArmorMass = 20;
+            RagdollBodyState body;
+            body.mTransform = { 1, 2, 3, 0, 0, 0, 1 };
+            body.mLinearVelocity = { 10, 20, 30 };
+            state.mBodies.push_back(body);
+            RagdollBoneState bone;
+            bone.mName = "Bip01 Pelvis";
+            bone.mBody = 0;
+            bone.mRest[0] = 1;
+            bone.mBoneToBody[0] = 1;
+            state.mBones.push_back(bone);
+            ObjectState result;
+            saveAndLoadRecord(record, CurrentSaveGameFormatVersion, result);
+            ASSERT_TRUE(result.mRagdoll.mPresent);
+            EXPECT_EQ(result.mRagdoll.mTimeLeft, 6.5f);
+            EXPECT_EQ(result.mRagdoll.mArmorMass, 20);
+            ASSERT_EQ(result.mRagdoll.mBodies.size(), 1);
+            EXPECT_EQ(result.mRagdoll.mBodies[0].mTransform, body.mTransform);
+            EXPECT_EQ(result.mRagdoll.mBodies[0].mLinearVelocity, body.mLinearVelocity);
+            ASSERT_EQ(result.mRagdoll.mBones.size(), 1);
+            EXPECT_EQ(result.mRagdoll.mBones[0].mName, bone.mName);
+        }
 
         TEST_F(Esm3SaveLoadRecordTest, headerShouldNotChange)
         {

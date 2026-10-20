@@ -29,7 +29,9 @@ namespace MWRender
             float mPoisonTransitionTime = 1.5f;
             float mFireTransitionTime = 2.f;
             float mFrostTransitionTime = 1.5f;
-            float mFireEffectDuration = 5.f;
+            float mFireEffectDuration = 15.f;
+            float mPoisonEffectDuration = 10.f;
+            float mShockEffectDuration = 10.f;
         };
 
         RagdollAppearance(osg::Group& root, Ragdoll::DeathElement element, const Settings& settings);
@@ -37,6 +39,7 @@ namespace MWRender
         void update(float elapsed, const SkinParts& skinParts, std::span<const osg::Vec3f> bodyPositions);
         float getBlend() const;
         bool hasFire() const;
+        bool hasParticles() const;
 
     private:
         struct Impl;

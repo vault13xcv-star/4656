@@ -140,7 +140,9 @@ namespace
     };
 
     template <class Record>
-    class ItemPhysicsRecords : public ItemPhysicsIntegration {};
+    class ItemPhysicsRecords : public ItemPhysicsIntegration
+    {
+    };
     using ItemRecords = testing::Types<ESM::Apparatus, ESM::Armor, ESM::Book, ESM::Clothing, ESM::Ingredient,
         ESM::Light, ESM::Lockpick, ESM::Miscellaneous, ESM::Potion, ESM::Probe, ESM::Repair, ESM::Weapon>;
     TYPED_TEST_SUITE(ItemPhysicsRecords, ItemRecords);
@@ -221,6 +223,33 @@ namespace
         mPhysics->remove(item.ptr());
         EXPECT_EQ(mPhysics->getObject(item.ptr()), nullptr);
         mPhysics->updateItems(0.1f, [](const auto&, const auto&, const auto&) { ADD_FAILURE() << "Ghost item pose"; });
+        mPhysics->remove(floor.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, UnloadAndReloadPreserveTheRemainingWindowAndFinalPose)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        Reference<ESM::Potion> item(0, 0, 100);
+        insert(floor.ptr(), "meshes/floor.osgt");
+        ESM::ItemPhysicsState saved;
+        saved.mPresent = true;
+        saved.mTimeLeft = 0.35f;
+        saved.mLinearVelocity = { 100, 0, 50 };
+        item.ptr().getRefData().setItemPhysicsState(saved);
+        insert(item.ptr());
+        advance(0.125f);
+        const auto beforeUnload = item.ptr().getRefData().getItemPhysicsState();
+        EXPECT_NEAR(beforeUnload.mTimeLeft, 0.225f, 0.001f);
+        EXPECT_GT(item.ptr().getRefData().getPosition().pos[0], 10.f);
+        mPhysics->remove(item.ptr());
+        insert(item.ptr());
+        EXPECT_EQ(item.ptr().getRefData().getItemPhysicsState().mTimeLeft, beforeUnload.mTimeLeft);
+        advance(0.3f);
+        EXPECT_EQ(item.ptr().getRefData().getItemPhysicsState().mTimeLeft, 0.f);
+        const auto frozen = item.ptr().getRefData().getPosition();
+        advance(0.3f);
+        EXPECT_EQ(item.ptr().getRefData().getPosition(), frozen);
+        mPhysics->remove(item.ptr());
         mPhysics->remove(floor.ptr());
     }
 }
