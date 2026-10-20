@@ -319,12 +319,12 @@ namespace
         EXPECT_FALSE(MWPhysics::itemMeleeContact(*mPhysics, eye, direction, 100).mHit);
         const auto hit = MWPhysics::itemMeleeContact(*mPhysics, eye, direction, 100, {}, center);
         ASSERT_EQ(hit.mHitObject, bottle.ptr());
-        mPhysics->applyItemImpulse(hit.mHitObject, osg::Vec3f(500, 0, 100), hit.mHitPos);
-        advance(.1f);
-        EXPECT_GT(bottle.ptr().getRefData().getPosition().pos[0], 55);
         insert(wall.ptr(), "meshes/wall.osgt");
         EXPECT_FALSE(MWPhysics::itemMeleeContact(*mPhysics, eye, direction, 100, {}, center).mHit);
         mPhysics->remove(wall.ptr());
+        mPhysics->applyItemImpulse(hit.mHitObject, osg::Vec3f(500, 0, 100), hit.mHitPos);
+        advance(.1f);
+        EXPECT_GT(bottle.ptr().getRefData().getPosition().pos[0], 55);
         mPhysics->remove(bottle.ptr());
     }
 

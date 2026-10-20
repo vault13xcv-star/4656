@@ -163,6 +163,7 @@ switch ($Phase) {
             Copy-Item "$source/docs/realcombat-ragdoll.md" (Join-Path $install 'RAGDOLL-README.md')
         }
         Copy-Item "$source/docs/physics-tz-audit.md" (Join-Path $install 'PHYSICS-STATUS.md')
+        Copy-Item "$source/docs/dismemberment.md" (Join-Path $install 'dismemberment.md')
         @"
 Experimental humanoid ragdoll $ragdollVersion runtime for OpenMW 0.51.0 / Windows x64.
 Source: https://github.com/$($env:GITHUB_REPOSITORY)/tree/$($env:GITHUB_SHA)

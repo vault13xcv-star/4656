@@ -1551,8 +1551,8 @@ namespace MWRender
                 config.mNpc = mPtr.getClass().isNpc()
                     && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr();
                 config.mWoundChance = settings.mDismembermentChance.get();
-                config.mWoundRoll = Misc::Rng::rollClosedProbability(
-                    MWBase::Environment::get().getWorld()->getPrng());
+                config.mWoundRoll = config.mNpc && !savedRagdoll.mPresent
+                    ? Misc::Rng::rollClosedProbability(MWBase::Environment::get().getWorld()->getPrng()) : 1.f;
                 config.mBleedDuration = 10.f * settings.mStatusDurationScale.get();
                 const int bloodType = config.mNpc ? mPtr.get<ESM::NPC>()->mBase->mBloodType : 0;
                 config.mBloodEffect = [bloodType](const osg::Vec3f& position) {
