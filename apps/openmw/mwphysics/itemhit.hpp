@@ -43,9 +43,12 @@ namespace MWPhysics
         // a bottle directly under a sword is outside a short eye-centred ray.
         const osg::Vec3f center = reachOrigin.value_or(origin);
         const float rayLength = reach + (origin - center).length();
+        // Retain the inner samples: merely increasing their spacing creates
+        // holes that miss a small bottle between the centre and the outer ray.
+        for (float radius : { 6.f, 12.f })
         for (const auto& offset : offsets)
         {
-            osg::Vec3f delta = direction * rayLength + (right * offset[0] + up * offset[1]) * 12.f;
+            osg::Vec3f delta = direction * rayLength + (right * offset[0] + up * offset[1]) * radius;
             delta.normalize();
             // Each sample stops at its first physical obstruction. No search
             // through furniture/walls and no hit-chance roll for inanimate things.
