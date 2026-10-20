@@ -1,7 +1,3 @@
-[811/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actor.cpp.obj
-[812/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\object.cpp.obj
-[813/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\closestnotmerayresultcallback.cpp.obj
-[814/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\stepper.cpp.obj
 [815/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestresultcallback.cpp.obj
 [816/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectile.cpp.obj
 [817/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actorconvexcallback.cpp.obj
@@ -178,3 +174,7 @@
 [988/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
 [989/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
 [990/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[991/995] Linking CXX executable components-tests.exe
+[992/995] Linking CXX executable openmw.exe
+[993/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[994/995] Linking CXX executable openmw-tests.exe
