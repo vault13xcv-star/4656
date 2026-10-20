@@ -1,35 +1,3 @@
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(997): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1008): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1009): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1010): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-[573/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\bindingsmanager.cpp.obj
-[574/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\actionmanager.cpp.obj
-[575/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controllermanager.cpp.obj
-[576/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controlswitch.cpp.obj
-[577/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\mousemanager.cpp.obj
-[578/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\inputmanagerimp.cpp.obj
-[579/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\keyboardmanager.cpp.obj
-[580/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\sensormanager.cpp.obj
-[581/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\layout.cpp.obj
-[582/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\gyromanager.cpp.obj
-[583/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\textinput.cpp.obj
-[584/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\widgets.cpp.obj
-[585/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\race.cpp.obj
-[586/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\class.cpp.obj
-[587/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\birth.cpp.obj
-[588/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\review.cpp.obj
-[589/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\console.cpp.obj
-[590/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\windowmanagerimp.cpp.obj
-[591/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\dialogue.cpp.obj
-[592/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\messagebox.cpp.obj
-[593/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\windowbase.cpp.obj
 [594/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\statswindow.cpp.obj
 [595/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\journalwindow.cpp.obj
 [596/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\windowpinnablebase.cpp.obj
@@ -178,3 +146,35 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1010): warning C4244: '=': conve
 [739/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\activator.cpp.obj
 [740/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\player.cpp.obj
 [741/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\book.cpp.obj
+[742/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockpick.cpp.obj
+[743/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\apparatus.cpp.obj
+[744/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\potion.cpp.obj
+[745/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\probe.cpp.obj
+[746/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\repair.cpp.obj
+[747/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\ingredient.cpp.obj
+[748/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\misc.cpp.obj
+[749/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\armor.cpp.obj
+[750/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\static.cpp.obj
+[751/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\light.cpp.obj
+[752/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\clothing.cpp.obj
+[753/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\levelledlist.cpp.obj
+[754/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\terminal.cpp.obj
+[755/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundmanagerimp.cpp.obj
+[756/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\openaloutput.cpp.obj
+[757/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\ffmpegdecoder.cpp.obj
+[758/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\loudness.cpp.obj
+[759/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\movieaudiofactory.cpp.obj
+[760/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundbuffer.cpp.obj
+[761/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\watersoundupdater.cpp.obj
+[762/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\regionsoundselector.cpp.obj
+[763/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\refdata.cpp.obj
+[764/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\worldimp.cpp.obj
+[765/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\scene.cpp.obj
+[766/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\globals.cpp.obj
+[767/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\class.cpp.obj
+[768/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\action.cpp.obj
+[769/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionteleport.cpp.obj
+[770/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontalk.cpp.obj
+[771/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\containerstore.cpp.obj
+[772/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontake.cpp.obj
+[773/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\magictypebindings.cpp.obj
