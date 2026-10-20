@@ -2,8 +2,13 @@
 #include "components/settings/parser.hpp"
 #include "components/settings/values.hpp"
 
+#include <MyGUI_XmlDocument.h>
+#include <functional>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <set>
+#include <unicode/msgfmt.h>
+#include <yaml-cpp/yaml.h>
 
 #ifndef OPENMW_PROJECT_SOURCE_DIR
 #define OPENMW_PROJECT_SOURCE_DIR "."
@@ -149,6 +154,98 @@ namespace Settings
             Values values(index);
             values.mCamera.mFieldOfView.set(values.mCamera.mFieldOfView.get());
             EXPECT_THAT(Manager::mChangedSettings, ElementsAre());
+        }
+        TEST_F(SettingsValuesTest, physicsMenuCanDoubleBudgetsAndResetEveryControl)
+        {
+            Index index;
+            Values defaults(index);
+            Values values(std::move(defaults));
+            auto& physics = values.mRagdoll;
+            for (auto* scale : { &physics.mMeleeImpulseScale, &physics.mCrossbowImpulseScale, &physics.mBowImpulseScale,
+                     &physics.mThrownImpulseScale, &physics.mStatusDurationScale })
+            {
+                scale->set(2.f);
+                EXPECT_FLOAT_EQ(scale->get(), 2.f);
+                scale->set(.5f);
+                EXPECT_FLOAT_EQ(scale->get(), .5f);
+                scale->reset();
+                EXPECT_FLOAT_EQ(scale->get(), 1.f);
+            }
+            physics.mMagicDistanceScale.set(2.f);
+            physics.mMaxSimulationTime.set(20.f);
+            physics.mItemSimulationTime.set(5.f);
+            physics.mPinMaxDistance.set(5.f);
+            physics.mMaxActive.set(200);
+            physics.mMaxActiveItems.set(200);
+            EXPECT_EQ(physics.mMaxActive.get(), 200);
+            EXPECT_EQ(physics.mMaxActiveItems.get(), 200);
+            physics.mMagicDistanceScale.reset();
+            physics.mMaxSimulationTime.reset();
+            physics.mItemSimulationTime.reset();
+            physics.mPinMaxDistance.reset();
+            physics.mMaxActive.reset();
+            physics.mMaxActiveItems.reset();
+            EXPECT_FLOAT_EQ(physics.mMagicDistanceScale.get(), 1.f);
+            EXPECT_FLOAT_EQ(physics.mMaxSimulationTime.get(), 10.f);
+            EXPECT_FLOAT_EQ(physics.mItemSimulationTime.get(), 10.f);
+            EXPECT_FLOAT_EQ(physics.mPinMaxDistance.get(), 2.5f);
+            EXPECT_EQ(physics.mMaxActive.get(), 100);
+            EXPECT_EQ(physics.mMaxActiveItems.get(), 100);
+            EXPECT_EQ(Manager::getFloat("bow impulse scale", "Ragdoll"), 1.f);
+        }
+        TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToHalfAndDoubleItsActualDefault)
+        {
+            const auto data = mSettingsDefaultPath.parent_path() / "data";
+            MyGUI::xml::Document document;
+            ASSERT_TRUE(document.open((data / "mygui/openmw_settings_window.layout").string()));
+            Index index;
+            Values values(index);
+            const auto english = YAML::LoadFile((data / "l10n/OMWEngine/en.yaml").string());
+            const auto russian = YAML::LoadFile((data / "l10n/OMWEngine/ru.yaml").string());
+            std::set<std::string> seen;
+            std::function<void(MyGUI::xml::Element*)> visit = [&](MyGUI::xml::Element* element) {
+                std::map<std::string, std::string> metadata;
+                auto child = element->getElementEnumerator();
+                while (child.next())
+                {
+                    auto* value = child.current();
+                    if (value->getName() == "UserString")
+                        metadata[std::string(value->findAttribute("key"))] = value->findAttribute("value");
+                }
+                if (metadata["SettingCategory"] == "Ragdoll")
+                {
+                    const auto& name = metadata["SettingName"];
+                    EXPECT_TRUE(seen.insert(name).second);
+                    const bool integer = metadata["SettingValueType"] == "Integer";
+                    double base;
+                    if (integer)
+                    {
+                        ASSERT_NE(index.find<int>("Ragdoll", name), nullptr);
+                        base = Manager::getInt(name, "Ragdoll");
+                    }
+                    else
+                    {
+                        ASSERT_NE(index.find<float>("Ragdoll", name), nullptr);
+                        base = Manager::getFloat(name, "Ragdoll");
+                    }
+                    EXPECT_DOUBLE_EQ(std::stod(metadata["SettingMin"]), base * .5);
+                    EXPECT_DOUBLE_EQ(std::stod(metadata["SettingMax"]), base * 2);
+                    for (const auto& [messages, locale] : { std::pair(english, "en"), std::pair(russian, "ru") })
+                    {
+                        const auto message = messages[metadata["SettingLabelCaption"]];
+                        ASSERT_TRUE(message.IsScalar());
+                        UErrorCode error = U_ZERO_ERROR;
+                        icu::MessageFormat format(
+                            icu::UnicodeString::fromUTF8(message.as<std::string>()), icu::Locale(locale), error);
+                        EXPECT_TRUE(U_SUCCESS(error)) << u_errorName(error);
+                    }
+                }
+                child = element->getElementEnumerator();
+                while (child.next())
+                    visit(child.current());
+            };
+            visit(document.getRoot());
+            EXPECT_EQ(seen.size(), 11);
         }
     }
 }

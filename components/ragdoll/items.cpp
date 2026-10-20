@@ -92,7 +92,7 @@ namespace Ragdoll
         explicit Impl(const Settings& settings)
             : mSettings(settings)
         {
-            if (settings.mMaxActive < 1 || settings.mMaxActive > 100 || !std::isfinite(settings.mMaxSimulationTime)
+            if (settings.mMaxActive < 1 || settings.mMaxActive > 200 || !std::isfinite(settings.mMaxSimulationTime)
                 || settings.mMaxSimulationTime <= 0)
                 throw std::invalid_argument("Invalid item physics limits");
             mWorld.setGravity(btVector3(0, 0, -627.2));
@@ -126,7 +126,24 @@ namespace Ragdoll
                 item.mBody->activate(true);
                 return; // A hit inside the current window never extends it.
             }
-            while (activeCount() >= mSettings.mMaxActive)
+            enforceBudget(mSettings.mMaxActive - 1);
+            mWorld.removeRigidBody(item.mBody.get());
+            item.mBody->setMassProps(item.mMass, item.mInertia);
+            item.mBody->updateInertiaTensor();
+            item.mBody->forceActivationState(ACTIVE_TAG);
+            item.mBody->setDeactivationTime(0);
+            mWorld.addRigidBody(item.mBody.get(), 2, 1 | 2);
+            item.mActive = true;
+            item.mDeadline = mClock + mSettings.mMaxSimulationTime;
+            item.mActivation = ++mNextActivation;
+            const auto id = mBodyIds.at(item.mBody.get());
+            mActiveIds.insert(id);
+            mDirtyIds.insert(id);
+        }
+
+        void enforceBudget(std::size_t limit)
+        {
+            while (activeCount() > limit)
             {
                 auto victim = mItems.end();
                 const auto priority = [&](const Item& value) {
@@ -142,18 +159,6 @@ namespace Ragdoll
                 }
                 freeze(victim->second);
             }
-            mWorld.removeRigidBody(item.mBody.get());
-            item.mBody->setMassProps(item.mMass, item.mInertia);
-            item.mBody->updateInertiaTensor();
-            item.mBody->forceActivationState(ACTIVE_TAG);
-            item.mBody->setDeactivationTime(0);
-            mWorld.addRigidBody(item.mBody.get(), 2, 1 | 2);
-            item.mActive = true;
-            item.mDeadline = mClock + mSettings.mMaxSimulationTime;
-            item.mActivation = ++mNextActivation;
-            const auto id = mBodyIds.at(item.mBody.get());
-            mActiveIds.insert(id);
-            mDirtyIds.insert(id);
         }
 
         void wakeContacts()
@@ -470,6 +475,27 @@ namespace Ragdoll
     {
         if (finite(position))
             mImpl->mObserver = position;
+    }
+    void ItemSimulation::setSettings(const Settings& settings)
+    {
+        if (settings.mMaxActive < 1 || settings.mMaxActive > 200 || !std::isfinite(settings.mMaxSimulationTime)
+            || settings.mMaxSimulationTime <= 0)
+            throw std::invalid_argument("Invalid item physics limits");
+        if (settings.mMaxActive == mImpl->mSettings.mMaxActive
+            && settings.mMaxSimulationTime == mImpl->mSettings.mMaxSimulationTime)
+            return;
+        const auto delta = settings.mMaxSimulationTime - mImpl->mSettings.mMaxSimulationTime;
+        const std::vector<Id> active(mImpl->mActiveIds.begin(), mImpl->mActiveIds.end());
+        for (const auto id : active)
+        {
+            auto& item = mImpl->mItems.at(id);
+            item.mDeadline += delta; // Preserve age; only an explicit settings change alters the window.
+            if (item.mDeadline <= mImpl->mClock)
+                mImpl->freeze(item);
+            mImpl->mDirtyIds.insert(id);
+        }
+        mImpl->mSettings = settings;
+        mImpl->enforceBudget(settings.mMaxActive);
     }
     std::size_t ItemSimulation::activeCount() const
     {

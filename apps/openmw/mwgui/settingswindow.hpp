@@ -59,6 +59,10 @@ namespace MWGui
 
         MyGUI::Widget* mWindowModeHint;
 
+        MyGUI::ScrollView* mPhysicsView = nullptr;
+        void layoutPhysicsBox();
+        void onPhysicsResetButtonClicked(MyGUI::Widget* sender);
+
         // controls
         MyGUI::ScrollView* mControlsBox;
         MyGUI::Button* mResetControlsButton;

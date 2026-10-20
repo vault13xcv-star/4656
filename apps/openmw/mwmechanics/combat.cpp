@@ -25,6 +25,7 @@
 
 #include "../mwphysics/itemhit.hpp"
 #include "../mwphysics/raycasting.hpp"
+#include "../mwrender/camera.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/globals.hpp"
@@ -97,13 +98,16 @@ namespace MWMechanics
         else if (type == ESM::Weapon::LongBladeTwoHand || type == ESM::Weapon::BluntTwoClose
             || type == ESM::Weapon::BluntTwoWide || type == ESM::Weapon::AxeTwoHand)
             impact.mWeaponDistance = settings.mTwoHandDistance;
+        else if (type == ESM::Weapon::Arrow || type == ESM::Weapon::MarksmanBow)
+            impact.mWeaponDistance = settings.mBowDistance;
+        else if (type == ESM::Weapon::MarksmanThrown)
+            impact.mWeaponDistance = settings.mThrownDistance;
+        else if (type == ESM::Weapon::SpearTwoWide)
+            impact.mWeaponDistance = settings.mSpearDistance;
         else if (type == ESM::Weapon::LongBladeOneHand || type == ESM::Weapon::BluntOneHand
-            || type == ESM::Weapon::AxeOneHand || type == ESM::Weapon::SpearTwoWide || type == ESM::Weapon::Arrow
-            || (type == ESM::Weapon::ShortBladeOneHand && !dagger))
+            || type == ESM::Weapon::AxeOneHand || (type == ESM::Weapon::ShortBladeOneHand && !dagger))
             impact.mWeaponDistance = settings.mOneHandDistance;
-        // Known dagger/tanto models are daggers; unknown short blades use the
-        // configurable weight threshold. ESM has no separate dagger subtype. Thrown weapons
-        // and unarmed contacts carry no exaggerated translation impulse.
+        // Daggers and unarmed contacts retain their small native imbalance.
         if (projectile.isEmpty() && attackType == ESM::Weapon::AT_Slash)
         {
             // Native Morrowind slash animations sweep right-to-left. Keep a small
@@ -130,6 +134,11 @@ namespace MWMechanics
             impact.mWeaponMultiplier = Ragdoll::meleeMultiplier(
                 weaponData ? weaponData->mWeight : 0.f, minimum, maximum, strength, weaponData != nullptr);
         }
+        impact.mWeaponMultiplier *= type == ESM::Weapon::Bolt || type == ESM::Weapon::MarksmanCrossbow
+            ? settings.mCrossbowImpulseScale.get()
+            : type == ESM::Weapon::Arrow || type == ESM::Weapon::MarksmanBow ? settings.mBowImpulseScale.get()
+            : type == ESM::Weapon::MarksmanThrown                            ? settings.mThrownImpulseScale.get()
+                                                                             : settings.mMeleeImpulseScale.get();
         return hit;
     }
 
@@ -323,7 +332,15 @@ namespace MWMechanics
         {
             osg::Vec3f direction = impactDirection;
             if (direction.normalize() > 0)
-                world->applyItemImpulse(victim, direction * (400.f + 600.f * attackStrength), hitPosition);
+            {
+                const int type = projectile.isEmpty() ? ESM::Weapon::MarksmanThrown
+                                                      : projectile.get<ESM::Weapon>()->mBase->mData.mType;
+                const auto& settings = Settings::ragdoll();
+                const float scale = type == ESM::Weapon::Bolt ? settings.mCrossbowImpulseScale.get()
+                    : type == ESM::Weapon::Arrow              ? settings.mBowImpulseScale.get()
+                                                              : settings.mThrownImpulseScale.get();
+                world->applyItemImpulse(victim, direction * ((400.f + 600.f * attackStrength) * scale), hitPosition);
+            }
         }
 
         ESM::RefId weaponSkill = ESM::Skill::Marksman;
@@ -825,8 +842,36 @@ namespace MWMechanics
         if (!std::isfinite(origin.length2()) || (origin - position.asVec3()).length2() > 1024.f * 1024.f
             || origin == osg::Vec3f())
             origin = position.asVec3() + osg::Vec3f(0, 0, world->getHalfExtents(actor, true).z() * 1.7f);
-        const auto contact = MWPhysics::itemMeleeContact(
-            *world->getRayCasting(), origin, Misc::Convert::makeOsgQuat(position) * osg::Vec3f(0, 1, 0), reach, actor);
+        osg::Vec3f direction = MWPhysics::itemAimDirection(position.rot[0], position.rot[2]);
+        if (actor == world->getPlayerPtr())
+        {
+            const auto* camera = world->getCamera();
+            if (camera && !camera->isVanityOrPreviewModeEnabled())
+            {
+                // Match the frame the player aimed at, including first-person
+                // neck movement and camera mods. The GL camera looks down -Z.
+                const auto [eye, forward] = MWPhysics::itemViewRay(camera->getViewMatrix());
+                if (std::isfinite(eye.length2()) && (eye - position.asVec3()).length2() < 4096.f * 4096.f)
+                {
+                    if (camera->getMode() == MWRender::Camera::Mode::FirstPerson)
+                    {
+                        origin = eye;
+                        direction = forward;
+                    }
+                    else
+                    {
+                        // Third-person aim may be over a shoulder. Aim at its
+                        // visible surface, then test the physical path from the
+                        // actor, so the camera cannot hit around/through a wall.
+                        MWPhysics::RayCastingResult visible{};
+                        if (world->castRenderingRay(
+                                visible, eye, eye + forward * (reach + (eye - origin).length()), true, false))
+                            direction = visible.mHitPos - origin;
+                    }
+                }
+            }
+        }
+        const auto contact = MWPhysics::itemMeleeContact(*world->getRayCasting(), origin, direction, reach, actor);
         return { contact.mHitObject, contact.mHitPos };
     }
 

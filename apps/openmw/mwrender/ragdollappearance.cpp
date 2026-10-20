@@ -596,6 +596,12 @@ namespace MWRender
     {
         return mImpl->mBlend;
     }
+    void RagdollAppearance::setEffectDurations(float fire, float poison, float shock)
+    {
+        mImpl->mSettings.mFireEffectDuration = fire;
+        mImpl->mSettings.mPoisonEffectDuration = poison;
+        mImpl->mSettings.mShockEffectDuration = shock;
+    }
     bool RagdollAppearance::hasFire() const
     {
         return mImpl->mElement == Ragdoll::DeathElement::Fire && bool(mImpl->mFire);

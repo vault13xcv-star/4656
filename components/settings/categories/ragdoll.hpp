@@ -12,12 +12,25 @@ namespace Settings
 
         SettingValue<bool> mEnabled{ mIndex, "Ragdoll", "enabled" };
         SettingValue<bool> mItemPhysics{ mIndex, "Ragdoll", "item physics" };
+        SettingValue<float> mMeleeImpulseScale{ mIndex, "Ragdoll", "melee impulse scale",
+            makeClampSanitizerFloat(.5f, 2.f) };
+        SettingValue<float> mCrossbowImpulseScale{ mIndex, "Ragdoll", "crossbow impulse scale",
+            makeClampSanitizerFloat(.5f, 2.f) };
+        SettingValue<float> mBowImpulseScale{ mIndex, "Ragdoll", "bow impulse scale",
+            makeClampSanitizerFloat(.5f, 2.f) };
+        SettingValue<float> mThrownImpulseScale{ mIndex, "Ragdoll", "thrown impulse scale",
+            makeClampSanitizerFloat(.5f, 2.f) };
+        SettingValue<float> mStatusDurationScale{ mIndex, "Ragdoll", "status duration scale",
+            makeClampSanitizerFloat(.5f, 2.f) };
+        SettingValue<float> mBowDistance{ mIndex, "Ragdoll", "bow distance", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mThrownDistance{ mIndex, "Ragdoll", "thrown distance", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mSpearDistance{ mIndex, "Ragdoll", "spear distance", makeClampSanitizerFloat(0, 10) };
         SettingValue<float> mItemMassScale{
             mIndex, "Ragdoll", "item mass scale", makeClampSanitizerFloat(0.05f, 20.f) };
         SettingValue<float> mItemImpulseScale{
             mIndex, "Ragdoll", "item impulse scale", makeClampSanitizerFloat(0.f, 10.f) };
-        SettingValue<int> mMaxActive{ mIndex, "Ragdoll", "max active", makeClampSanitizerInt(1, 100) };
-        SettingValue<int> mMaxActiveItems{ mIndex, "Ragdoll", "max active items", makeClampSanitizerInt(1, 100) };
+        SettingValue<int> mMaxActive{ mIndex, "Ragdoll", "max active", makeClampSanitizerInt(1, 200) };
+        SettingValue<int> mMaxActiveItems{ mIndex, "Ragdoll", "max active items", makeClampSanitizerInt(1, 200) };
         SettingValue<float> mItemSimulationTime{ mIndex, "Ragdoll", "item simulation time",
             makeClampSanitizerFloat(1, 60) };
         SettingValue<float> mCollisionRadius{
@@ -53,8 +66,7 @@ namespace Settings
         SettingValue<float> mCrossbowDistance{ mIndex, "Ragdoll", "crossbow distance", makeClampSanitizerFloat(0, 30) };
         SettingValue<float> mMagicDistanceScale{
             mIndex, "Ragdoll", "magic distance scale", makeClampSanitizerFloat(0, 5) };
-        SettingValue<float> mShockDuration{
-            mIndex, "Ragdoll", "shock duration", makeClampSanitizerFloat(0, 10) };
+        SettingValue<float> mShockDuration{ mIndex, "Ragdoll", "shock duration", makeClampSanitizerFloat(0, 60) };
         SettingValue<float> mShockStrength{
             mIndex, "Ragdoll", "shock strength", makeClampSanitizerFloat(0, 5) };
         SettingValue<float> mPoisonTransitionTime{

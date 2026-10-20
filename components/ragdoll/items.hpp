@@ -39,6 +39,7 @@ namespace Ragdoll
         void impulse(Id id, const btVector3& momentum, const btVector3& point);
         void wake(Id id);
         void setObserverPosition(const btVector3& position);
+        void setSettings(const Settings& settings);
         std::size_t activeCount() const;
         State state(Id id) const;
         std::vector<Id> takeStateChanges();

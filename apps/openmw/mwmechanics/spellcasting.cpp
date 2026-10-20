@@ -1,4 +1,5 @@
 #include "spellcasting.hpp"
+#include <components/settings/values.hpp>
 
 #include <components/esm3/loadench.hpp>
 #include <components/esm3/loadmgef.hpp>
@@ -127,7 +128,8 @@ namespace MWMechanics
             }
         }
 
-        world->applyItemExplosion(mHitPosition, itemRadius, itemStrength);
+        world->applyItemExplosion(
+            mHitPosition, itemRadius, itemStrength * Settings::ragdoll().mMagicDistanceScale.get());
 
         // Now apply the appropriate effects to each actor in range
         for (auto& applyPair : toApply)
@@ -204,7 +206,8 @@ namespace MWMechanics
                 direction.normalize();
             }
             if (strength > 0)
-                MWBase::Environment::get().getWorld()->applyItemImpulse(target, direction * strength, mHitPosition);
+                MWBase::Environment::get().getWorld()->applyItemImpulse(
+                    target, direction * (strength * Settings::ragdoll().mMagicDistanceScale.get()), mHitPosition);
         }
 
         ActiveSpells::ActiveSpellParams params(mCaster, mId, mSourceName, mItem);

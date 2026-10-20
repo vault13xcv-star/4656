@@ -121,6 +121,8 @@ namespace MWPhysics
     {
         if (!mItems || !Settings::ragdoll().mItemPhysics || duration <= 0)
             return;
+        mItems->setSettings({ static_cast<std::size_t>(Settings::ragdoll().mMaxActiveItems.get()),
+            Settings::ragdoll().mItemSimulationTime.get() });
         mItems->setObserverPosition(Misc::Convert::toBullet(observer));
         std::map<const MWWorld::LiveCellRefBase*, osg::Vec3f> positions;
         for (const auto& [key, actor] : mActors)

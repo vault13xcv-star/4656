@@ -1,4 +1,6 @@
 #include "apps/openmw/mwclass/classes.hpp"
+#include "apps/openmw/mwmechanics/combat.hpp"
+#include "apps/openmw/mwmechanics/ragdollimpact.hpp"
 #include "apps/openmw/mwphysics/itemhit.hpp"
 #include "apps/openmw/mwphysics/object.hpp"
 #include "apps/openmw/mwphysics/physicssystem.hpp"
@@ -344,5 +346,97 @@ namespace
             mPhysics->remove(item.ptr());
         }
         mPhysics->remove(floor.ptr());
+    }
+    TYPED_TEST(ItemPhysicsRecords, DownwardMeleeHitsAtAllHeadingsAndMovesTheItem)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        this->insert(floor.ptr(), "meshes/floor.osgt");
+        // Actual spatial targets below an eye. The former ZYX model quaternion
+        // looked horizontally east and upwards south despite the downward pitch.
+        const osg::Vec3f eye(0, 0, 100);
+        for (const auto target : { osg::Vec3f(0, 60, 20), osg::Vec3f(60, 0, 20), osg::Vec3f(0, -60, 20),
+                 osg::Vec3f(-60, 0, 20), osg::Vec3f(42, 42, 20) })
+        {
+            Reference<TypeParam> item(target.x(), target.y(), target.z());
+            this->insert(item.ptr());
+            const float pitch = std::atan2(80.f, std::hypot(target.x(), target.y()));
+            const float yaw = std::atan2(target.x(), target.y());
+            const auto direction = MWPhysics::itemAimDirection(pitch, yaw);
+            const auto hit = MWPhysics::itemMeleeContact(*this->mPhysics, eye, direction, 120);
+            EXPECT_EQ(hit.mHitObject, item.ptr());
+            if (hit.mHitObject == item.ptr())
+            {
+                this->mPhysics->applyItemImpulse(item.ptr(), osg::Vec3f(target.x(), target.y(), 10), hit.mHitPos);
+                this->advance(.1f);
+                EXPECT_GT(
+                    (item.ptr().getRefData().getPosition().asVec3() - target) * osg::Vec3f(target.x(), target.y(), 0),
+                    5);
+            }
+            this->mPhysics->remove(item.ptr());
+        }
+        this->mPhysics->remove(floor.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, FirstPersonMeleeUsesTheRenderedEyeNotTheAnimatedHead)
+    {
+        Reference<ESM::Potion> bottle(0, 60, 20);
+        insert(bottle.ptr());
+        const osg::Vec3f eye(30, 0, 100), center(0, 60, 20), head(0, 0, 120);
+        const auto view = osg::Matrixf::lookAt(eye, center, osg::Vec3f(0, 0, 1));
+        const auto [from, direction] = MWPhysics::itemViewRay(view);
+        EXPECT_LT((from - eye).length(), .001f);
+        EXPECT_EQ(MWPhysics::itemMeleeContact(*mPhysics, from, direction, 120).mHitObject, bottle.ptr());
+        EXPECT_FALSE(MWPhysics::itemMeleeContact(*mPhysics, head, direction, 120).mHit);
+        mPhysics->remove(bottle.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, LiveItemDurationChangesPreserveAge)
+    {
+        const float previous = Settings::ragdoll().mItemSimulationTime;
+        Reference<ESM::Potion> item(0, 0, 1000);
+        Settings::ragdoll().mItemSimulationTime.set(10);
+        insert(item.ptr());
+        mPhysics->applyItemImpulse(item.ptr(), osg::Vec3f(10, 0, 10), osg::Vec3f(0, 0, 1000));
+        advance(.1f);
+        Settings::ragdoll().mItemSimulationTime.set(20);
+        advance(.1f);
+        EXPECT_NEAR(item.ptr().getRefData().getItemPhysicsState().mTimeLeft, 19.8f, .02f);
+        Settings::ragdoll().mItemSimulationTime.set(5);
+        advance(.1f);
+        EXPECT_NEAR(item.ptr().getRefData().getItemPhysicsState().mTimeLeft, 4.7f, .02f);
+        mPhysics->remove(item.ptr());
+        Settings::ragdoll().mItemSimulationTime.set(previous);
+    }
+
+    TEST_F(ItemPhysicsIntegration, WeaponGroupsHaveIndependentTunableImpulses)
+    {
+        auto& settings = Settings::ragdoll();
+        Reference<ESM::Weapon> weapon(0, 0, 0), ammo(0, 0, 0);
+        for (const auto type :
+            { ESM::Weapon::Bolt, ESM::Weapon::Arrow, ESM::Weapon::MarksmanThrown, ESM::Weapon::SpearTwoWide })
+        {
+            weapon.mBase.mData.mType = type;
+            ammo.mBase.mData.mType = type;
+            auto& option = type == ESM::Weapon::Bolt  ? settings.mCrossbowImpulseScale
+                : type == ESM::Weapon::Arrow          ? settings.mBowImpulseScale
+                : type == ESM::Weapon::MarksmanThrown ? settings.mThrownImpulseScale
+                                                      : settings.mMeleeImpulseScale;
+            const float old = option;
+            option.set(.5f);
+            const auto low = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(),
+                type == ESM::Weapon::SpearTwoWide ? MWWorld::Ptr() : ammo.ptr(), 0, {}, { 0, 1, 0 });
+            option.set(2.f);
+            const auto high = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(),
+                type == ESM::Weapon::SpearTwoWide ? MWWorld::Ptr() : ammo.ptr(), 0, {}, { 0, 1, 0 });
+            EXPECT_GT(high->mWeapon.mWeaponDistance, 0);
+            EXPECT_FLOAT_EQ(high->mWeapon.mWeaponDistance, low->mWeapon.mWeaponDistance);
+            EXPECT_FLOAT_EQ(high->mWeapon.mWeaponMultiplier, low->mWeapon.mWeaponMultiplier * 4);
+            EXPECT_EQ(high->mWeapon.mCrossbow, type == ESM::Weapon::Bolt);
+            option.set(old);
+        }
+        EXPECT_FLOAT_EQ(settings.mCrossbowDistance, 2.4f);
+        EXPECT_FLOAT_EQ(settings.mBowDistance, .3f);
+        EXPECT_FLOAT_EQ(settings.mSpearDistance, .3f);
+        EXPECT_FLOAT_EQ(settings.mPinMaxDistance, 2.5f);
     }
 }

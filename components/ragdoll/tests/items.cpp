@@ -163,6 +163,29 @@ namespace
         check(sim.state(1).mTimeLeft < before, "actor contact did not retain a finite independent deadline");
         std::cout << "PASS kinematic actor-to-item contact\n";
     }
+    void liveSettingsAndDoubleBudget()
+    {
+        Ragdoll::ItemSimulation sim({ 200, 10 });
+        btBoxShape box(btVector3(2, 2, 2));
+        for (std::uintptr_t id = 1; id <= 200; ++id)
+        {
+            sim.add(id, box, at(id * 10, 0, 1000), 1);
+            sim.wake(id);
+        }
+        check(sim.activeCount() == 200, "UI +100% item budget was still capped at 100");
+        sim.elapseWithoutPhysics(2);
+        sim.setSettings({ 50, 20 });
+        check(sim.activeCount() == 50 && sim.contains(1), "live budget reduction removed items or exceeded its limit");
+        std::uintptr_t active = 0;
+        for (std::uintptr_t id = 1; id <= 200; ++id)
+            if (sim.state(id).mActive)
+                active = id;
+        check(active != 0 && std::abs(sim.state(active).mTimeLeft - 18) < .001,
+            "live duration adjustment renewed an item window instead of preserving age");
+        sim.setSettings({ 200, 1 });
+        check(sim.activeCount() == 0, "shortening duration below elapsed time did not freeze items");
+        std::cout << "PASS 200 items, live budget shrink and duration changes without restarting timers\n";
+    }
 }
 int main()
 {
@@ -174,6 +197,7 @@ int main()
         deadlinesAndRestore();
         boundedActivation();
         actorContact();
+        liveSettingsAndDoubleBudget();
     }
     catch(const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

@@ -72,6 +72,8 @@ namespace MWRender
         void writeState(ESM::RagdollState& state) const;
         void setWaterLevel(std::optional<float> level);
         void setArmorMass(float mass);
+        void setRuntimeSettings(int maxActive, float maxSimulationTime, float pinDistance, float fireDuration,
+            float poisonDuration, float shockDuration);
 
         ~RagdollController();
 

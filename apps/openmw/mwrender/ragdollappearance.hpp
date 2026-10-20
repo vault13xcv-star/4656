@@ -38,6 +38,7 @@ namespace MWRender
         ~RagdollAppearance();
         void update(float elapsed, const SkinParts& skinParts, std::span<const osg::Vec3f> bodyPositions);
         float getBlend() const;
+        void setEffectDurations(float fire, float poison, float shock);
         bool hasFire() const;
         bool hasParticles() const;
 

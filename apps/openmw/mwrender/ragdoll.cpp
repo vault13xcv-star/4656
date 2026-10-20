@@ -196,6 +196,7 @@ namespace MWRender
         std::vector<osg::Vec3f> mCollisionVertices;
         float mElapsed = 0.f;
         float mSimulationAge = 0.f;
+        float mConfiguredSimulationTime = 10.f;
         float mSinceSnapshot = 0.f;
         bool mBudgetSlot = false;
         float mMass = 70.f;
@@ -297,7 +298,7 @@ namespace MWRender
             }
         }
 
-        void acquireBudget(const std::shared_ptr<Impl>& self)
+        void enforceBudget(int limit)
         {
             std::vector<std::shared_ptr<Impl>> active;
             {
@@ -312,8 +313,7 @@ namespace MWRender
                     (corpse->mBodyMatrices.front().getTrans() - mSettings.mObserverPosition).length2(),
                     std::numeric_limits<std::uint64_t>::max() - corpse->mActivation);
             };
-            const int limit = std::clamp(mSettings.mMaxActive, 1, 100);
-            while (sSimulatingCorpses.load() >= limit)
+            while (sSimulatingCorpses.load() > limit)
             {
                 auto victim = active.end();
                 for (auto it = active.begin(); it != active.end(); ++it)
@@ -323,6 +323,11 @@ namespace MWRender
                     break;
                 (*victim)->freeze();
             }
+        }
+
+        void acquireBudget(const std::shared_ptr<Impl>& self)
+        {
+            enforceBudget(std::clamp(mSettings.mMaxActive, 1, 200) - 1);
             mActivation = ++sNextActivation;
             mBudgetSlot = true;
             ++sSimulatingCorpses;
@@ -647,6 +652,7 @@ namespace MWRender
         impl->mSkeleton = &skeleton;
         impl->mSnapshot = std::move(snapshot);
         impl->mSettings = settings;
+        impl->mConfiguredSimulationTime = settings.mMaxSimulationTime;
         impl->mMass = mass;
         impl->mBodyBaseMass = std::max(.25f, mass - std::max(0.f, settings.mArmorMass));
         impl->mElapsed = std::max(0.f, settings.mDeathAge);
@@ -781,7 +787,9 @@ namespace MWRender
             impl.mSettings.mShockDuration });
         if (!impl.mSimulation && state.mPresent && state.mTimeLeft == 0 && state.mElapsed >= effectsEnd
             && state.mMass == impl.mMass && state.mFloating == impl.mFloating
-            && state.mMode == static_cast<int>(impl.mMode))
+            && state.mMode == static_cast<int>(impl.mMode) && state.mFireDuration == impl.mSettings.mFireEffectDuration
+            && state.mPoisonDuration == impl.mSettings.mPoisonEffectDuration
+            && state.mShockDuration == impl.mSettings.mShockDuration)
             return;
         state.mElement = static_cast<int>(impl.mAppearanceElement);
         state.mMode = static_cast<int>(impl.mMode);
@@ -881,6 +889,7 @@ namespace MWRender
         impl->mSkeleton = &skeleton;
         impl->mSnapshot = std::move(snapshot);
         impl->mSettings = settings;
+        impl->mConfiguredSimulationTime = settings.mMaxSimulationTime;
         impl->mSettings.mFireEffectDuration = saved.mFireDuration;
         impl->mSettings.mPoisonEffectDuration = saved.mPoisonDuration;
         impl->mSettings.mShockDuration = saved.mShockDuration;
@@ -986,6 +995,30 @@ namespace MWRender
     void RagdollController::setWaterLevel(std::optional<float> level)
     {
         mImpl->mSettings.mWaterLevel = level;
+    }
+
+    void RagdollController::setRuntimeSettings(int maxActive, float maxSimulationTime, float pinDistance,
+        float fireDuration, float poisonDuration, float shockDuration)
+    {
+        auto& impl = *mImpl;
+        if (impl.mSettings.mMaxActive != maxActive)
+        {
+            impl.mSettings.mMaxActive = maxActive;
+            impl.enforceBudget(std::clamp(maxActive, 1, 200));
+        }
+        if (maxSimulationTime != impl.mConfiguredSimulationTime)
+        {
+            // Restored controllers store the remaining window, not a new full
+            // interval. Adjust by the option delta so loading never renews it.
+            impl.mSettings.mMaxSimulationTime
+                = std::max(0.f, impl.mSettings.mMaxSimulationTime + maxSimulationTime - impl.mConfiguredSimulationTime);
+            impl.mConfiguredSimulationTime = maxSimulationTime;
+        }
+        impl.mSettings.mPinMaxDistance = pinDistance;
+        impl.mSettings.mFireEffectDuration = fireDuration;
+        impl.mSettings.mPoisonEffectDuration = poisonDuration;
+        impl.mSettings.mShockDuration = shockDuration;
+        impl.mAppearance->setEffectDurations(fireDuration, poisonDuration, shockDuration);
     }
 
     void RagdollController::setArmorMass(float armor)

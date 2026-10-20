@@ -806,6 +806,56 @@ namespace
         std::cout << "PASS visible whole-body shock and topple of upright frozen corpse\n";
     }
 
+    void liveSettingsAndExtendedBudget()
+    {
+        MWRender::RagdollController::Settings settings;
+        settings.mMaxActive = 200;
+        std::vector<std::unique_ptr<SkeletonFixture>> fixtures;
+        std::vector<std::unique_ptr<MWRender::RagdollController>> corpses;
+        for (int i = 0; i < 200; ++i)
+        {
+            auto fixture = std::make_unique<SkeletonFixture>();
+            auto corpse = MWRender::RagdollController::create(
+                *fixture->mSkeleton, *fixture->mSkeleton, floorSnapshot, settings);
+            require(bool(corpse), "extended corpse budget failed to create a supported skeleton");
+            fixtures.push_back(std::move(fixture));
+            corpses.push_back(std::move(corpse));
+        }
+        int active = 0;
+        for (const auto& corpse : corpses)
+            active += corpse->isSimulating();
+        require(active == 200, "UI +100% corpse budget was still clamped at 100");
+        corpses.back()->setRuntimeSettings(50, 10, 2.5, 30, 20, 20);
+        active = 0;
+        for (const auto& corpse : corpses)
+            active += corpse->isSimulating();
+        require(active == 50, "live corpse budget reduction did not freeze excess bodies");
+        corpses.clear();
+        fixtures.clear();
+        SkeletonFixture fixture;
+        auto corpse = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {});
+        corpse->update(.2f);
+        corpse->setRuntimeSettings(100, 5, 2.5, 30, 20, 20);
+        ESM::RagdollState state;
+        corpse->writeState(state);
+        require(std::abs(state.mTimeLeft - 4.8f) < .01f, "live corpse duration restarted the physical window");
+        corpse.reset();
+        MWRender::RagdollController::Settings restoredSettings;
+        restoredSettings.mMaxSimulationTime = 5;
+        auto restored = MWRender::RagdollController::restore(
+            *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, restoredSettings, state);
+        require(bool(restored), "runtime-settings save failed to restore");
+        restored->setRuntimeSettings(100, 5, 2.5, 30, 20, 20);
+        ESM::RagdollState again;
+        restored->writeState(again);
+        require(std::abs(again.mTimeLeft - state.mTimeLeft) < .01f, "polling settings renewed a restored corpse timer");
+        restored->setRuntimeSettings(100, 10, 2.5, 15, 10, 10);
+        restored->writeState(again);
+        require(std::abs(again.mTimeLeft - 9.8f) < .01f, "restored duration adjustment lost the elapsed window");
+        require(again.mFireDuration == 15 && again.mPoisonDuration == 10 && again.mShockDuration == 10,
+            "status duration settings failed to update saved corpse effects");
+        std::cout << "PASS 200 corpses, live budget reduction and saved runtime timer adjustments\n";
+    }
 }
 
 int main(int argc, char** argv)
@@ -817,6 +867,7 @@ int main(int argc, char** argv)
             loadMeasurements();
             return 0;
         }
+        liveSettingsAndExtendedBudget();
         transitionAndCallbacks();
         collisionAndFreeze();
         overflowFreezesOldPose();

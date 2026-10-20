@@ -1,6 +1,7 @@
 #include "settingswindow.hpp"
 
 #include <array>
+#include <cmath>
 
 #include <unicode/locid.h>
 
@@ -140,8 +141,16 @@ namespace
         if (textBox != nullptr)
         {
             auto l10n = MWBase::Environment::get().getL10nManager()->getContext("OMWEngine");
+            auto names = argNames;
+            auto values = args;
+            if (scroller->getUserString("SettingLabelPercent") == "true")
+            {
+                names.emplace_back("percent");
+                values.emplace_back(static_cast<int32_t>(std::lround(
+                    Settings::get<float>(getSettingCategory(scroller), getSettingName(scroller)).get() * 100)));
+            }
             std::string labelCaption
-                = l10n->formatMessage(scroller->getUserString("SettingLabelCaption"), argNames, args);
+                = l10n->formatMessage(scroller->getUserString("SettingLabelCaption"), names, values);
             textBox->setCaption(labelCaption);
         }
     }
@@ -262,6 +271,10 @@ namespace MWGui
 
         getWidget(mSettingsTab, "SettingsTab");
         getWidget(mOkButton, "OkButton");
+        getWidget(mPhysicsView, "PhysicsView");
+        MyGUI::Button* physicsReset;
+        getWidget(physicsReset, "PhysicsResetButton");
+        physicsReset->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onPhysicsResetButtonClicked);
         getWidget(mResolutionList, "ResolutionList");
         getWidget(mWindowModeList, "WindowModeList");
         getWidget(mVSyncModeList, "VSyncModeList");
@@ -669,6 +682,34 @@ namespace MWGui
         configureWidgets(mMainWidget, false);
     }
 
+    void SettingsWindow::layoutPhysicsBox()
+    {
+        if (!mPhysicsView)
+            return;
+        // Match the native controls list: canvas coordinates exclude the bar.
+        mPhysicsView->setVisibleVScroll(false);
+        mPhysicsView->setCanvasSize(mPhysicsView->getWidth(), 664);
+        mPhysicsView->setVisibleVScroll(true);
+    }
+
+    void SettingsWindow::onPhysicsResetButtonClicked(MyGUI::Widget* /*sender*/)
+    {
+        auto& settings = Settings::ragdoll();
+        settings.mMeleeImpulseScale.reset();
+        settings.mCrossbowImpulseScale.reset();
+        settings.mBowImpulseScale.reset();
+        settings.mThrownImpulseScale.reset();
+        settings.mMagicDistanceScale.reset();
+        settings.mMaxSimulationTime.reset();
+        settings.mItemSimulationTime.reset();
+        settings.mMaxActive.reset();
+        settings.mMaxActiveItems.reset();
+        settings.mPinMaxDistance.reset();
+        settings.mStatusDurationScale.reset();
+        configureWidgets(mPhysicsView, false);
+        apply();
+    }
+
     void SettingsWindow::onButtonToggled(MyGUI::Widget* sender)
     {
         const std::string on = MWBase::Environment::get().getL10nManager()->getMessage("Interface", "On");
@@ -751,7 +792,8 @@ namespace MWGui
                 }
                 else
                 {
-                    int intValue = static_cast<int>(value);
+                    int intValue = getSettingCategory(scroller) == "Ragdoll" ? static_cast<int>(std::lround(value))
+                                                                             : static_cast<int>(value);
                     Settings::get<int>(getSettingCategory(scroller), getSettingName(scroller)).set(intValue);
                     argNames.emplace_back("value");
                     args.emplace_back(intValue);
@@ -1056,6 +1098,8 @@ namespace MWGui
 
     void SettingsWindow::onOpen()
     {
+        configureWidgets(mPhysicsView, false);
+        layoutPhysicsBox();
         highlightCurrentResolution();
         updateControlsBox();
         updateLightSettings();
@@ -1077,6 +1121,8 @@ namespace MWGui
     void SettingsWindow::onWindowResize(MyGUI::Window* /*sender*/)
     {
         layoutControlsBox();
+        if (mPhysicsView)
+            layoutPhysicsBox();
     }
 
     void SettingsWindow::computeMinimumWindowSize()
@@ -1107,6 +1153,8 @@ namespace MWGui
 
     void SettingsWindow::resetScrollbars()
     {
+        if (mPhysicsView)
+            mPhysicsView->setViewOffset(MyGUI::IntPoint(0, 0));
         mResolutionList->setScrollPosition(0);
         mControlsBox->setViewOffset(MyGUI::IntPoint(0, 0));
     }

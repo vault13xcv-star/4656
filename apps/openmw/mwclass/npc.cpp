@@ -624,8 +624,11 @@ namespace MWClass
             direction.z() = std::max(0.15f * direction.length(), direction.z() * 0.1f);
             direction.normalize();
             const float weight = weapon.isEmpty() ? 1.f : weapon.getClass().getWeight(weapon);
-            MWBase::Environment::get().getWorld()->applyItemImpulse(
-                contact.first, direction * ((200.f + weight * 100.f) * (0.25f + attackStrength)), contact.second);
+            MWBase::Environment::get().getWorld()->applyItemImpulse(contact.first,
+                direction
+                    * (((200.f + weight * 100.f) * (0.25f + attackStrength))
+                        * Settings::ragdoll().mMeleeImpulseScale.get()),
+                contact.second);
             MWMechanics::applyOnStrikeEnchantment(ptr, contact.first, weapon, contact.second, false);
             return;
         }

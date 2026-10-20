@@ -1560,7 +1560,7 @@ namespace MWRender
                 }
                 config.mImpulseMultiplier = settings.mImpulseMultiplier;
                 config.mMaxLaunchSpeed = settings.mMaxLaunchSpeed;
-                config.mShockDuration = settings.mShockDuration;
+                config.mShockDuration = settings.mShockDuration.get() * settings.mStatusDurationScale.get();
                 config.mShockStrength = settings.mShockStrength;
                 config.mPinEnabled = settings.mPinEnabled;
                 config.mPinMaxDistance = settings.mPinMaxDistance;
@@ -1568,8 +1568,9 @@ namespace MWRender
                 config.mPoisonTransitionTime = settings.mPoisonTransitionTime;
                 config.mFireTransitionTime = settings.mFireTransitionTime;
                 config.mFrostTransitionTime = settings.mFrostTransitionTime;
-                config.mFireEffectDuration = settings.mFireEffectDuration;
-                config.mPoisonEffectDuration = settings.mPoisonEffectDuration;
+                config.mFireEffectDuration = settings.mFireEffectDuration.get() * settings.mStatusDurationScale.get();
+                config.mPoisonEffectDuration
+                    = settings.mPoisonEffectDuration.get() * settings.mStatusDurationScale.get();
                 config.mInitialVelocity = mRagdollVelocity;
                 config.mArmorMass = equippedArmorMass();
                 const auto collisionSnapshot = [](const osg::Vec3f& center, float radius) {
@@ -1590,6 +1591,10 @@ namespace MWRender
         if (mRagdoll)
         {
             // Looting can change the worn surfaces that need this corpse's coating.
+            mRagdoll->setRuntimeSettings(settings.mMaxActive, settings.mMaxSimulationTime, settings.mPinMaxDistance,
+                settings.mFireEffectDuration.get() * settings.mStatusDurationScale.get(),
+                settings.mPoisonEffectDuration.get() * settings.mStatusDurationScale.get(),
+                settings.mShockDuration.get() * settings.mStatusDurationScale.get());
             mRagdoll->setSkinParts(getRagdollSkinParts());
             mRagdoll->setArmorMass(equippedArmorMass());
             std::optional<float> water;
