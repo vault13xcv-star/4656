@@ -6,9 +6,16 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/39491371306",
   "resultsBranch": "build-results/ragdoll-e2cc96aceb2278de09b6c24546c47b845e173837-39491371306-1",
-  "stage": "package",
-  "result": "running",
-  "updatedUtc": "2026-10-20T21:10:08.0479588Z",
+  "stage": "completed",
+  "result": "success",
+  "updatedUtc": "2026-10-20T21:10:40.0100962Z",
   "releaseUrl": null,
-  "package": null
+  "package": {
+    "file": "OpenMW-0.51-RealCombat-Ragdoll-0.6.0-preview.1-Windows-x64-e2cc96aceb22.zip",
+    "sha256": "cbafbe2dee868a146cbc00cdbac19993e4143b6b79f7b53529928dd0e634701d",
+    "bytes": 45522250,
+    "sourceCommit": "e2cc96aceb2278de09b6c24546c47b845e173837",
+    "ragdollVersion": "0.6.0-preview.1",
+    "gitDownload": "https://github.com/vault13xcv-star/4656/raw/refs/heads/build-results/ragdoll-e2cc96aceb2278de09b6c24546c47b845e173837-39491371306-1/OpenMW-0.51-RealCombat-Ragdoll-0.6.0-preview.1-Windows-x64-e2cc96aceb22.zip"
+  }
 }
