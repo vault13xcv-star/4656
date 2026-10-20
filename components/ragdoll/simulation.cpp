@@ -196,7 +196,8 @@ namespace Ragdoll
             if (mPin)
                 mWorld->removeConstraint(mPin.get());
             for (const auto& constraint : mConstraints)
-                mWorld->removeConstraint(constraint.get());
+                if (constraint->isEnabled())
+                    mWorld->removeConstraint(constraint.get());
             for (const auto& body : mBodies)
                 mWorld->removeRigidBody(body.get());
             for (const auto& object : mStaticObjects)
@@ -335,7 +336,7 @@ namespace Ragdoll
         {
             for (const auto& constraint : mConstraints)
             {
-                if (constraint->getConstraintType() != HINGE_CONSTRAINT_TYPE)
+                if (!constraint->isEnabled() || constraint->getConstraintType() != HINGE_CONSTRAINT_TYPE)
                     continue;
                 auto& hinge = static_cast<btHingeConstraint&>(*constraint);
                 btRigidBody& parent = hinge.getRigidBodyA();
@@ -826,6 +827,17 @@ namespace Ragdoll
         }
     }
 
+    void Simulation::detachJoint(std::size_t joint)
+    {
+        auto& constraint = *mImpl->mConstraints.at(joint);
+        if (!constraint.isEnabled())
+            return;
+        mImpl->mWorld->removeConstraint(&constraint);
+        constraint.setEnabled(false);
+        constraint.getRigidBodyA().activate(true);
+        constraint.getRigidBodyB().activate(true);
+    }
+
     void Simulation::applyJointTorqueImpulse(std::size_t joint, const btVector3& impulse)
     {
         if (!finite(impulse))
@@ -836,7 +848,7 @@ namespace Ragdoll
         if (!mImpl->mRigidOffsets.empty())
             return;
         btTypedConstraint& constraint = *mImpl->mConstraints.at(joint);
-        if (!mImpl->mValid)
+        if (!mImpl->mValid || !constraint.isEnabled())
             return;
         for (const auto& [body, sign] : { std::pair{ &constraint.getRigidBodyA(), btScalar(-1) },
                  std::pair{ &constraint.getRigidBodyB(), btScalar(1) } })

@@ -279,6 +279,9 @@ namespace ESM
             state.mElapsed = 3.5f;
             state.mTimeLeft = 6.5f;
             state.mArmorMass = 20;
+            state.mCuts = 4;
+            state.mBurstHead = true;
+            state.mBleedDuration = 15;
             RagdollBodyState body;
             body.mTransform = { 1, 2, 3, 0, 0, 0, 1 };
             body.mLinearVelocity = { 10, 20, 30 };
@@ -294,6 +297,9 @@ namespace ESM
             ASSERT_TRUE(result.mRagdoll.mPresent);
             EXPECT_EQ(result.mRagdoll.mTimeLeft, 6.5f);
             EXPECT_EQ(result.mRagdoll.mArmorMass, 20);
+            EXPECT_EQ(result.mRagdoll.mCuts, 4);
+            EXPECT_TRUE(result.mRagdoll.mBurstHead);
+            EXPECT_EQ(result.mRagdoll.mBleedDuration, 15);
             ASSERT_EQ(result.mRagdoll.mBodies.size(), 1);
             EXPECT_EQ(result.mRagdoll.mBodies[0].mTransform, body.mTransform);
             EXPECT_EQ(result.mRagdoll.mBodies[0].mLinearVelocity, body.mLinearVelocity);

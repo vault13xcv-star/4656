@@ -962,6 +962,22 @@
                             <UserString key="SettingLabelPercent" value="true"/>
                         </Widget>
                     </Widget>
+                    <Widget type="Widget" position="4 664 324 56" align="HStretch Top">
+                        <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsDismembermentLabel"/>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsDismembermentSlider">
+                            <Property key="Range" value="151"/>
+                            <Property key="Page" value="10"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingCategory" value="Ragdoll"/>
+                            <UserString key="SettingName" value="dismemberment chance"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingMin" value=".15"/>
+                            <UserString key="SettingMax" value=".6"/>
+                            <UserString key="SettingLabelWidget" value="PhysicsDismembermentLabel"/>
+                            <UserString key="SettingLabelCaption" value="RagdollDismembermentValue"/>
+                            <UserString key="SettingLabelPercent" value="true"/>
+                        </Widget>
+                    </Widget>
                 </Widget>
                 <Widget type="AutoSizedButton" skin="MW_Button" position="4 346 160 28" align="Left Bottom" name="PhysicsResetButton">
                     <Property key="Caption" value="#{OMWEngine:RagdollReset}"/>

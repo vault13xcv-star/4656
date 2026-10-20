@@ -31,6 +31,7 @@ namespace MWMechanics
             mApplied.mWeaponPosition = mWeapon.mWeaponPosition;
             mApplied.mHasWeaponContact = mWeapon.mHasWeaponContact;
             mApplied.mCrossbow = mWeapon.mCrossbow;
+            mApplied.mWoundWeapon = mWeapon.mWoundWeapon;
             mApplied.mPosition = mWeapon.mPosition;
             mApplied.mValid = true;
         }
@@ -67,6 +68,7 @@ namespace MWMechanics
             mApplied.mMagicAttraction = false;
             mApplied.mDeathElement = Ragdoll::DeathElement::None;
             mApplied.mDominantMagicDamage = 0.f;
+            mApplied.mDirectMagic = false;
             for (const auto& [key, contribution] : mMagic)
             {
                 // One effect supplies both motion and presentation. A weak,
@@ -83,6 +85,7 @@ namespace MWMechanics
                     mApplied.mMagicOrigin = contribution.mMagicOrigin;
                     mApplied.mMagicTarget = contribution.mMagicTarget;
                     mApplied.mMagicAttraction = contribution.mMagicAttraction;
+                    mApplied.mDirectMagic = contribution.mDirectMagic;
                 }
             }
             mApplied.mShock = mApplied.mDeathElement == Ragdoll::DeathElement::Shock;
@@ -116,6 +119,7 @@ namespace MWMechanics
         impact.mValid = true;
         if (!context.mHasImpulse)
             return impact;
+        impact.mDirectMagic = !context.mExploded && context.mHit && context.mHit->mContactAge <= .1f;
         impact.mPosition = context.mOrigin;
         impact.mMagicOrigin = context.mOrigin;
         impact.mMagicTarget = context.mHasTargetPosition ? context.mTargetPosition : targetPosition;

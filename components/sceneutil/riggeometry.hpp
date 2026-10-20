@@ -5,6 +5,7 @@
 #include <osg/Matrixf>
 
 #include <string_view>
+#include <map>
 
 namespace SceneUtil
 {
@@ -61,6 +62,8 @@ namespace SceneUtil
         void setRootBone(std::string_view name);
 
         osg::ref_ptr<osg::Geometry> getSourceGeometry() const;
+        // Per-instance cloth pose; never mutates cached mesh/influence data.
+        void setBonePoseOverride(const std::map<std::string, osg::Matrixf>& matrices) { mBonePoseOverride = matrices; }
 
         void accept(osg::NodeVisitor& nv) override;
         bool supports(const osg::PrimitiveFunctor&) const override { return true; }
@@ -103,6 +106,7 @@ namespace SceneUtil
         };
         osg::ref_ptr<InfluenceData> mData;
         std::vector<Bone*> mNodes;
+        std::map<std::string, osg::Matrixf> mBonePoseOverride;
 
         unsigned int mLastFrameNumber{ 0 };
         bool mBoundsFirstFrame{ true };

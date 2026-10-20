@@ -2,6 +2,7 @@
 #include <components/misc/convert.hpp>
 #include <components/misc/mathutil.hpp>
 #include <components/ragdoll/profiles.hpp>
+#include <components/ragdoll/dismemberment.hpp>
 
 #include <cmath>
 #include <iostream>
@@ -347,6 +348,25 @@ int main()
 {
     try
     {
+        Ragdoll::Impact wound;
+        wound.mValid = wound.mHasWeaponContact = true;
+        wound.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
+        check(Ragdoll::selectWounds(wound, 4, .299f, .3f).mCuts == (1u << 3), "Blade did not sever struck arm");
+        check(!Ragdoll::selectWounds(wound, 4, .3f, .3f).mCuts, "30% boundary was inclusive");
+        check(!Ragdoll::selectWounds(wound, 1, 0, 1).mCuts, "One-hand blade bisected torso");
+        wound.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+        check(Ragdoll::selectWounds(wound, 1, 0, 1).mCuts == (1u << 1), "Heavy blade did not bisect torso");
+        wound.mWoundWeapon = Ragdoll::WoundWeapon::Bolt;
+        check(!Ragdoll::selectWounds(wound, 7, 0, 1).mCuts, "Leg bolt exploded a head");
+        check(Ragdoll::selectWounds(wound, 2, 0, 1).mBurstHead, "Head bolt did not burst head");
+        wound.mWoundWeapon = Ragdoll::WoundWeapon::None;
+        check(!Ragdoll::selectWounds(wound, 2, 0, 1).mCuts, "Short blade/unarmed caused dismemberment");
+        wound.mDeathElement = Ragdoll::DeathElement::Fire;
+        check(!Ragdoll::selectWounds(wound, 2, 0, 1).mCuts, "Area fire caused direct-hit dismemberment");
+        wound.mDirectMagic = true;
+        check(Ragdoll::selectWounds(wound, 1, 0, 1).mCuts == 684, "Direct fire did not detach all five extremities");
+        wound.mDeathElement = Ragdoll::DeathElement::Shock;
+        check(Ragdoll::selectWounds(wound, 1, 0, 1).mBurstHead, "Direct shock did not burst head");
         testDominantDamageSelectsMotionAndElement();
         testOnlyEffectiveDamageContributes();
         testDistinctEffectsAndDurationTicks();

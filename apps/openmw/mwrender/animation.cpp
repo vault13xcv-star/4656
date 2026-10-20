@@ -34,6 +34,7 @@
 #include <components/esm4/loadligh.hpp>
 
 #include <components/misc/constants.hpp>
+#include <components/misc/rng.hpp>
 #include <components/misc/pathhelpers.hpp>
 #include <components/misc/resourcehelpers.hpp>
 
@@ -1475,6 +1476,7 @@ namespace MWRender
             && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr();
         if (!eligible)
         {
+            updateRagdollParts(nullptr);
             mRagdoll.reset();
             mRagdollHasPosition = false;
             return;
@@ -1490,6 +1492,7 @@ namespace MWRender
         mRagdollHasPosition = true;
         if (!mPtr.getClass().getCreatureStats(mPtr).isDead())
         {
+            updateRagdollParts(nullptr);
             // Resurrection returns control to normal keyframes without touching saved state.
             mRagdoll.reset();
             mRagdollObservedAlive = true;
@@ -1545,6 +1548,24 @@ namespace MWRender
                 config.mBaseMass = settings.mBaseMass;
                 config.mImpulseReferenceMass = settings.mBaseMass;
                 config.mDeathAge = mRagdollPendingTime;
+                config.mNpc = mPtr.getClass().isNpc()
+                    && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr();
+                config.mWoundChance = settings.mDismembermentChance.get();
+                config.mWoundRoll = Misc::Rng::rollClosedProbability(
+                    MWBase::Environment::get().getWorld()->getPrng());
+                config.mBleedDuration = 10.f * settings.mStatusDurationScale.get();
+                const int bloodType = config.mNpc ? mPtr.get<ESM::NPC>()->mBase->mBloodType : 0;
+                config.mBloodEffect = [bloodType](const osg::Vec3f& position) {
+                    MWBase::World* world = MWBase::Environment::get().getWorld();
+                    const auto& gmst = world->getStore().get<ESM::GameSetting>();
+                    const auto* model = gmst.search("Blood_Model_0");
+                    const auto* texture = gmst.search("Blood_Texture_" + std::to_string(bloodType));
+                    if (!texture || texture->mValue.getString().empty())
+                        texture = gmst.search("Blood_Texture_0");
+                    if (model && texture)
+                        world->spawnEffect(VFS::Path::Normalized("meshes/" + model->mValue.getString()),
+                            texture->mValue.getString(), position, 1.f, false, false);
+                };
                 config.mReferenceHeight = settings.mReferenceHeight;
                 if (mPtr.getType() == ESM::Creature::sRecordId)
                 {
@@ -1594,7 +1615,9 @@ namespace MWRender
             mRagdoll->setRuntimeSettings(settings.mMaxActive, settings.mMaxSimulationTime, settings.mPinMaxDistance,
                 settings.mFireEffectDuration.get() * settings.mStatusDurationScale.get(),
                 settings.mPoisonEffectDuration.get() * settings.mStatusDurationScale.get(),
-                settings.mShockDuration.get() * settings.mStatusDurationScale.get());
+                settings.mShockDuration.get() * settings.mStatusDurationScale.get(),
+                10.f * settings.mStatusDurationScale.get());
+            updateRagdollParts(mRagdoll.get());
             mRagdoll->setSkinParts(getRagdollSkinParts());
             mRagdoll->setArmorMass(equippedArmorMass());
             std::optional<float> water;

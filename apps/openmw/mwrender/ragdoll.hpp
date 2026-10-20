@@ -5,11 +5,14 @@
 #include <osg/ref_ptr>
 
 #include <components/ragdoll/impact.hpp>
+#include <components/ragdoll/dismemberment.hpp>
 
 #include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
+#include <map>
+#include <osg/Matrixf>
 
 namespace osg
 {
@@ -62,6 +65,11 @@ namespace MWRender
             float mPoisonEffectDuration = 10.f;
             osg::Vec3f mInitialVelocity;
             std::optional<float> mWaterLevel;
+            bool mNpc = false;
+            float mWoundRoll = 1.f;
+            float mWoundChance = .3f;
+            float mBleedDuration = 10.f;
+            std::function<void(const osg::Vec3f&)> mBloodEffect;
         };
 
         /// Returns nullptr for unsupported skeletons, missing collision geometry or an exhausted budget.
@@ -73,7 +81,7 @@ namespace MWRender
         void setWaterLevel(std::optional<float> level);
         void setArmorMass(float mass);
         void setRuntimeSettings(int maxActive, float maxSimulationTime, float pinDistance, float fireDuration,
-            float poisonDuration, float shockDuration);
+            float poisonDuration, float shockDuration, float bleedDuration = 10.f);
 
         ~RagdollController();
 
@@ -88,6 +96,8 @@ namespace MWRender
         float getMass() const;
         bool isSimulating() const;
         bool isPinned() const;
+        Ragdoll::Wounds getWounds() const;
+        std::map<std::string, osg::Matrixf> getUncutBoneMatrices() const;
 
     private:
         struct Impl;

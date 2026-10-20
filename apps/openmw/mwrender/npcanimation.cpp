@@ -43,6 +43,8 @@
 #include "postprocessor.hpp"
 #include "renderbin.hpp"
 #include "renderingmanager.hpp"
+#include "ragdoll.hpp"
+#include <components/sceneutil/riggeometry.hpp>
 #include "rotatecontroller.hpp"
 #include "vismask.hpp"
 
@@ -697,8 +699,82 @@ namespace MWRender
                 continue;
             if (mObjectParts[part])
                 result.push_back(mObjectParts[part]->getNode());
+            if (mExposedRagdollParts[part])
+                result.push_back(mExposedRagdollParts[part]->getNode());
         }
         return result;
+    }
+
+    void NpcAnimation::updateRagdollParts(const RagdollController* ragdoll)
+    {
+        if (!ragdoll && !mRagdollPartsChanged)
+            return;
+        const auto wounds = ragdoll ? ragdoll->getWounds() : Ragdoll::Wounds{};
+        mRagdollPartsChanged = wounds.mCuts != 0;
+        // Restore precisely the masks we changed, including after resurrection.
+        for (const auto& [node, mask] : mRagdollHeadMasks)
+            node->setNodeMask(mask);
+        mRagdollHeadMasks.clear();
+        if (wounds.mBurstHead)
+            for (int part : { ESM::PRT_Head, ESM::PRT_Hair })
+                if (mObjectParts[part])
+                {
+                    const auto node = mObjectParts[part]->getNode();
+                    mRagdollHeadMasks.emplace(node, node->getNodeMask());
+                    node->setNodeMask(0);
+                }
+
+        class ClothPose : public osg::NodeVisitor
+        {
+        public:
+            const std::map<std::string, osg::Matrixf>& mMatrices;
+            explicit ClothPose(const std::map<std::string, osg::Matrixf>& matrices)
+                : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN), mMatrices(matrices) { setNodeMaskOverride(~0u); }
+            void apply(osg::Drawable& drawable) override
+            {
+                if (auto* rig = dynamic_cast<SceneUtil::RigGeometry*>(&drawable))
+                    rig->setBonePoseOverride(mMatrices);
+            }
+        };
+        const auto matrices = ragdoll ? ragdoll->getUncutBoneMatrices() : std::map<std::string, osg::Matrixf>{};
+        ClothPose cloth(matrices);
+        const bool female = !mNpc->isMale();
+        const auto& bare = getBodyParts(mNpc->mRace, female, false, mNpcType == Type_Werewolf);
+        const auto cutFor = [](int part) -> unsigned {
+            switch (part)
+            {
+                case ESM::PRT_LUpperarm: case ESM::PRT_LForearm: case ESM::PRT_LWrist:
+                case ESM::PRT_LHand: case ESM::PRT_LPauldron: return 3;
+                case ESM::PRT_RUpperarm: case ESM::PRT_RForearm: case ESM::PRT_RWrist:
+                case ESM::PRT_RHand: case ESM::PRT_RPauldron: return 5;
+                case ESM::PRT_LLeg: case ESM::PRT_LKnee: case ESM::PRT_LAnkle: case ESM::PRT_LFoot: return 7;
+                case ESM::PRT_RLeg: case ESM::PRT_RKnee: case ESM::PRT_RAnkle: case ESM::PRT_RFoot: return 9;
+                default: return 0;
+            }
+        };
+        for (int part = 0; part < ESM::PRT_Count; ++part)
+        {
+            const bool robe = mPartslots[part] == MWWorld::InventoryStore::Slot_Robe;
+            if (robe && mObjectParts[part])
+                mObjectParts[part]->getNode()->accept(cloth);
+            const unsigned cut = cutFor(part);
+            // Robes reserve (hide) the underlying body. Expose severed skin
+            // without cutting, duplicating, or unequipping the robe itself.
+            const bool severed = cut && ((wounds.mCuts & (1u << cut))
+                || ((wounds.mCuts & (1u << 1)) && (cut == 7 || cut == 9)));
+            if (robe && severed && bare[part])
+            {
+                if (!mExposedRagdollParts[part])
+                {
+                    const auto& bone = sPartList.at(static_cast<ESM::PartReferenceType>(part));
+                    mExposedRagdollParts[part] = insertBoundedPart(
+                        Misc::ResourceHelpers::correctMeshPath(VFS::Path::Normalized(bare[part]->mModel)),
+                        bone, bone, false, nullptr, false);
+                }
+            }
+            else
+                mExposedRagdollParts[part].reset();
+        }
     }
 
     PartHolderPtr NpcAnimation::insertBoundedPart(VFS::Path::NormalizedView model, std::string_view bonename,

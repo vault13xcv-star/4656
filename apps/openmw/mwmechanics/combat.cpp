@@ -80,6 +80,16 @@ namespace MWMechanics
         const auto* ammoData = !projectile.isEmpty() && projectile.getType() == ESM::Weapon::sRecordId
             ? &projectile.get<ESM::Weapon>()->mBase->mData : nullptr;
         const int type = ammoData ? ammoData->mType : weaponData ? weaponData->mType : static_cast<int>(ESM::Weapon::HandToHand);
+        if (type == ESM::Weapon::LongBladeOneHand)
+            impact.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
+        else if (type == ESM::Weapon::LongBladeTwoHand || type == ESM::Weapon::AxeOneHand
+            || type == ESM::Weapon::AxeTwoHand)
+            impact.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+        else if (type == ESM::Weapon::BluntOneHand || type == ESM::Weapon::BluntTwoClose
+            || type == ESM::Weapon::BluntTwoWide)
+            impact.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+        else if (type == ESM::Weapon::Bolt || type == ESM::Weapon::MarksmanCrossbow)
+            impact.mWoundWeapon = Ragdoll::WoundWeapon::Bolt;
         bool dagger = false;
         if (type == ESM::Weapon::ShortBladeOneHand && weaponData)
         {
@@ -820,6 +830,17 @@ namespace MWMechanics
             float zOffset = Misc::Rng::deviate(0.6f, 0.4f, world->getPrng());
             hitPos.x() += world->getHalfExtents(result).x() * 2.f * xOffset;
             hitPos.z() += world->getHalfExtents(result).z() * 2.f * zOffset;
+            // Preserve a real visible surface contact for limb/head attribution.
+            // The broad actor-cone fallback above has no anatomical precision.
+            osg::Vec3f eye = actorEyePos;
+            osg::Vec3f direction = MWPhysics::itemAimDirection(
+                actor.getRefData().getPosition().rot[0], actor.getRefData().getPosition().rot[2]);
+            if (actor == world->getPlayerPtr() && world->getCamera())
+                std::tie(eye, direction) = MWPhysics::itemViewRay(world->getCamera()->getViewMatrix());
+            MWPhysics::RayCastingResult surface{};
+            if (world->castRenderingRay(surface, eye, eye + direction * (reach + world->getHalfExtents(actor).z()),
+                    true, false) && surface.mHitObject == result)
+                hitPos = surface.mHitPos;
         }
 
         // Clutter has a small contact area, independent of actor hit-chance rolls.
@@ -871,7 +892,8 @@ namespace MWMechanics
                 }
             }
         }
-        const auto contact = MWPhysics::itemMeleeContact(*world->getRayCasting(), origin, direction, reach, actor);
+        const auto contact = MWPhysics::itemMeleeContact(*world->getRayCasting(), origin, direction, reach, actor,
+            position.asVec3() + osg::Vec3f(0, 0, world->getHalfExtents(actor, true).z()));
         return { contact.mHitObject, contact.mHitPos };
     }
 

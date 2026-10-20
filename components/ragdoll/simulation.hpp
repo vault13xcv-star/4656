@@ -104,6 +104,8 @@ namespace Ragdoll
         void setTotalMass(btScalar mass);
         // Equal and opposite torque impulses, without a net linear launch.
         void applyJointTorqueImpulse(std::size_t joint, const btVector3& impulse);
+        // Detach a joint while retaining all bodies and their remaining joints.
+        void detachJoint(std::size_t joint);
         bool raycastStatic(const btVector3& from, const btVector3& to,
             btVector3& point, btVector3& normal) const;
         bool sweepPartStatic(

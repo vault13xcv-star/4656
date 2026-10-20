@@ -309,6 +309,25 @@ namespace
         mPhysics->remove(bottle.ptr());
     }
 
+    TEST_F(ItemPhysicsIntegration, DownwardMeleeUsesBodyReachRatherThanEyeDistance)
+    {
+        Reference<ESM::Potion> bottle(50, 0, 4);
+        Reference<ESM::Static> wall(25, 0, 60);
+        insert(bottle.ptr());
+        const osg::Vec3f eye(0, 0, 120), center(0, 0, 60);
+        const osg::Vec3f direction = osg::Vec3f(50, 0, 4) - eye;
+        EXPECT_FALSE(MWPhysics::itemMeleeContact(*mPhysics, eye, direction, 100).mHit);
+        const auto hit = MWPhysics::itemMeleeContact(*mPhysics, eye, direction, 100, {}, center);
+        ASSERT_EQ(hit.mHitObject, bottle.ptr());
+        mPhysics->applyItemImpulse(hit.mHitObject, osg::Vec3f(500, 0, 100), hit.mHitPos);
+        advance(.1f);
+        EXPECT_GT(bottle.ptr().getRefData().getPosition().pos[0], 55);
+        insert(wall.ptr(), "meshes/wall.osgt");
+        EXPECT_FALSE(MWPhysics::itemMeleeContact(*mPhysics, eye, direction, 100, {}, center).mHit);
+        mPhysics->remove(wall.ptr());
+        mPhysics->remove(bottle.ptr());
+    }
+
     TEST_F(ItemPhysicsIntegration, CellUnloadDropsPoseMemoryAndTimersButRetainsReferencePlacement)
     {
         Reference<ESM::Potion> item(15, 25, 45);

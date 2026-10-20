@@ -48,6 +48,9 @@ namespace MWRender
 
         // Bounded Parts
         PartHolderPtr mObjectParts[ESM::PRT_Count];
+        PartHolderPtr mExposedRagdollParts[ESM::PRT_Count];
+        std::map<osg::ref_ptr<osg::Node>, unsigned> mRagdollHeadMasks;
+        bool mRagdollPartsChanged = false;
         std::array<MWSound::Sound*, ESM::PRT_Count> mSounds;
 
         const ESM::NPC* mNpc;
@@ -107,6 +110,7 @@ namespace MWRender
     protected:
         void addControllers() override;
         std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const override;
+        void updateRagdollParts(const RagdollController* ragdoll) override;
         bool isArrowAttached() const override;
         std::string getSheathedShieldMesh(const MWWorld::ConstPtr& shield) const override;
 

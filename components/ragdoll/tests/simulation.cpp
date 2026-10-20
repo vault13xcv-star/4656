@@ -675,6 +675,24 @@ int main()
 {
     try
     {
+        {
+            auto parent = capsule(btVector3(0, 0, 20));
+            auto child = capsule(btVector3(5, 0, 20));
+            Ragdoll::JointDefinition joint;
+            joint.mParent = 0;
+            joint.mChild = 1;
+            joint.mFrameWorld.setOrigin(btVector3(2.5, 0, 20));
+            Ragdoll::Settings settings;
+            settings.mGravity.setZero();
+            Ragdoll::Simulation sim({parent, child}, {joint}, {}, settings);
+            sim.detachJoint(0);
+            sim.detachJoint(0); // repeat is harmless
+            sim.setBodyVelocity(1, btVector3(100, 0, 0), btVector3(0, 2, 0));
+            runFor(sim, 1);
+            check(sim.getBodyTransform(0).getOrigin().distance(sim.getBodyTransform(1).getOrigin()) > 80,
+                "Detached joint still tethered the severed body");
+            check(sim.isValid(), "Detachment invalidated the physical simulation");
+        }
         testPlaneAndSleep();
         testPoisonField();
         testBuoyancyAndMassUpdates();

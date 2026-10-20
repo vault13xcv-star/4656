@@ -862,6 +862,40 @@ int main(int argc, char** argv)
 {
     try
     {
+        {
+            SkeletonFixture fixture;
+            MWRender::RagdollController::Settings config;
+            config.mNpc = true;
+            config.mWoundRoll = 0;
+            int blood = 0;
+            config.mBloodEffect = [&](const osg::Vec3f& p) {
+                require(std::isfinite(p.length2()), "Nonfinite wound position");
+                ++blood;
+            };
+            Ragdoll::Impact hit;
+            hit.mValid = hit.mHasWeaponContact = true;
+            hit.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, hit);
+            require(corpse && corpse->getWounds().mBurstHead, "Blunt fatal blow did not burst head");
+            ESM::RagdollState saved;
+            for (int frame = 0; frame < 60; ++frame) corpse->update(1.f/60);
+            corpse->writeState(saved);
+            require(saved.mBodies.size() == 21 && saved.mBurstHead && saved.mCuts == 4,
+                "Gibs/cut state missing from saved physical pose");
+            require(blood > 1, "Wound did not emit repeated blood effects");
+            corpse.reset();
+            auto restored = MWRender::RagdollController::restore(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, saved);
+            require(bool(restored) && restored->getWounds().mBurstHead, "Gore pose failed to restore");
+            for (int frame = 0; frame < 600; ++frame) restored->update(1.f/60);
+            const int expired = blood;
+            restored->update(.3f);
+            require(blood == expired, "Bleeding continued past ten seconds");
+            restored.reset();
+            require(fixture.mSkeleton->getNumChildren() == 1, "Generated gore nodes leaked after destruction");
+            std::cout << "PASS severed head, dynamic gibs, saved gore, bleeding deadline and cleanup\n";
+        }
         if (argc > 1 && std::string(argv[1]) == "--benchmark")
         {
             loadMeasurements();

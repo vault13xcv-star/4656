@@ -11,6 +11,8 @@
 #include <osg/Group>
 #include <osg/MatrixTransform>
 #include <osg/NodeVisitor>
+#include <osg/ShapeDrawable>
+#include <osg/Geode>
 
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
@@ -216,6 +218,71 @@ namespace MWRender
         osg::Vec3f mPinPoint;
         osg::Vec3f mRight;
         osg::Vec3f mForward;
+        Ragdoll::Wounds mWounds;
+        float mSinceBlood = .25f;
+        struct WoundVisual
+        {
+            osg::ref_ptr<osg::MatrixTransform> mNode;
+            std::size_t mBody;
+            osg::Matrixf mLocal;
+        };
+        std::vector<WoundVisual> mWoundVisuals;
+
+        void addWoundVisual(osg::Shape* shape, std::size_t body, const osg::Matrixf& local)
+        {
+            osg::ref_ptr<osg::MatrixTransform> node = new osg::MatrixTransform;
+            osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+            osg::ref_ptr<osg::ShapeDrawable> drawable = new osg::ShapeDrawable(shape);
+            drawable->setColor(osg::Vec4(.35f, .015f, .02f, 1));
+            geode->addDrawable(drawable);
+            geode->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+            node->addChild(geode);
+            mRoot->addChild(node);
+            mWoundVisuals.push_back({ node, body, local });
+        }
+
+        void initWounds()
+        {
+            for (std::size_t i = 0; i < mJoints.size(); ++i)
+            {
+                const auto& joint = mJoints[i];
+                if (!mWounds.cuts(joint.mChild))
+                    continue;
+                if (mSimulation)
+                    mSimulation->detachJoint(i);
+                const float radius = mWounds.mBurstHead && joint.mChild == 2
+                    ? mChestRadius * .45f : mDefinitions[joint.mChild].mRadius * .9f;
+                const auto disc = osg::Matrixf::rotate(1.5707963f, osg::Vec3f(0, 1, 0));
+                addWoundVisual(new osg::Cylinder(osg::Vec3(), radius, .8f), joint.mParent,
+                    disc * toOsg(joint.mFrameInParent));
+                if (!(mWounds.mBurstHead && joint.mChild == 2))
+                    addWoundVisual(new osg::Cylinder(osg::Vec3(), radius, .8f), joint.mChild,
+                        disc * toOsg(joint.mFrameInChild));
+            }
+            if (mWounds.mBurstHead)
+                for (std::size_t part = 15; part < mDefinitions.size(); ++part)
+                    addWoundVisual(new osg::Box(osg::Vec3(), mDefinitions[part].mRadius * 1.5f), part,
+                        osg::Matrixf::identity());
+        }
+
+        void updateWounds(float duration)
+        {
+            const auto inverseRoot = osg::Matrixf::inverse(rootWorldMatrix(*mRoot));
+            for (const auto& visual : mWoundVisuals)
+                visual.mNode->setMatrix(visual.mLocal * mBodyMatrices[visual.mBody] * inverseRoot);
+            mSinceBlood += std::max(0.f, duration);
+            if (!mSettings.mBloodEffect || mElapsed >= mSettings.mBleedDuration || mSinceBlood < .25f)
+                return;
+            mSinceBlood = 0;
+            for (const auto& joint : mJoints)
+            {
+                if (!mWounds.cuts(joint.mChild))
+                    continue;
+                mSettings.mBloodEffect((toOsg(joint.mFrameInParent) * mBodyMatrices[joint.mParent]).getTrans());
+                if (!(mWounds.mBurstHead && joint.mChild == 2))
+                    mSettings.mBloodEffect((toOsg(joint.mFrameInChild) * mBodyMatrices[joint.mChild]).getTrans());
+            }
+        }
 
         void updateAppearance()
         {
@@ -279,6 +346,8 @@ namespace MWRender
 
         ~Impl()
         {
+            for (const auto& visual : mWoundVisuals)
+                mRoot->removeChild(visual.mNode);
             for (const BonePose& bone : mBones)
             {
                 bone.mNode->removeUpdateCallback(bone.mCallback);
@@ -666,11 +735,51 @@ namespace MWRender
         impl->mRight = right;
         impl->mForward = forward;
         impl->mCollisionVertices = std::move(vertices);
+        if (humanoid && settings.mNpc)
+        {
+            std::size_t closest = 0;
+            float distance = std::numeric_limits<float>::max();
+            const osg::Vec3f contact = impact.mHasWeaponContact ? impact.mWeaponPosition : impact.mPosition;
+            for (std::size_t part = 0; part < bodies.size(); ++part)
+            {
+                // Distance to the capsule axis, not its centre: a head contact
+                // must not be attributed to the centre of a long upper arm.
+                const auto local = bodies[part].mTransform.inverse() * toBullet(contact);
+                const auto y = std::clamp(local.y(), -bodies[part].mLength * .5, bodies[part].mLength * .5);
+                const float d = std::max(0., double((local - btVector3(0, y, 0)).length() - bodies[part].mRadius));
+                if (d < distance)
+                {
+                    distance = d;
+                    closest = part;
+                }
+            }
+            impl->mWounds = Ragdoll::selectWounds(impact, closest, settings.mWoundRoll, settings.mWoundChance);
+            if (impl->mWounds.mBurstHead)
+            {
+                const auto head = bodies[2];
+                bodies[2].mMass = .001;
+                bodies[2].mRadius = .25;
+                bodies[2].mLength = 0;
+                for (unsigned i = 0; i < 6; ++i)
+                {
+                    auto gib = head;
+                    gib.mMass = (head.mMass - .001) / 6;
+                    gib.mRadius = head.mRadius * .35;
+                    gib.mLength = 0;
+                    const float angle = i * 6.2831853f / 6;
+                    gib.mTransform.getOrigin() += btVector3(std::cos(angle), std::sin(angle), (i % 2) * .5)
+                        * head.mRadius * .7;
+                    bodies.push_back(gib);
+                }
+            }
+        }
         Ragdoll::Settings physics;
         if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Poison)
             physics.mBodyMode = Ragdoll::BodyMode::Soft;
         else if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Frost)
             physics.mBodyMode = Ragdoll::BodyMode::Rigid;
+        if (impl->mWounds.mCuts)
+            physics.mBodyMode = Ragdoll::BodyMode::Articulated;
         impl->mMode = physics.mBodyMode;
         impl->mDefinitions = bodies;
         impl->mJoints = joints;
@@ -687,6 +796,25 @@ namespace MWRender
         impl->mBodyMatrices.reserve(impl->mDefinitions.size());
         for (std::size_t i = 0; i < impl->mDefinitions.size(); ++i)
             impl->mBodyMatrices.push_back(toOsg(impl->mSimulation->getBodyTransform(i)));
+        impl->initWounds();
+        for (std::size_t i = 0; i < impl->mJoints.size(); ++i)
+        {
+            const auto& joint = impl->mJoints[i];
+            if (impl->mWounds.cuts(joint.mChild))
+            {
+                const auto outward = unit(toOsg(impl->mDefinitions[joint.mChild].mTransform.getOrigin())
+                    - toOsg(impl->mDefinitions[joint.mParent].mTransform.getOrigin()), right);
+                impl->mSimulation->applyImpulse(joint.mChild,
+                    toBullet((outward * 90.f + osg::Vec3f(0, 0, 100)) * float(impl->mDefinitions[joint.mChild].mMass)),
+                    impl->mDefinitions[joint.mChild].mTransform.getOrigin());
+            }
+        }
+        for (std::size_t part = 15; impl->mWounds.mBurstHead && part < impl->mDefinitions.size(); ++part)
+        {
+            const float angle = (part - 15) * 6.2831853f / 6;
+            impl->mSimulation->setBodyVelocity(part, btVector3(std::cos(angle) * 130, std::sin(angle) * 130, 140),
+                btVector3(8, -5, 6));
+        }
         impl->acquireBudget(impl);
         if (std::isfinite(settings.mInitialVelocity.length2()) && settings.mInitialVelocity.length2() > 0)
             impl->mSimulation->applyWholeBodyImpulse(toBullet(settings.mInitialVelocity * mass));
@@ -752,7 +880,8 @@ namespace MWRender
             if (impact.mMagicAttraction && impact.mMagicDistance > 0.f)
                 impl->mSimulation->attract(toBullet(impact.mMagicOrigin),
                     impact.mMagicDistance * Constants::UnitsPerMeter, settings.mImpulseReferenceMass);
-            if (impact.mCrossbow && settings.mPinEnabled && impact.mWeaponDirection.length2() > 0.0001f)
+            if (impact.mCrossbow && !impl->mWounds.mBurstHead && settings.mPinEnabled
+                && impact.mWeaponDirection.length2() > 0.0001f)
             {
                 impl->mPinDirection = unit(impact.mWeaponDirection);
                 impl->mPinStart = toOsg(impl->mSimulation->getBodyTransform(impl->mPinBody).getOrigin());
@@ -777,6 +906,7 @@ namespace MWRender
         result->refreshCallbacks();
         result->mImpl->applyPose();
         result->mImpl->updateAppearance();
+        result->mImpl->updateWounds(0);
         return result;
     }
 
@@ -789,7 +919,8 @@ namespace MWRender
             && state.mMass == impl.mMass && state.mFloating == impl.mFloating
             && state.mMode == static_cast<int>(impl.mMode) && state.mFireDuration == impl.mSettings.mFireEffectDuration
             && state.mPoisonDuration == impl.mSettings.mPoisonEffectDuration
-            && state.mShockDuration == impl.mSettings.mShockDuration)
+            && state.mShockDuration == impl.mSettings.mShockDuration
+            && state.mBleedDuration == impl.mSettings.mBleedDuration)
             return;
         state.mElement = static_cast<int>(impl.mAppearanceElement);
         state.mMode = static_cast<int>(impl.mMode);
@@ -803,6 +934,9 @@ namespace MWRender
         state.mFireDuration = impl.mSettings.mFireEffectDuration;
         state.mPoisonDuration = impl.mSettings.mPoisonEffectDuration;
         state.mShockDuration = impl.mSettings.mShockDuration;
+        state.mCuts = impl.mWounds.mCuts;
+        state.mBurstHead = impl.mWounds.mBurstHead;
+        state.mBleedDuration = impl.mSettings.mBleedDuration;
         state.mPinnedBody = impl.mPinned ? static_cast<int>(impl.mPinBody) : -1;
         state.mPinPoint = { impl.mPinPoint.x(), impl.mPinPoint.y(), impl.mPinPoint.z() };
         if (!state.mPresent)
@@ -893,6 +1027,8 @@ namespace MWRender
         impl->mSettings.mFireEffectDuration = saved.mFireDuration;
         impl->mSettings.mPoisonEffectDuration = saved.mPoisonDuration;
         impl->mSettings.mShockDuration = saved.mShockDuration;
+        impl->mSettings.mBleedDuration = saved.mBleedDuration;
+        impl->mWounds = { saved.mCuts, saved.mBurstHead };
         impl->mElapsed = saved.mElapsed;
         impl->mMass = saved.mMass;
         impl->mTorsoLength = saved.mTorsoLength;
@@ -985,10 +1121,12 @@ namespace MWRender
         impl->mAppearance = std::make_unique<RagdollAppearance>(root, impl->mAppearanceElement,
             RagdollAppearance::Settings{ settings.mPoisonTransitionTime, settings.mFireTransitionTime,
                 settings.mFrostTransitionTime, saved.mFireDuration, saved.mPoisonDuration, saved.mShockDuration });
+        impl->initWounds();
         auto result = std::unique_ptr<RagdollController>(new RagdollController(std::move(impl)));
         result->refreshCallbacks();
         result->mImpl->applyPose();
         result->mImpl->updateAppearance();
+        result->mImpl->updateWounds(0);
         return result;
     }
 
@@ -998,7 +1136,7 @@ namespace MWRender
     }
 
     void RagdollController::setRuntimeSettings(int maxActive, float maxSimulationTime, float pinDistance,
-        float fireDuration, float poisonDuration, float shockDuration)
+        float fireDuration, float poisonDuration, float shockDuration, float bleedDuration)
     {
         auto& impl = *mImpl;
         if (impl.mSettings.mMaxActive != maxActive)
@@ -1018,6 +1156,7 @@ namespace MWRender
         impl.mSettings.mFireEffectDuration = fireDuration;
         impl.mSettings.mPoisonEffectDuration = poisonDuration;
         impl.mSettings.mShockDuration = shockDuration;
+        impl.mSettings.mBleedDuration = bleedDuration;
         impl.mAppearance->setEffectDurations(fireDuration, poisonDuration, shockDuration);
     }
 
@@ -1090,7 +1229,7 @@ namespace MWRender
                     mImpl->mBodyMatrices[i] = toOsg(mImpl->mSimulation->getBodyTransform(i));
                 if (mImpl->mSimulationAge >= mImpl->mSettings.mMaxSimulationTime)
                 {
-                    if (mImpl->mSimulation->isBelowWaterSurface() && !mImpl->mPinned)
+                    if (mImpl->mSimulation->isBelowWaterSurface() && !mImpl->mPinned && !mImpl->mWounds.mCuts)
                     {
                         if (!mImpl->mFloating)
                         {
@@ -1127,6 +1266,7 @@ namespace MWRender
         }
         mImpl->applyPose();
         mImpl->updateAppearance();
+        mImpl->updateWounds(duration);
     }
 
     void RagdollController::setSkinParts(std::vector<osg::ref_ptr<osg::Node>> skinParts)
@@ -1153,6 +1293,26 @@ namespace MWRender
     bool RagdollController::isPinned() const
     {
         return mImpl->mPinned;
+    }
+    Ragdoll::Wounds RagdollController::getWounds() const
+    {
+        return mImpl->mWounds;
+    }
+    std::map<std::string, osg::Matrixf> RagdollController::getUncutBoneMatrices() const
+    {
+        std::map<std::string, osg::Matrixf> result;
+        if (!mImpl->mWounds.mCuts)
+            return result;
+        const auto chest = std::find_if(mImpl->mBones.begin(), mImpl->mBones.end(),
+            [](const auto& bone) { return bone.mBody == 1; });
+        if (chest == mImpl->mBones.end())
+            return result;
+        const auto restChest = osg::Matrixf::inverse(chest->mRestWorld
+            * osg::Matrixf::inverse(chest->mBoneToBody));
+        const auto chestToSkeleton = mImpl->mBodyMatrices[1] * osg::Matrixf::inverse(rootWorldMatrix(*mImpl->mRoot));
+        for (const auto& bone : mImpl->mBones)
+            result.emplace(bone.mNode->getName(), bone.mRestWorld * restChest * chestToSkeleton);
+        return result;
     }
 
     osg::Vec3f RagdollController::getPosition() const

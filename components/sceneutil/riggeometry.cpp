@@ -175,7 +175,11 @@ namespace SceneUtil
         for (osg::Matrixf& boneMat : boneMatrices)
         {
             if (*bone != nullptr)
-                boneMat = boneInfo->mInvBindMatrix * (*bone)->mMatrixInSkeletonSpace;
+            {
+                const auto override = mBonePoseOverride.find(boneInfo->mName);
+                boneMat = boneInfo->mInvBindMatrix * (override == mBonePoseOverride.end()
+                    ? (*bone)->mMatrixInSkeletonSpace : override->second);
+            }
             ++bone;
             ++boneInfo;
         }
@@ -263,7 +267,9 @@ namespace SceneUtil
                 continue;
 
             osg::BoundingSpheref bs = info.mBoundSphere;
-            transformBoundingSphere(bone->mMatrixInSkeletonSpace * transform, bs);
+            const auto override = mBonePoseOverride.find(info.mName);
+            transformBoundingSphere((override == mBonePoseOverride.end()
+                ? bone->mMatrixInSkeletonSpace : override->second) * transform, bs);
             box.expandBy(bs);
         }
 

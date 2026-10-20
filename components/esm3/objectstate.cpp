@@ -110,6 +110,18 @@ namespace ESM
             std::copy_n(data + 17, 16, bone.mBoneToBody.begin());
             mBones.push_back(std::move(bone));
         }
+        if (reader.peekNextSub("RWND"))
+        {
+            float wounds[3];
+            readPhysicsFloats(reader, "RWND", wounds);
+            if (!indexValue(wounds[0], 0, 32767) || !indexValue(wounds[1], 0, 1)
+                || (unsigned(wounds[0]) & ~686u) || (wounds[1] != 0 && !(unsigned(wounds[0]) & 4u))
+                || wounds[2] < 0 || wounds[2] > 60)
+                throw std::runtime_error("Invalid saved ragdoll wounds");
+            mCuts = unsigned(wounds[0]);
+            mBurstHead = wounds[1] != 0;
+            mBleedDuration = wounds[2];
+        }
     }
 
     void RagdollState::save(ESMWriter& writer) const
@@ -154,6 +166,8 @@ namespace ESM
             std::copy(bone.mBoneToBody.begin(), bone.mBoneToBody.end(), data + 17);
             writer.writeHNT("RBMT", data);
         }
+        const float wounds[3] = { float(mCuts), mBurstHead ? 1.f : 0.f, mBleedDuration };
+        writer.writeHNT("RWND", wounds);
     }
 
     void ObjectState::load(ESMReader& esm)

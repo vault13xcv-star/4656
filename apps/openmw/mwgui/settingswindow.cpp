@@ -688,7 +688,7 @@ namespace MWGui
             return;
         // Match the native controls list: canvas coordinates exclude the bar.
         mPhysicsView->setVisibleVScroll(false);
-        mPhysicsView->setCanvasSize(mPhysicsView->getWidth(), 664);
+        mPhysicsView->setCanvasSize(mPhysicsView->getWidth(), 724);
         mPhysicsView->setVisibleVScroll(true);
     }
 
@@ -706,6 +706,7 @@ namespace MWGui
         settings.mMaxActiveItems.reset();
         settings.mPinMaxDistance.reset();
         settings.mStatusDurationScale.reset();
+        settings.mDismembermentChance.reset();
         configureWidgets(mPhysicsView, false);
         apply();
     }

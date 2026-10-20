@@ -12,6 +12,8 @@ namespace Settings
 
         SettingValue<bool> mEnabled{ mIndex, "Ragdoll", "enabled" };
         SettingValue<bool> mItemPhysics{ mIndex, "Ragdoll", "item physics" };
+        SettingValue<float> mDismembermentChance{ mIndex, "Ragdoll", "dismemberment chance",
+            makeClampSanitizerFloat(.15f, .6f) };
         SettingValue<float> mMeleeImpulseScale{ mIndex, "Ragdoll", "melee impulse scale",
             makeClampSanitizerFloat(.5f, 2.f) };
         SettingValue<float> mCrossbowImpulseScale{ mIndex, "Ragdoll", "crossbow impulse scale",

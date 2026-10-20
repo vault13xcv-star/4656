@@ -36,6 +36,9 @@ namespace ESM
         float mElapsed = 0, mTimeLeft = 0, mMass = 70, mTorsoLength = 40;
         float mArmorMass = 0;
         float mFireDuration = 15, mPoisonDuration = 10, mShockDuration = 10;
+        unsigned mCuts = 0;
+        bool mBurstHead = false;
+        float mBleedDuration = 10;
         std::array<float, 3> mPinPoint{}, mAttractionTarget{};
         float mAttractionDistance = 0, mAttractionLeft = 0, mAttractionDuration = 2;
         std::vector<RagdollBodyState> mBodies;

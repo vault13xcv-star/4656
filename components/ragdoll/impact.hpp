@@ -18,6 +18,8 @@ namespace Ragdoll
         Shock
     };
 
+    enum class WoundWeapon { None, Blade, HeavyBlade, Blunt, Bolt };
+
     // Transient, world-space provenance of the lethal contact. Distances are metres
     // for a reference-mass body; the renderer converts these to momentum.
     struct Impact
@@ -34,6 +36,8 @@ namespace Ragdoll
         float mWeaponMultiplier = 1.f;
         float mMagicDistance = 0.f;
         bool mCrossbow = false;
+        WoundWeapon mWoundWeapon = WoundWeapon::None;
+        bool mDirectMagic = false;
         DeathElement mDeathElement = DeathElement::None;
         float mDominantMagicDamage = 0.f;
         bool mShock = false; // Compatibility flag; true only for dominant Shock.

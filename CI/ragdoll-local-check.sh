@@ -26,10 +26,13 @@ cmake -S "$source_dir" -B "$build_dir" -G Ninja \
 cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --target \
     components/CMakeFiles/components.dir/ragdoll/simulation.cpp.o \
     components/CMakeFiles/components.dir/ragdoll/items.cpp.o \
+    components/CMakeFiles/components.dir/sceneutil/riggeometry.cpp.o \
+    components/CMakeFiles/components.dir/esm3/objectstate.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdoll.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdollappearance.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/animation.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/npcanimation.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwgui/settingswindow.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/npc.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/light.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/creature.cpp.o \
