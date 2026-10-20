@@ -31,7 +31,7 @@ namespace ESM
     void RagdollState::load(ESMReader& reader)
     {
         *this = {};
-        if (!reader.isNextSub("RPHY"))
+        if (!reader.peekNextSub("RPHY"))
             return;
         float header[25];
         readPhysicsFloats(reader, "RPHY", header);
@@ -191,7 +191,7 @@ namespace ESM
         mAnimationState.load(esm);
 
         mItemPhysics = {};
-        if (esm.isNextSub("IPHY"))
+        if (esm.peekNextSub("IPHY"))
         {
             float values[8];
             esm.getHNT(values, "IPHY");
