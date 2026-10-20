@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "sourceCommit": "7f5266819f0f61fcb61184c85018f3f8d2b731d9",
+  "sourceBranch": "experimental/ragdoll-dismemberment",
+  "runId": "39479066505",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/39479066505",
+  "resultsBranch": "build-results/ragdoll-7f5266819f0f61fcb61184c85018f3f8d2b731d9-39479066505-1",
+  "stage": "dependencies",
+  "result": "running",
+  "updatedUtc": "2026-10-20T18:57:45.1057500Z",
+  "releaseUrl": null,
+  "package": null
+}
