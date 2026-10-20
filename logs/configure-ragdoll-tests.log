@@ -1,0 +1,16 @@
+-- The CXX compiler identification is MSVC 19.44.35229.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found Bullet: D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/BulletDynamics.lib
+-- Checking if Bullet uses double precision
+-- Found OpenGL: opengl32
+-- Found osg: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osg.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgd.lib
+-- Found osgUtil: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgUtil.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgUtild.lib
+-- Found OpenThreads: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/OpenThreads.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/OpenThreadsd.lib
+-- Found OpenSceneGraph: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osg.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgUtil.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgUtild.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/OpenThreads.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/OpenThreadsd.lib (found suitable version "3.6.5", minimum required is "3.6.5")
+-- Configuring done (1.8s)
+-- Generating done (0.0s)
+-- Build files have been written to: D:/a/4656/4656/build-ragdoll-tests
