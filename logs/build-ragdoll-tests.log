@@ -1,0 +1,17 @@
+[1/17] Building CXX object CMakeFiles\item-physics-tests.dir\items.cpp.obj
+[2/17] Building CXX object CMakeFiles\ragdoll-tests.dir\simulation.cpp.obj
+[3/17] Building CXX object CMakeFiles\ragdoll-tests.dir\tests\simulation.cpp.obj
+[4/17] Building CXX object CMakeFiles\item-physics-tests.dir\tests\items.cpp.obj
+[5/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\simulation.cpp.obj
+[6/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\items.cpp.obj
+[7/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\tests\render_pose.cpp.obj
+[8/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp.obj
+[9/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\sceneutil\skeleton.cpp.obj
+[10/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp.obj
+[11/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\debug\debuglog.cpp.obj
+[12/17] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\files\conversion.cpp.obj
+[13/17] Building CXX object CMakeFiles\ragdoll-impact.dir\tests\impact.cpp.obj
+[14/17] Linking CXX executable item-physics-tests.exe
+[15/17] Linking CXX executable ragdoll-tests.exe
+[16/17] Linking CXX executable ragdoll-impact.exe
+[17/17] Linking CXX executable ragdoll-render-tests.exe
