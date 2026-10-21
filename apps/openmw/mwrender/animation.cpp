@@ -1526,8 +1526,8 @@ namespace MWRender
         };
         if ((mRagdollObservedAlive || savedRagdoll.mPresent) && !mRagdollAttempted)
         {
-            // Native on-strike magic can kill before the queued Lua weapon hit
-            // resolves. Give that same contact a bounded opportunity to merge.
+            // Weapon Lua damage and on-strike duration magic can arrive in
+            // either order. Let both sides of the lethal contact merge briefly.
             if (!savedRagdoll.mPresent && mPtr.getClass().getCreatureStats(mPtr).isRagdollImpactPending()
                 && mRagdollPendingTime < 0.1f)
             {

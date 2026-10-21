@@ -263,6 +263,15 @@ namespace MWMechanics
             RagdollMagicImpact impact;
             impact.mHit = ragdollHit;
             impact.mEffect = ++ragdollHit->mNextEffect;
+            // Physical Lua damage may kill before this duration enchantment's
+            // first positive-time tick. Let the corpse wait briefly for the same
+            // contact's elemental presentation instead of freezing a plain body.
+            if (ragdollHit == mRagdollHit
+                && (effect.mEffectId == ESM::MagicEffect::FireDamage
+                    || effect.mEffectId == ESM::MagicEffect::FrostDamage
+                    || effect.mEffectId == ESM::MagicEffect::ShockDamage
+                    || effect.mEffectId == ESM::MagicEffect::Poison))
+                ragdollHit->mAwaitingMagic = true;
             impact.mOrigin = mHitPosition;
             impact.mDirection = mImpactDirection;
             impact.mExploded = exploded && (range != ESM::RT_Self || target != mCaster || mFromProjectile);

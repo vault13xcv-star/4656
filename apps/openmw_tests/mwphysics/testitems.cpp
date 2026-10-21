@@ -1,5 +1,7 @@
 #include "apps/openmw/mwclass/classes.hpp"
+#include "apps/openmw/mwbase/environment.hpp"
 #include "apps/openmw/mwmechanics/combat.hpp"
+#include "apps/openmw/mwmechanics/creaturestats.hpp"
 #include "apps/openmw/mwmechanics/ragdollimpact.hpp"
 #include "apps/openmw/mwphysics/itemhit.hpp"
 #include "apps/openmw/mwphysics/object.hpp"
@@ -8,6 +10,7 @@
 #include "apps/openmw/mwphysics/projectileconvexcallback.hpp"
 #include "apps/openmw/mwworld/cellvisitors.hpp"
 #include "apps/openmw/mwworld/class.hpp"
+#include "apps/openmw/mwworld/esmstore.hpp"
 #include "apps/openmw/mwworld/livecellref.hpp"
 
 #include <components/esm3/loadalch.hpp>
@@ -15,6 +18,7 @@
 #include <components/esm3/loadarmo.hpp>
 #include <components/esm3/loadbook.hpp>
 #include <components/esm3/loadclot.hpp>
+#include <components/esm3/creaturestats.hpp>
 #include <components/esm3/loadingr.hpp>
 #include <components/esm3/loadligh.hpp>
 #include <components/esm3/loadlock.hpp>
@@ -531,6 +535,77 @@ namespace
                 EXPECT_EQ(torso.cuts(1), group == Weapon::HeavyBlade && attack == Attack::Slash);
                 EXPECT_FALSE(torso.mBurstHead);
             }
+        }
+    }
+
+    TEST_F(ItemPhysicsIntegration, PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders)
+    {
+        MWBase::Environment environment;
+        MWWorld::ESMStore store;
+        environment.setESMStore(store);
+        ESM::NPC base;
+        base.blank();
+        const auto* npc = store.insert(base);
+        Reference<ESM::Weapon> blade(0, 0, 0), bow(0, 0, 0), bolt(0, 0, 0);
+        blade.mBase.mData.mType = ESM::Weapon::LongBladeOneHand;
+        bow.mBase.mData.mType = ESM::Weapon::MarksmanCrossbow;
+        bolt.mBase.mData.mType = ESM::Weapon::Bolt;
+        for (bool ranged : { false, true })
+        for (bool weaponFirst : { false, true })
+        for (auto element : { Ragdoll::DeathElement::Fire, Ragdoll::DeathElement::Frost,
+                 Ragdoll::DeathElement::Shock, Ragdoll::DeathElement::Poison })
+        {
+            MWMechanics::CreatureStats stats;
+            stats.getSpells().setSpells(npc->mId);
+            ESM::CreatureStats saved{};
+            saved.blank();
+            saved.mDead = true;
+            stats.readState(saved); // Native dead stats without assets or a World timestamp mock.
+            auto hit = MWMechanics::makeRagdollHit({}, {}, ranged ? bow.ptr() : blade.ptr(),
+                ranged ? bolt.ptr() : MWWorld::Ptr(), ESM::Weapon::AT_Chop, {}, { 0, 1, 0 });
+            hit->mWeapon.mWeaponHitBody = 4;
+            hit->mAwaitingMagic = true;
+            const auto id = stats.queueRagdollHit(hit);
+            MWMechanics::RagdollMagicImpact magic;
+            magic.mHit = hit;
+            magic.mRadius = 4;
+            magic.mDirection.set(1, 0, 0);
+            ESM::ActiveEffect effect{};
+            effect.mDuration = effect.mTimeLeft = 2;
+            effect.mFlags = ESM::ActiveEffect::Flag_Applied | ESM::ActiveEffect::Flag_Remove;
+            hit->beginMagicTick(0); // updateMagicEffects(victim) primes before Lua hit action.
+            const auto physical = [&] {
+                auto queued = stats.takeRagdollHit(id);
+                ASSERT_EQ(queued, hit);
+                queued->mAwaitingWeapon = false;
+                queued->applyWeapon();
+                stats.recordRagdollDeath(queued);
+            };
+            if (weaponFirst)
+            {
+                physical();
+                ASSERT_TRUE(stats.isRagdollImpactPending()) << "Renderer would create a plain corpse before enchantment damage";
+            }
+            hit->beginMagicTick(1.f / 60);
+            hit->applyMagic(1, MWMechanics::makeRagdollMagicImpact(magic,
+                osg::Vec3f(Constants::UnitsPerMeter, 0, 0), 1, element, 5));
+            stats.recordRagdollDeath(hit);
+            if (!weaponFirst)
+            {
+                ASSERT_TRUE(stats.isRagdollImpactPending());
+                physical();
+            }
+            const auto& death = stats.getRagdollImpact();
+            EXPECT_FALSE(stats.isRagdollImpactPending());
+            EXPECT_EQ(death.mDeathElement, element);
+            EXPECT_EQ(death.mCrossbow, ranged);
+            EXPECT_TRUE(death.mDirectMagic);
+            EXPECT_GT(death.mMagicDistance, 0);
+            const auto wound = Ragdoll::selectWounds(death, death.mWeaponHitBody, 0, 1);
+            const unsigned expected = element == Ragdoll::DeathElement::Fire || element == Ragdoll::DeathElement::Frost ? 684
+                : element == Ragdoll::DeathElement::Shock ? 4 : ranged ? 0 : 8;
+            EXPECT_EQ(wound.mCuts, expected);
+            EXPECT_EQ(wound.mBurstHead, element == Ragdoll::DeathElement::Shock);
         }
     }
 }

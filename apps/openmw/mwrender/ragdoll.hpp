@@ -79,6 +79,13 @@ namespace MWRender
             CollisionSnapshot snapshot, const Settings& settings, const ESM::RagdollState& state);
         /// Resolve a verified surface contact on the current living pose; -1 if unsupported or too far away.
         static int findHitBody(osg::Group& root, const osg::Vec3f& contact);
+        struct HitContact
+        {
+            int mBody = -1;
+            osg::Vec3f mPosition;
+        };
+        /// Anatomical fallback for a native confirmed hit when visible meshes cannot be intersected.
+        static HitContact findHitContact(osg::Group& root, const osg::Vec3f& from, const osg::Vec3f& to);
         void writeState(ESM::RagdollState& state) const;
         void setWaterLevel(std::optional<float> level);
         void setArmorMass(float mass);

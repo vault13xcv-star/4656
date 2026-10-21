@@ -1,5 +1,6 @@
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
 #include <components/misc/convert.hpp>
+#include <components/esm3/activespells.hpp>
 #include <components/misc/mathutil.hpp>
 #include <components/ragdoll/profiles.hpp>
 #include <components/ragdoll/dismemberment.hpp>
@@ -335,7 +336,7 @@ namespace
             "Magic bookkeeping lost an enchantment before asynchronous weapon damage arrived");
         hit.applyWeapon();
         hit.mAwaitingWeapon = false;
-        hit.beginMagicTick();
+        hit.beginMagicTick(1.1f);
         hit.applyMagic(2, magic(osg::Vec3f(0, 1, 0), 3, Element::Poison, 2));
         check(hit.mApplied.mDeathElement == Element::Poison && near(hit.mApplied.mDominantMagicDamage, 2)
                 && !hit.mApplied.mShock && !hit.mApplied.mCrossbow && near(hit.mApplied.mWeaponDistance, 0),
@@ -407,90 +408,102 @@ namespace
         }
     }
 
-    void testOnlyInitialDamageApplicationCarriesBlast()
+    void testOneSecondDeathWindow()
     {
         for (const auto element : { Element::Fire, Element::Frost, Element::Shock, Element::Poison })
         for (bool exploded : { false, true })
         for (float radius : { 0.f, 10.f })
+        for (double age : { 0., .001, .05, .5, .999, 1., 1.001, 2., 10. })
         {
             MWMechanics::RagdollMagicImpact context;
             context.mHit = std::make_shared<MWMechanics::RagdollHit>();
+            context.mHit->mContactAge = age;
             context.mExploded = exploded;
             context.mRadius = radius;
-            context.mOrigin.set(0, 0, 0);
             context.mDirection.set(1, 0, 0);
             const osg::Vec3f target(2 * Constants::UnitsPerMeter, 0, 0);
-            // A slow first frame is still the first native damage application.
-            context.mHit->beginMagicTick(.25f);
-            const auto initial = MWMechanics::makeRagdollMagicImpact(context, target, 3, element, 20, true);
-            check(initial.mDirectMagic == !exploded, "Frame time incorrectly changed initial direct-hit attribution");
-            if (radius > 0)
-                check(initial.mMagicDistance > 0.f, "Instant lethal damage lost its explosion/attraction");
-            context.mHit->applyMagic(1, initial);
-            for (float elapsed : { .001f, .05f, 2.f, 10.f })
+            const auto impact = MWMechanics::makeRagdollMagicImpact(context, target, 3, element, 20);
+            const bool recent = age < 1.;
+            check(impact.mDirectMagic == (recent && !exploded), "Incorrect direct-hit one-second boundary");
+            check(impact.mValid && impact.mDeathElement == element && near(impact.mDominantMagicDamage, 20),
+                "A late DOT death lost its elemental presentation");
+            if (!recent)
             {
-                context.mHit->beginMagicTick(elapsed);
-                const auto dot = MWMechanics::makeRagdollMagicImpact(context, target, 3, element, 7, false);
-                context.mHit->applyMagic(1, dot);
-                const auto& death = context.mHit->mApplied;
-                check(death.mValid && death.mDeathElement == element && near(death.mDominantMagicDamage, 7),
-                    "DOT lost its element or effective lethal damage");
-                check(near(death.mMagicDistance, 0) && near(death.mMagicDirection, osg::Vec3f())
-                        && !death.mMagicAttraction && !death.mDirectMagic && !death.mHasWeaponContact,
-                    "A later DOT death replayed the initial blast, attraction or direct contact");
-                check(!Ragdoll::selectWounds(death, 2, 0, 1).mCuts,
-                    "DOT death reused initial direct-hit dismemberment");
+                check(near(impact.mMagicDistance, 0) && near(impact.mMagicDirection, osg::Vec3f())
+                        && !impact.mMagicAttraction && !impact.mDirectMagic,
+                    "Death at/after one second replayed the wave or direct-contact gore");
+                check(!Ragdoll::selectWounds(impact, 2, 0, 1).mCuts, "Late DOT death reused direct gore");
             }
+            else if (radius > 0)
+                check(impact.mMagicDistance > 0, "Death before one second lost its original blast/attraction");
         }
     }
 
-    void testLethalMagicIsPreservedWhileWaitingForWeapon()
+    void testZeroTimePrimingAndEnchantmentOrder()
     {
-        MWMechanics::RagdollMagicImpact context;
-        context.mHit = std::make_shared<MWMechanics::RagdollHit>();
-        context.mHit->mAwaitingWeapon = true;
-        context.mRadius = 10;
-        context.mDirection.set(1, 0, 0);
-        auto& hit = *context.mHit;
-        hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Fire, 50, true));
-        // The other effect in the same lethal application is still considered.
-        context.mRadius = 4;
-        hit.applyMagic(2, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Frost, 70, true));
-        check(hit.mApplied.mDeathElement == Element::Frost && near(hit.mApplied.mMagicDistance, 4),
-            "Sealing happened before all lethal spell effects were considered");
-        hit.sealMagic(); // The next ActiveSpells update starts with the actor already dead.
-        for (int tick = 0; tick < 30; ++tick)
-            hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Fire, 200, false));
-        hit.mWeapon.mHasWeaponContact = true;
-        hit.mWeapon.mWeaponHitBody = 2;
-        hit.mWeapon.mAttackType = Ragdoll::AttackType::Chop;
-        hit.mWeapon.mWeaponDistance = 1;
-        hit.mWeapon.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
-        hit.applyWeapon();
-        hit.mAwaitingWeapon = false;
-        check(hit.mApplied.mDeathElement == Element::Frost && near(hit.mApplied.mMagicDistance, 4)
-                && hit.mApplied.mDirectMagic && near(hit.mApplied.mWeaponDistance, 1)
-                && hit.mApplied.mWeaponHitBody == 2,
-            "A dead-actor DOT update erased an instant lethal blast before deferred weapon damage merged");
-        // The reverse native order also occurs: physical Lua damage can kill
-        // before the queued enchantment's very first application. That first
-        // application must still join the same contact, even after sealing.
-        MWMechanics::RagdollHit weaponFirst;
-        weaponFirst.mWeapon = hit.mWeapon;
-        weaponFirst.applyWeapon();
-        weaponFirst.sealMagic();
-        weaponFirst.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Frost, 70, true));
-        check(weaponFirst.mApplied.mDeathElement == Element::Frost && near(weaponFirst.mApplied.mMagicDistance, 4)
-                && near(weaponFirst.mApplied.mWeaponDistance, 1),
-            "A queued enchantment's initial application was rejected after physical damage killed first");
-        // A resurrected actor can still die from the ongoing spell, without the
-        // old blast or physical hit coming back with it.
-        hit.beginMagicTick(.2f);
-        hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Fire, 8, false));
-        check(hit.mApplied.mDeathElement == Element::Fire && near(hit.mApplied.mMagicDistance, 0)
-                && !hit.mApplied.mHasWeaponContact && !hit.mApplied.mDirectMagic,
-            "Resurrection retained sealed provenance or revived the old explosion");
+        for (bool weaponFirst : { false, true })
+        for (auto element : { Element::Fire, Element::Frost, Element::Shock, Element::Poison })
+        {
+            MWMechanics::RagdollMagicImpact context;
+            context.mHit = std::make_shared<MWMechanics::RagdollHit>();
+            context.mRadius = 4;
+            context.mDirection.set(1, 0, 0);
+            auto& hit = *context.mHit;
+            hit.mAwaitingWeapon = hit.mAwaitingMagic = true;
+            hit.mWeapon.mHasWeaponContact = hit.mWeapon.mValid = true;
+            hit.mWeapon.mWeaponHitBody = 4;
+            hit.mWeapon.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
+            hit.mWeapon.mAttackType = Ragdoll::AttackType::Chop;
+            hit.mWeapon.mWeaponDistance = .25f;
+            hit.mWeapon.mWeaponDirection.set(0, 1, -.45f);
+            // This is the actual native lifecycle: zero-time initialization sets
+            // Applied/Remove with no health damage; the first real duration tick
+            // therefore already has Flag_Applied. It is still a contact death.
+            ESM::ActiveEffect effect{};
+            effect.mDuration = effect.mTimeLeft = 2;
+            effect.mFlags = ESM::ActiveEffect::Flag_Applied | ESM::ActiveEffect::Flag_Remove;
+            hit.beginMagicTick(0);
+            check(hit.mContactAge == 0 && hit.isPending(), "Zero-time priming aged/completed a native contact");
+            if (weaponFirst)
+            {
+                hit.applyWeapon();
+                hit.mAwaitingWeapon = false;
+                check(hit.isPending(), "A physical kill did not wait for its queued enchantment");
+            }
+            hit.beginMagicTick(1.f / 60);
+            effect.mMagnitude = 200.f / 60;
+            effect.mTimeLeft -= 1.f / 60;
+            check(effect.mFlags & ESM::ActiveEffect::Flag_Applied, "Duration regression fixture lost its native flag");
+            const auto impact = MWMechanics::makeRagdollMagicImpact(context,
+                osg::Vec3f(Constants::UnitsPerMeter, 0, 0), 1, element, effect.mMagnitude);
+            hit.applyMagic(1, impact);
+            if (!weaponFirst)
+            {
+                hit.applyWeapon();
+                hit.mAwaitingWeapon = false;
+            }
+            check(!hit.isPending() && hit.mApplied.mDeathElement == element && hit.mApplied.mDirectMagic
+                    && hit.mApplied.mMagicDistance > 0 && hit.mApplied.mWeaponHitBody == 4
+                    && near(hit.mApplied.mWeaponDistance, .25f),
+                "Primed enchantment/physical ordering lost status, direct gore, wave or the struck arm");
+            const auto wound = Ragdoll::selectWounds(hit.mApplied, hit.mApplied.mWeaponHitBody, 0, 1);
+            const unsigned cuts = element == Element::Fire || element == Element::Frost ? 684
+                : element == Element::Shock ? 4 : 8;
+            check(wound.mCuts == cuts && wound.mBurstHead == (element == Element::Shock),
+                "An enchanted one-handed sword lost physical or elemental dismemberment");
+            hit.beginMagicTick(0);
+            hit.beginMagicTick(.5f);
+            check(hit.mApplied.mDeathElement == element && hit.mApplied.mDirectMagic
+                    && hit.mApplied.mWeaponHitBody == 4 && hit.mApplied.mMagicDistance > 0,
+                "A short-lived enchantment was erased before deferred physical damage could kill");
+            hit.beginMagicTick(1.f);
+            hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, element, 5));
+            check(hit.mApplied.mDeathElement == element && !hit.mApplied.mDirectMagic
+                    && !hit.mApplied.mHasWeaponContact && near(hit.mApplied.mMagicDistance, 0),
+                "A late enchanted DOT death retained the original blow or explosion");
+        }
     }
+
 }
 
 int main()
@@ -540,7 +553,7 @@ int main()
             context.mHit->applyWeapon();
             check(near(context.mHit->mApplied.mWeaponImpulseScale, 3), "Weapon provenance discarded its slider");
             context.mHit->mContactAge = 1;
-            const auto tick = MWMechanics::makeRagdollMagicImpact(context, {}, 3, Element::Fire, 50, false);
+            const auto tick = MWMechanics::makeRagdollMagicImpact(context, {}, 3, Element::Fire, 50);
             check(near(tick.mMagicDistance, 0), "Duration tick invented a direct-hit impulse");
         }
         testDominantDamageSelectsMotionAndElement();
@@ -556,8 +569,8 @@ int main()
         testExplosionWaveGeometry();
         testSavedItemRotation();
         testStrikeTypeAndAnatomyRules();
-        testOnlyInitialDamageApplicationCarriesBlast();
-        testLethalMagicIsPreservedWhileWaitingForWeapon();
+        testOneSecondDeathWindow();
+        testZeroTimePrimingAndEnchantmentOrder();
         std::cout << "Ragdoll impact: 15 groups passed\n";
     }
     catch (const std::exception& error)

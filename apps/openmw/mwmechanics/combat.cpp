@@ -88,12 +88,20 @@ namespace
         if (!attacker.isEmpty())
             ignored.push_back(attacker);
         MWPhysics::RayCastingResult surface{};
-        if (!world->castRenderingRay(surface, from, to, attacker == world->getPlayerPtr(), false, ignored)
-            || surface.mHitObject != victim || surface.mHitBody == -2)
-            return;
-        impact.mWeaponPosition = surface.mHitPos;
-        impact.mWeaponHitBody = surface.mHitBody >= 0 ? surface.mHitBody
-            : MWRender::RagdollController::findHitBody(*animation->getObjectRoot(), surface.mHitPos);
+        if (world->castRenderingRay(surface, from, to, attacker == world->getPlayerPtr(), false, ignored)
+            && surface.mHitObject == victim && surface.mHitBody != -2)
+        {
+            impact.mWeaponPosition = surface.mHitPos;
+            impact.mWeaponHitBody = surface.mHitBody >= 0 ? surface.mHitBody
+                : MWRender::RagdollController::findHitBody(*animation->getObjectRoot(), surface.mHitPos);
+        }
+        if (impact.mWeaponHitBody < 0)
+        {
+            const auto contact = MWRender::RagdollController::findHitContact(*animation->getObjectRoot(), from, to);
+            impact.mWeaponHitBody = contact.mBody;
+            if (contact.mBody >= 0)
+                impact.mWeaponPosition = contact.mPosition;
+        }
     }
 
 }
@@ -222,11 +230,11 @@ namespace MWMechanics
                 cast.mRagdollHit = ragdollHit;
                 if (ragdollHit)
                     cast.mImpactDirection = ragdollHit->mWeapon.mWeaponDirection;
-                cast.cast(object, false);
+                const bool applied = cast.cast(object, false);
                 // Apply magic effects directly instead of waiting a frame to allow soul trap to work on one-hit kills
-                if (!victim.isEmpty() && victim.getClass().isActor())
+                if (applied && !victim.isEmpty() && victim.getClass().isActor())
                     MWBase::Environment::get().getMechanicsManager()->updateMagicEffects(victim);
-                return true;
+                return applied;
             }
         }
         return false;
@@ -470,6 +478,9 @@ namespace MWMechanics
         auto ragdollHit = makeRagdollHit(attacker, victim, weapon, projectile, 0, hitPosition, impactDirection);
         // Apply "On hit" effect of the projectile with the same contact identity.
         bool appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
+        if (weapon != projectile)
+            appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit)
+                || appliedEnchantment;
 
         if (validVictim)
         {

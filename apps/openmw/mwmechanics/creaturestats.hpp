@@ -183,8 +183,7 @@ namespace MWMechanics
         void recordRagdollDeath(const std::shared_ptr<RagdollHit>& hit);
         bool isRagdollDeathHit(const std::shared_ptr<RagdollHit>& hit) const;
         const Ragdoll::Impact& getRagdollImpact() const;
-        void sealRagdollDeathMagic() { if (mRagdollDeathHit) mRagdollDeathHit->sealMagic(); }
-        bool isRagdollImpactPending() const { return mRagdollDeathHit && mRagdollDeathHit->mAwaitingWeapon; }
+        bool isRagdollImpactPending() const { return mRagdollDeathHit && mRagdollDeathHit->isPending(); }
 
         bool isDeathAnimationFinished() const;
         void setDeathAnimationFinished(bool finished);

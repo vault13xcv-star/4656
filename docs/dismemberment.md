@@ -1,4 +1,4 @@
-# Real Combat Ragdoll 0.6.0-preview.4
+# Real Combat Ragdoll 0.6.0-preview.5
 
 Wounds now retain the native chop/slash/thrust hit key and the anatomical part
 captured on the living NPC before weapon damage, on-strike magic and deferred
@@ -6,7 +6,11 @@ Lua damage. Rendering rays identify the actual attached body/clothing/armour
 part, so a foreground arm is not confused with the leg behind it. Whole robes
 and untagged models use the current skeletal segments with signed capsule
 distance; no later death pose or random blood-effect position chooses the cut.
-An unverified surface contact produces no physical dismemberment.
+A native confirmed damaging hit no longer requires a second visible mesh
+intersection. If rendering cannot identify its surface, a ray through the living
+skeletal capsules resolves the part; broad melee-cone hits use the nearest
+segment to the aim. This restores one-handed cuts without random limb selection.
+Unsupported skeletons still fall back to the native death animation.
 
 | Physical weapon / attack | Eligible result after a successful wound roll |
 | --- | --- |
@@ -21,14 +25,29 @@ An unverified surface contact produces no physical dismemberment.
 Direct elemental on-strike enchantments retain their separate magical wound
 rules, including on spears and thrusts. A plain sword never bursts the head.
 
-Magic motion now belongs only to the first native damage application. Instant
-lethal hits retain their blast/attraction; later DOT deaths retain the elemental
-appearance but get no old explosion, attraction or direct-hit dismemberment.
-This uses the effect's actual applied flag, not a frame-time grace period. A
-duration spell that kills on its very first damage tick still counts as an
-initial lethal hit. Existing saved corpse wounds are not recomputed.
-The complete lethal update is retained while asynchronous weapon damage merges;
-later dead-actor DOT updates cannot erase an instant lethal explosion.
+Death before **1.0 second** from the contact counts as immediate. Such deaths
+retain the original magical blast/attraction and direct elemental wounds. At
+1.0 second or later, DOT keeps the elemental death status but cannot replay the
+original wave, weapon impulse or direct-hit dismemberment.
+
+Native zero-time effect initialization already sets Flag_Applied without doing
+any duration damage. That flag is no longer used to reject the first real damage
+tick. Each shared contact advances once per positive simulation update, even
+when several enchantment spell entries share it. Weapon and magical provenance
+remain together inside the one-second window, including instant effects that
+expire before Lua physical damage arrives.
+
+Corpse creation briefly waits for either the physical Lua hit or the same
+weapon's first elemental contribution, whichever is queued later. Thus physical
+kills can retain their fire/frost/shock/poison status and elemental wounds.
+Bow/crossbow WhenStrikes enchantments and ammunition enchantments use the same
+contact; thrown weapons are not applied twice. Charge/resistance checks remain.
+Existing saved corpse wounds are not recomputed.
+
+Regression checks include real Bullet capsule targeting with no drawable mesh,
+one-handed chop/slash cuts on head/both arms/both legs, the 0.999/1.0/1.001-second
+boundary, zero-time priming before real duration damage, both weapon/magic
+orders, and native CreatureStats queued-hit/death/pending presentation handling.
 
 Previous slider and rendering fixes are retained:
 
@@ -84,8 +103,8 @@ New NPC death effects use one probability roll per lethal contact:
   horizontal slash into torso/arm, as specified above.
 - Blunt chopping/slashing head hits and crossbow head hits can burst the head.
 - Direct lethal fire/frost damage detaches all extremities. Direct lethal shock
-  bursts the head. Damage over time, restored effects and splash damage alone do
-  not create these direct-contact wounds. On-strike enchantments share their
+  bursts the head. DOT deaths at/after one second, restored effects and splash
+  damage alone do not create these direct-contact wounds. On-strike enchantments share their
   native contact with physical weapon damage.
 
 At defaults the probability is 30%. Esc > Settings > Physics has a

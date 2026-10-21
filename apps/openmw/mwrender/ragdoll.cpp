@@ -15,7 +15,9 @@
 #include <osg/Geode>
 
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
+#include <BulletCollision/CollisionShapes/btCapsuleShape.h>
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
+#include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
 
 #include <algorithm>
 #include <array>
@@ -250,6 +252,79 @@ namespace MWRender
                 // Bulky clothing may sit outside a capsule, but distant contacts
                 // and unsupported body layouts must never invent an amputation.
                 return distance <= mTorsoLength * .25f ? closest : -1;
+            }
+
+            RagdollController::HitContact hitContact(const osg::Vec3f& from, const osg::Vec3f& to) const
+            {
+                RagdollController::HitContact result;
+                const auto ray = to - from;
+                if (!mValid || !std::isfinite(from.length2()) || !std::isfinite(to.length2()) || ray.length2() < .001f)
+                    return result;
+                float fraction = 2.f;
+                const btTransform rayFrom(btQuaternion::getIdentity(), toBullet(from));
+                const btTransform rayTo(btQuaternion::getIdentity(), toBullet(to));
+                for (std::size_t part = 0; part < mDriven.size(); ++part)
+                {
+                    const float r = radius(part);
+                    btCapsuleShape capsule(r, std::max(0.f, (mStops[part] - mStarts[part]).length() - 2.f * r));
+                    btCollisionObject object;
+                    object.setCollisionShape(&capsule);
+                    object.setWorldTransform(capsuleTransform(mStarts[part], mStops[part]));
+                    btCollisionWorld::ClosestRayResultCallback hit(toBullet(from), toBullet(to));
+                    btCollisionWorld::rayTestSingle(rayFrom, rayTo, &object, &capsule, object.getWorldTransform(), hit);
+                    if (hit.hasHit() && hit.m_closestHitFraction < fraction)
+                    {
+                        fraction = hit.m_closestHitFraction;
+                        result = { static_cast<int>(part), toOsg(hit.m_hitPointWorld) };
+                    }
+                }
+                if (result.mBody >= 0)
+                    return result;
+                // Native melee uses a cone wider than a crosshair ray. For a
+                // confirmed damaging hit, choose the nearest segment to that
+                // aim instead of requiring a second mesh hit or random blood point.
+                float distance = mTorsoLength * 2.f;
+                for (std::size_t part = 0; part < mDriven.size(); ++part)
+                {
+                    const auto axis = mStops[part] - mStarts[part];
+                    const float length = axis.length();
+                    const float r = radius(part);
+                    const auto centre = (mStarts[part] + mStops[part]) * .5f;
+                    const float half = std::max(0.f, length * .5f - r);
+                    const auto start = centre - axis * (half / length);
+                    const auto segment = axis * (2.f * half / length);
+                    const auto delta = from - start;
+                    const float a = ray.length2(), e = segment.length2();
+                    const float b = ray * segment, c = ray * delta, f = segment * delta;
+                    float s = 0.f, t = 0.f;
+                    if (e < .0001f)
+                        s = std::clamp(-c / a, 0.f, 1.f);
+                    else
+                    {
+                        const float denominator = a * e - b * b;
+                        s = denominator > .0001f ? std::clamp((b * f - c * e) / denominator, 0.f, 1.f) : 0.f;
+                        t = (b * s + f) / e;
+                        if (t < 0.f)
+                        {
+                            t = 0.f;
+                            s = std::clamp(-c / a, 0.f, 1.f);
+                        }
+                        else if (t > 1.f)
+                        {
+                            t = 1.f;
+                            s = std::clamp((b - c) / a, 0.f, 1.f);
+                        }
+                    }
+                    const auto point = start + segment * t;
+                    const auto offset = from + ray * s - point;
+                    const float gap = offset.length() - r;
+                    if (gap < distance)
+                    {
+                        distance = gap;
+                        result = { static_cast<int>(part), point + unit(offset, -unit(ray)) * r };
+                    }
+                }
+                return result;
             }
         };
 
@@ -544,6 +619,15 @@ namespace MWRender
         CollectBones visitor(matrix);
         root.accept(visitor);
         return HumanoidPose(visitor, unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), matrix))).hitBody(contact);
+    }
+
+    RagdollController::HitContact RagdollController::findHitContact(
+        osg::Group& root, const osg::Vec3f& from, const osg::Vec3f& to)
+    {
+        const auto matrix = rootWorldMatrix(root);
+        CollectBones visitor(matrix);
+        root.accept(visitor);
+        return HumanoidPose(visitor, unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), matrix))).hitContact(from, to);
     }
 
     std::unique_ptr<RagdollController> RagdollController::create(osg::Group& root, SceneUtil::Skeleton& skeleton,

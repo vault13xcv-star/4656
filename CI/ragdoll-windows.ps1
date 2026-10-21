@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.6.0-preview.4'
+$ragdollVersion = '0.6.0-preview.5'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -142,6 +142,7 @@ switch ($Phase) {
         Run "$build/openmw-tests.exe" @('--gtest_color=no', '--gtest_filter=ItemPhysics*') 'item-integration-tests.log'
     }
     Package {
+        $testResult = if ($env:RAGDOLL_TEST_RESULT) { $env:RAGDOLL_TEST_RESULT } else { 'not reported' }
         $shortSha = $env:GITHUB_SHA.Substring(0, 12)
         $packageName = "OpenMW-0.51-RealCombat-Ragdoll-$ragdollVersion-Windows-x64-$shortSha"
         $install = Join-Path $source "package/$packageName"
@@ -171,6 +172,7 @@ Commit: $($env:GITHUB_SHA)
 Build: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)
 Dependencies: pinned OpenMW vcpkg bundle 2026-02-24 (SHA512 in licenses/dependency-manifest.txt).
 Build configuration: MSVC 2022 x64, Release, runtime only (no launcher / editor).
+Automated component/integration tests: $testResult (see VALIDATION.txt).
 
 Extract the entire directory and launch its openmw.exe. Existing OpenMW user
 configuration is reused. Morrowind game data is required and is not included.
@@ -178,6 +180,20 @@ This is an experimental engine build, not a Lua mod or an official OpenMW releas
 Keep the regular OpenMW installation and use a separate copy of your saves.
 See RAGDOLL-README.md for feature configuration, limits and manual test steps.
 "@ | Set-Content (Join-Path $install 'BUILD-INFO.txt') -Encoding utf8
+        $validation = Join-Path $install 'validation'
+        New-Item -ItemType Directory -Force $validation | Out-Null
+        foreach ($name in @('ragdoll-tests.log', 'components-tests.log', 'item-integration-tests.log')) {
+            $testLog = Join-Path $logs $name
+            if (Test-Path $testLog) { Copy-Item $testLog (Join-Path $validation $name) }
+        }
+        @"
+Automated component/integration test step: $testResult.
+Run: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)
+The validation directory contains the test output available at packaging time.
+A failed or skipped test step does not count as a passing build. Such a ZIP is
+retained as a diagnostic candidate, with the failed job status preserved.
+These automated tests do not constitute an in-game playtest with Morrowind data.
+"@ | Set-Content (Join-Path $install 'VALIDATION.txt') -Encoding utf8
         # Launch from the installed tree so missing app-local DLLs fail packaging.
         $versionOut = Join-Path $logs 'installed-version.log'
         $versionErr = Join-Path $logs 'installed-version-errors.log'
@@ -192,7 +208,7 @@ See RAGDOLL-README.md for feature configuration, limits and manual test steps.
         Run '7z' @('t', $zip) 'package-integrity.log'
         $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $packageName.zip" | Set-Content (Join-Path $dist 'SHA256SUMS') -Encoding ascii
-        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion } |
+        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion; testResult = $testResult } |
             ConvertTo-Json | Set-Content (Join-Path $dist 'package.json') -Encoding utf8
         Run 'git' @('archive', '--format=zip', "--output=$dist/OpenMW-Ragdoll-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
     }

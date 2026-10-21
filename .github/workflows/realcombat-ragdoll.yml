@@ -58,21 +58,30 @@ jobs:
           ./CI/ragdoll-windows.ps1 -Phase RagdollTests
 
       - name: Compile the modified engine and component tests
+        id: build
         run: |
           ./CI/ragdoll-report.ps1 -Stage build -Result running
           ./CI/ragdoll-windows.ps1 -Phase Build
 
       - name: Run component tests
+        id: tests
         run: |
           ./CI/ragdoll-report.ps1 -Stage tests -Result running
           ./CI/ragdoll-windows.ps1 -Phase Test
 
       - name: Package a standalone runtime and check its DLLs
+        id: package
+        # Retain the compiled candidate for diagnosis if a late test fails.
+        # The failed test still fails the job and is recorded inside the ZIP.
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          RAGDOLL_TEST_RESULT: ${{ steps.tests.outcome }}
         run: |
           ./CI/ragdoll-report.ps1 -Stage package -Result running
           ./CI/ragdoll-windows.ps1 -Phase Package
 
       - name: Upload the Windows package
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: OpenMW-RealCombat-Ragdoll-Windows-x64-${{ github.sha }}

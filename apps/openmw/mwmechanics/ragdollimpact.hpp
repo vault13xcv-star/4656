@@ -21,8 +21,11 @@ namespace MWMechanics
         std::map<std::uint64_t, Ragdoll::Impact> mMagic;
         std::uint64_t mNextEffect = 0;
         bool mAwaitingWeapon = false;
-        bool mMagicSealed = false;
-        float mContactAge = 0.f;
+        bool mAwaitingMagic = false;
+        double mContactAge = 0.;
+
+        bool isRecentContact() const { return std::isfinite(mContactAge) && mContactAge >= 0. && mContactAge < 1.; }
+        bool isPending() const { return mAwaitingWeapon || mAwaitingMagic; }
 
         void applyWeapon()
         {
@@ -42,15 +45,18 @@ namespace MWMechanics
 
         void beginMagicTick(float duration = 0.f)
         {
-            mMagicSealed = false; // Called only for a living actor, including after resurrection.
-            mContactAge += std::max(0.f, duration);
-            if (mContactAge > 0.1f)
-                mAwaitingWeapon = false;
-            // Enchantment and Lua weapon damage must meet in the same contact.
-            // Later duration ticks have their own current magical contributors;
-            // expired shock effects and the old weapon blow cannot linger.
-            if (!mAwaitingWeapon)
+            // Native zero-time priming marks effects Applied without doing any
+            // duration damage. It must neither age nor erase the shared contact.
+            if (!std::isfinite(duration) || duration <= 0.f)
+                return;
+            mContactAge += static_cast<double>(duration);
+            // Keep actual weapon damage and short-lived enchantment contributions
+            // together for the first second, regardless of Lua/effect ordering.
+            // After that only the current DOT tick can select death presentation;
+            // the original physical blow and wave are no longer eligible.
+            if (!isRecentContact())
             {
+                mAwaitingWeapon = mAwaitingMagic = false;
                 mApplied = {};
                 mMagic.clear();
             }
@@ -58,14 +64,15 @@ namespace MWMechanics
 
         void applyMagic(std::uint64_t id, const Ragdoll::Impact& impact)
         {
-            if (mMagicSealed && !impact.mInitialMagicApplication)
-                return;
             // A duration effect replaces its own contribution; ticks never multiply
             // the impulse. Only effects that really removed health enter this map.
             const bool contributes = impact.mValid && std::isfinite(impact.mDominantMagicDamage)
                 && impact.mDominantMagicDamage > 0.f;
             if (contributes)
+            {
+                mAwaitingMagic = false;
                 mMagic[id] = impact;
+            }
             else
                 mMagic.erase(id);
             mApplied.mMagicDistance = 0.f;
@@ -76,7 +83,6 @@ namespace MWMechanics
             mApplied.mDeathElement = Ragdoll::DeathElement::None;
             mApplied.mDominantMagicDamage = 0.f;
             mApplied.mDirectMagic = false;
-            mApplied.mInitialMagicApplication = false;
             for (const auto& [key, contribution] : mMagic)
             {
                 // One effect supplies both motion and presentation. A weak,
@@ -95,7 +101,6 @@ namespace MWMechanics
                     mApplied.mMagicTarget = contribution.mMagicTarget;
                     mApplied.mMagicAttraction = contribution.mMagicAttraction;
                     mApplied.mDirectMagic = contribution.mDirectMagic;
-                    mApplied.mInitialMagicApplication = contribution.mInitialMagicApplication;
                 }
             }
             mApplied.mShock = mApplied.mDeathElement == Ragdoll::DeathElement::Shock;
@@ -106,10 +111,6 @@ namespace MWMechanics
             }
         }
 
-        // All effects in the lethal update may still choose the dominant element.
-        // Later dead-actor updates must not erase it while waiting for Lua weapon
-        // damage or for the corpse to become visible. Physical damage may merge.
-        void sealMagic() { mMagicSealed = true; }
     };
 
     struct RagdollMagicImpact
@@ -125,18 +126,17 @@ namespace MWMechanics
         bool mHasImpulse = true; // False when only the effect survives a save/load.
     };
     inline Ragdoll::Impact makeRagdollMagicImpact(const RagdollMagicImpact& context, const osg::Vec3f& targetPosition,
-        float scale, Ragdoll::DeathElement element, float effectiveDamage, bool initialApplication = true)
+        float scale, Ragdoll::DeathElement element, float effectiveDamage)
     {
         Ragdoll::Impact impact;
         impact.mDeathElement = element;
         impact.mDominantMagicDamage = effectiveDamage;
         impact.mShock = element == Ragdoll::DeathElement::Shock;
         impact.mValid = true;
-        impact.mInitialMagicApplication = initialApplication;
-        // An explosion is a contact event, not a property of its lasting spell.
-        // Keep elemental death presentation on DOT, but never replay the wave,
-        // direct-hit dismemberment or poison attraction on a later damage tick.
-        if (!context.mHasImpulse || !initialApplication)
+        // Death before one second is an immediate kill, including native
+        // zero-time priming followed by real duration damage on the next frame.
+        // Later DOT retains the element, but cannot replay the old impact.
+        if (!context.mHasImpulse || (context.mHit && !context.mHit->isRecentContact()))
             return impact;
         impact.mDirectMagic = !context.mExploded && context.mHit;
         impact.mMagicImpulseScale = scale;

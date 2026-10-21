@@ -106,6 +106,60 @@ namespace
             { -1000, 1000, 0 } };
     }
 
+    void oneHandedBladeWithoutVisibleMeshIntersection()
+    {
+        for (float angle : { 0.f, 1.2f })
+        for (auto attack : { Ragdoll::AttackType::Chop, Ragdoll::AttackType::Slash })
+        for (const auto& [first, second, cut] : {
+                 std::tuple("Head", "Head", 2), std::tuple("L Forearm", "L Hand", 3),
+                 std::tuple("R Forearm", "R Hand", 5), std::tuple("L Calf", "L Foot", 7),
+                 std::tuple("R Calf", "R Foot", 9), std::tuple("Spine1", "Spine2", 0) })
+        {
+            SkeletonFixture fixture;
+            fixture.mWorld->setMatrix(osg::Matrixf::scale(1.2f, 1.2f, 1.2f)
+                * osg::Matrixf::rotate(angle, osg::Vec3f(0, 0, 1)) * osg::Matrixf::translate(50, 30, 0));
+            const auto point = (worldMatrix(*fixture.mBones.at(first)).getTrans()
+                + worldMatrix(*fixture.mBones.at(second)).getTrans()) * .5f;
+            const auto direction = osg::Vec3f(0, 1, 0) * osg::Matrixf::rotate(angle, osg::Vec3f(0, 0, 1));
+            const auto from = point - direction * 200;
+            const auto to = point + direction * 200;
+            osg::ref_ptr<osgUtil::LineSegmentIntersector> ray = new osgUtil::LineSegmentIntersector(from, to);
+            osgUtil::IntersectionVisitor visitor(ray);
+            fixture.mSkeleton->accept(visitor);
+            require(!ray->containsIntersections(), "Fallback fixture unexpectedly has visible mesh intersections");
+            const auto contact = MWRender::RagdollController::findHitContact(*fixture.mSkeleton, from, to);
+            require(contact.mBody >= 0, "A native confirmed hit was lost because rendering had no mesh hit");
+            Ragdoll::Impact hit;
+            hit.mValid = hit.mHasWeaponContact = true;
+            hit.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
+            hit.mAttackType = attack;
+            hit.mWeaponDirection.set(1, 0, 0);
+            hit.mWeaponHitBody = contact.mBody;
+            hit.mWeaponPosition = contact.mPosition;
+            MWRender::RagdollController::Settings settings;
+            settings.mNpc = true;
+            settings.mWoundChance = 1;
+            settings.mWoundRoll = 0;
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, hit);
+            const auto expected = cut ? 1u << cut : 0u;
+            if (!corpse || corpse->getWounds().mCuts != expected || corpse->getWounds().mBurstHead)
+                throw std::runtime_error("One-hand fallback wound mismatch for " + std::string(first)
+                    + ", resolved body " + std::to_string(contact.mBody));
+        }
+        // The native melee cone can accept an aim just outside visible/skeletal
+        // surfaces. Its fallback must still select the adjacent arm, not a leg.
+        SkeletonFixture fixture;
+        fixture.mWorld->setMatrix(osg::Matrixf::identity());
+        const auto arm = (worldMatrix(*fixture.mBones.at("L Forearm")).getTrans()
+            + worldMatrix(*fixture.mBones.at("L Hand")).getTrans()) * .5f + osg::Vec3f(0, 0, 10);
+        const auto contact = MWRender::RagdollController::findHitContact(*fixture.mSkeleton,
+            arm - osg::Vec3f(0, 200, 0), arm + osg::Vec3f(0, 200, 0));
+        require(contact.mBody == 3 || contact.mBody == 4 || contact.mBody == 11,
+            "A broad-cone arm hit was lost or mapped to a different extremity");
+        std::cout << "PASS one-handed chop/slash dismemberment on head/arms/legs without visible ray hits; native cone fallback\n";
+    }
+
     void livingContactAnatomy()
     {
         for (float rotation : { 0.f, 1.4f, 3.14f })
@@ -190,7 +244,8 @@ namespace
                 context.mRadius = 10;
                 const auto target = worldMatrix(*fixture.mBones.at("Spine1")).getTrans();
                 context.mOrigin = target - osg::Vec3f(2 * Constants::UnitsPerMeter, 0, 0);
-                const auto impact = MWMechanics::makeRagdollMagicImpact(context, target, 1, element, 50, initial);
+                context.mHit->mContactAge = initial ? .5 : 2.;
+                const auto impact = MWMechanics::makeRagdollMagicImpact(context, target, 1, element, 50);
                 MWRender::RagdollController::Settings settings;
                 settings.mNpc = true;
                 settings.mWoundRoll = 0;
@@ -1336,6 +1391,7 @@ int main(int argc, char** argv)
             loadMeasurements();
             return 0;
         }
+        oneHandedBladeWithoutVisibleMeshIntersection();
         livingContactAnatomy();
         dotDeathHasNoBlastMomentum();
         liveSettingsAndExtendedBudget();

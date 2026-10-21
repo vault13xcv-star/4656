@@ -238,8 +238,6 @@ namespace MWMechanics
             return;
         auto& creatureStats = ptr.getClass().getCreatureStats(ptr);
         assert(&creatureStats.getActiveSpells() == this);
-        if (creatureStats.isDead())
-            creatureStats.sealRagdollDeathMagic();
         IterationGuard guard{ *this };
         // Erase no longer active spells and effects
         for (auto spellIt = mSpells.begin(); spellIt != mSpells.end();)
@@ -351,6 +349,16 @@ namespace MWMechanics
         }
 
         const MWWorld::Ptr player = MWMechanics::getPlayer();
+        // Advance each shared native contact once, after new/queued effects
+        // have been inserted. Zero-time initParams calls are not simulation ticks.
+        if (!creatureStats.isDead() && duration > 0.f)
+        {
+            std::set<RagdollHit*> updated;
+            for (const auto& spell : mSpells)
+                for (const auto& [index, impact] : spell.mRagdollImpacts)
+                    if (impact.mHit && updated.insert(impact.mHit.get()).second)
+                        impact.mHit->beginMagicTick(duration);
+        }
         // Update effects
         context.mEraseRemoved = true;
         for (auto spellIt = mSpells.begin(); spellIt != mSpells.end();)
@@ -380,13 +388,6 @@ namespace MWMechanics
     {
         const auto caster = MWBase::Environment::get().getWorldModel()->getPtr(spellIt->mCaster);
         bool removedSpell = false;
-        if (!ptr.getClass().getCreatureStats(ptr).isDead())
-        {
-            std::set<RagdollHit*> updated;
-            for (const auto& [index, impact] : spellIt->mRagdollImpacts)
-                if (impact.mHit && updated.insert(impact.mHit.get()).second)
-                    impact.mHit->beginMagicTick(duration);
-        }
         std::optional<ActiveSpellParams> reflected;
         for (auto it = spellIt->mEffects.begin(); it != spellIt->mEffects.end();)
         {
