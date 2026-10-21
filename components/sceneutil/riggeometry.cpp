@@ -6,6 +6,7 @@
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/strings/algorithm.hpp>
+#include <components/misc/strings/lower.hpp>
 #include <components/resource/scenemanager.hpp>
 
 #include "skeleton.hpp"
@@ -24,9 +25,18 @@ namespace SceneUtil
         : Drawable(copy, copyop)
         , mData(copy.mData)
         , mBonePoseOverride(copy.mBonePoseOverride)
+        , mBonePoseAnchor(copy.mBonePoseAnchor)
     {
         setSourceGeometry(copy.mSourceGeometry);
         setNumChildrenRequiringUpdateTraversal(1);
+    }
+
+    void RigGeometry::setBonePoseOverride(const std::map<std::string, osg::Matrixf>& matrices, std::string anchor)
+    {
+        mBonePoseOverride.clear();
+        for (const auto& [name, matrix] : matrices)
+            mBonePoseOverride.emplace(Misc::StringUtils::lowerCase(name), matrix);
+        mBonePoseAnchor = std::move(anchor);
     }
 
     void RigGeometry::setSourceGeometry(osg::ref_ptr<osg::Geometry> sourceGeometry)
@@ -159,6 +169,7 @@ namespace SceneUtil
         mLastFrameNumber = traversalNumber;
         osg::Geometry& geom = *getGeometry(mLastFrameNumber);
 
+        const Bone* anchor = mBonePoseAnchor.empty() ? nullptr : mSkeleton->getBone(mBonePoseAnchor);
         mSkeleton->updateBoneMatrices(traversalNumber);
 
         // skinning
@@ -177,9 +188,10 @@ namespace SceneUtil
         {
             if (*bone != nullptr)
             {
-                const auto override = mBonePoseOverride.find(boneInfo->mName);
-                boneMat = boneInfo->mInvBindMatrix * (override == mBonePoseOverride.end()
-                    ? (*bone)->mMatrixInSkeletonSpace : override->second);
+                const auto override = mBonePoseOverride.find(Misc::StringUtils::lowerCase(boneInfo->mName));
+                const auto pose = override == mBonePoseOverride.end() ? (*bone)->mMatrixInSkeletonSpace
+                    : anchor ? override->second * anchor->mMatrixInSkeletonSpace : override->second;
+                boneMat = boneInfo->mInvBindMatrix * pose;
             }
             ++bone;
             ++boneInfo;
@@ -249,6 +261,7 @@ namespace SceneUtil
             return;
         mBoundsFirstFrame = false;
 
+        const Bone* anchor = mBonePoseAnchor.empty() ? nullptr : mSkeleton->getBone(mBonePoseAnchor);
         mSkeleton->updateBoneMatrices(nv->getTraversalNumber());
 
         updateSkinToSkelMatrix(nv->getNodePath());
@@ -268,9 +281,10 @@ namespace SceneUtil
                 continue;
 
             osg::BoundingSpheref bs = info.mBoundSphere;
-            const auto override = mBonePoseOverride.find(info.mName);
-            transformBoundingSphere((override == mBonePoseOverride.end()
-                ? bone->mMatrixInSkeletonSpace : override->second) * transform, bs);
+            const auto override = mBonePoseOverride.find(Misc::StringUtils::lowerCase(info.mName));
+            const auto pose = override == mBonePoseOverride.end() ? bone->mMatrixInSkeletonSpace
+                : anchor ? override->second * anchor->mMatrixInSkeletonSpace : override->second;
+            transformBoundingSphere(pose * transform, bs);
             box.expandBy(bs);
         }
 

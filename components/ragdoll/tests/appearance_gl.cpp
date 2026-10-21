@@ -10,6 +10,7 @@
 #include <osg/Geometry>
 #include <osg/Group>
 #include <osg/Program>
+#include <osg/ShapeDrawable>
 #include <osg/Shader>
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
@@ -78,6 +79,65 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->addDrawable(wall); root->addChild(geode);
         viewer.setSceneData(root); viewer.realize();
+        if (effect == "wounds")
+        {
+            const auto read = [&] {
+                viewer.frame(); glFinish();
+                std::vector<unsigned char> pixels(width * height * 3);
+                glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+                check(glGetError() == GL_NO_ERROR, "OpenGL wound rendering error");
+                return pixels;
+            };
+            // World surfaces have their own native shader. Wounds must work
+            // both with no inherited program and with an NPC material override.
+            geode->getOrCreateStateSet()->setAttributeAndModes(opaque,
+                osg::StateAttribute::ON | osg::StateAttribute::PROTECTED);
+            for (const bool inheritedProgram : { false, true })
+            {
+                if (inheritedProgram)
+                    state->setAttributeAndModes(opaque, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+                else
+                    state->removeAttribute(osg::StateAttribute::PROGRAM);
+                const auto baseline = read();
+                osg::ref_ptr<osg::Geode> cuts = new osg::Geode;
+                for (const float x : { -30.f, 30.f })
+                {
+                    auto* cap = new osg::Cylinder({ x, 0, 40 }, 12, .8f);
+                    cap->setRotation(osg::Quat(osg::PI_2, osg::Vec3f(1, 0, 0)));
+                    cuts->addDrawable(MWRender::createWoundDrawable(cap));
+                }
+                root->addChild(cuts);
+                const auto wounded = read();
+                int visible = 0, occluded = 0, sampleX = 0, sampleY = 0;
+                for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x)
+                {
+                    const int i = (y * width + x) * 3;
+                    bool changed = false;
+                    for (int c = 0; c < 3; ++c) changed |= wounded[i+c] != baseline[i+c];
+                    if (changed)
+                    {
+                        if (x < width/2)
+                        {
+                            check(wounded[i] > 2 * wounded[i+1] && wounded[i] > 2 * wounded[i+2],
+                                "Wound inherited an NPC shader or clothing texture instead of its own material");
+                            ++visible; sampleX = x; sampleY = y;
+                        }
+                        else ++occluded;
+                    }
+                }
+                check(visible > 500, "Wound surface missing under inherited NPC shader/alpha state");
+                check(occluded == 0, "Wound surface rendered through an opaque world surface");
+                float capDepth = 0;
+                glReadPixels(sampleX, sampleY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &capDepth);
+                check(capDepth > 0 && capDepth < 1, "Wound surface did not write its physical depth");
+                cuts->setNodeMask(0);
+                check(read() == baseline, "Hidden wound left an overlay in the frame");
+                root->removeChild(cuts);
+            }
+            std::cout << "PASS real GL wound caps, " << (reversed ? "reversed" : "normal")
+                      << " projection, opaque occlusion and depth writes\n";
+            return 0;
+        }
         MWRender::RagdollAppearance appearance(*root, element, {});
         const std::array<osg::Vec3f, 4> positions{ osg::Vec3f(-30,0,20), osg::Vec3f(-30,0,45),
             osg::Vec3f(30,0,20), osg::Vec3f(30,0,45) };

@@ -4,15 +4,19 @@
 #include <chrono>
 #include <components/esm3/ragdollstate.hpp>
 #include <components/ragdoll/items.hpp>
+#include <components/misc/strings/lower.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
+#include <components/sceneutil/riggeometry.hpp>
 
 #include <osg/FrameStamp>
+#include <osg/Billboard>
 #include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/MatrixTransform>
 #include <osg/Texture2D>
 #include <osgUtil/UpdateVisitor>
+#include <osgUtil/CullVisitor>
 
 #include <array>
 #include <cmath>
@@ -106,6 +110,139 @@ namespace
             traverse(node, visitor);
         }
     };
+
+    // Capture the actual CPU-skinned vertex arrays without requiring a GL
+    // context. A mixed-weight triangle exposes long cross-cut clothing strips.
+    class CaptureSkin : public osgUtil::CullVisitor
+    {
+    public:
+        std::map<std::string, std::vector<osg::Vec3f>> mVertices;
+        void apply(osg::Group& node) override { traverse(node); }
+        void apply(osg::MatrixTransform& node) override { traverse(node); }
+        void apply(osg::Geode& node) override { traverse(node); }
+        void apply(osg::Billboard& node) override { traverse(node); }
+        void apply(osg::Drawable& drawable) override
+        {
+            if (auto* geometry = drawable.asGeometry())
+                apply(*geometry);
+        }
+        void apply(osg::Geometry& geometry) override
+        {
+            const auto* vertices = static_cast<const osg::Vec3Array*>(geometry.getVertexArray());
+            mVertices[geometry.getName()] = { vertices->begin(), vertices->end() };
+        }
+    };
+
+    void severedSkin(bool waist)
+    {
+        SkeletonFixture fixture;
+        MWRender::RagdollController::Settings config;
+        config.mNpc = true;
+        config.mWoundRoll = 0;
+        Ragdoll::Impact hit;
+        hit.mValid = true;
+        if (waist)
+        {
+            hit.mHasWeaponContact = true;
+            hit.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+            hit.mWeaponPosition = worldMatrix(*fixture.mBones.at("Spine1")).getTrans();
+        }
+        else
+        {
+            hit.mDirectMagic = true;
+            hit.mDeathElement = Ragdoll::DeathElement::Fire;
+        }
+        auto corpse = MWRender::RagdollController::create(
+            *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, hit);
+        require(corpse && corpse->getWounds().mCuts, "Skin fixture needs separated limbs");
+        require(!waist || corpse->getWounds().cuts(1), "Skin fixture missed waist contact");
+        struct Patch
+        {
+            osg::ref_ptr<SceneUtil::RigGeometry> mRig;
+            osg::Matrixf mInvBind;
+            std::string mAnchor;
+        };
+        std::vector<Patch> patches;
+        for (const std::size_t body : { 1u, 2u, 3u, 4u, 5u, 7u, 8u, 9u, 13u })
+        {
+            const auto pose = corpse->getPartPose(body);
+            require(!pose.mAnchor.empty() && !pose.mOffsets.empty(), "Missing cross-cut part pose");
+            const std::string foreign = pose.mOffsets.begin()->first;
+            auto* owner = fixture.mSkeleton->getBone(pose.mAnchor);
+            auto* other = fixture.mSkeleton->getBone(foreign);
+            fixture.mSkeleton->updateBoneMatrices(1);
+            const auto ownerBind = owner->mMatrixInSkeletonSpace;
+            const auto otherBind = other->mMatrixInSkeletonSpace;
+            osg::ref_ptr<osg::Geometry> source = new osg::Geometry;
+            source->setName("Skin" + std::to_string(body));
+            auto* vertices = new osg::Vec3Array;
+            vertices->push_back(osg::Vec3f(0, 0, 0) * ownerBind);
+            vertices->push_back(osg::Vec3f(1, 0, 0) * ownerBind);
+            vertices->push_back(osg::Vec3f(0, 1, 0) * ownerBind);
+            source->setVertexArray(vertices);
+            source->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, 3));
+            osg::ref_ptr<SceneUtil::RigGeometry> rig = new SceneUtil::RigGeometry;
+            rig->setName(source->getName());
+            rig->setSourceGeometry(source);
+            rig->setBoneInfo({ { pose.mAnchor, osg::BoundingSpheref({}, 2), osg::Matrixf::inverse(ownerBind) },
+                { Misc::StringUtils::lowerCase(foreign), osg::BoundingSpheref({}, 2), osg::Matrixf::inverse(otherBind) } });
+            rig->setInfluences({ { { 0, 1.f } }, { { 1, 1.f } }, { { 0, .5f }, { 1, .5f } } });
+            rig->setBonePoseOverride(pose.mOffsets, pose.mAnchor);
+            fixture.mSkeleton->addChild(rig);
+            patches.push_back({ rig, osg::Matrixf::inverse(ownerBind), pose.mAnchor });
+        }
+        // A coating clone must keep a live relative pose, not the previous
+        // frame's absolute matrices or another actor's cached mesh state.
+        osg::ref_ptr<SceneUtil::RigGeometry> clone
+            = new SceneUtil::RigGeometry(*patches.front().mRig, osg::CopyOp::SHALLOW_COPY);
+        auto cloneSource = new osg::Geometry(*clone->getSourceGeometry(), osg::CopyOp::SHALLOW_COPY);
+        cloneSource->setName("CoatedSkin");
+        clone->setSourceGeometry(cloneSource);
+        fixture.mSkeleton->addChild(clone);
+        patches.push_back({ clone, patches.front().mInvBind, patches.front().mAnchor });
+        for (unsigned frame = 2; frame < 65; ++frame)
+        {
+            if (frame == 32)
+            {
+                ESM::RagdollState saved;
+                corpse->writeState(saved);
+                corpse.reset();
+                corpse = MWRender::RagdollController::restore(
+                    *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, saved);
+                require(bool(corpse), "Severed clothing fixture failed save/restore");
+            }
+            corpse->update(1.f / 30);
+            osg::ref_ptr<osg::FrameStamp> stamp = new osg::FrameStamp;
+            stamp->setFrameNumber(frame);
+            osgUtil::UpdateVisitor update;
+            update.setFrameStamp(stamp);
+            update.setTraversalNumber(frame);
+            fixture.mSkeleton->accept(update);
+            CaptureSkin capture;
+            capture.setFrameStamp(stamp);
+            capture.setTraversalNumber(frame);
+            fixture.mSkeleton->accept(capture);
+            for (const auto& patch : patches)
+            {
+                const auto expected = patch.mInvBind
+                    * fixture.mSkeleton->getBone(patch.mAnchor)->mMatrixInSkeletonSpace;
+                const auto* source = static_cast<const osg::Vec3Array*>(patch.mRig->getSourceGeometry()->getVertexArray());
+                const auto& actual = capture.mVertices.at(patch.mRig->getSourceGeometry()->getName());
+                require(actual.size() == 3, "Skinned clothing triangle disappeared");
+                for (unsigned vertex = 0; vertex < 3; ++vertex)
+                    require((actual[vertex] - (*source)[vertex] * expected).length() < .02f,
+                        "Clothing stretched across a severed joint or lagged behind its moving limb");
+            }
+        }
+        const auto sleeve = corpse->getPartPose(3);
+        require(!sleeve.mOffsets.count("Bip01 L Forearm") && !sleeve.mOffsets.count("Bip01 L Hand"),
+            "Severing froze the intact elbow or wrist");
+        const auto robe = corpse->getPartPose(1, true);
+        require(robe.mOffsets.count("Bip01 L Forearm") && robe.mOffsets.count("Bip01 L Thigh"),
+            "Whole robe must retain all limbs relative to the torso");
+        std::cout << "PASS actual mixed-weight skinning, " << (waist ? "waist" : "extremities")
+                  << ", moving coating clones, save/restore, intact joints and whole robe\n";
+    }
 
     void transitionAndCallbacks()
     {
@@ -902,6 +1039,8 @@ int main(int argc, char** argv)
             return 0;
         }
         liveSettingsAndExtendedBudget();
+        severedSkin(false);
+        severedSkin(true);
         transitionAndCallbacks();
         collisionAndFreeze();
         overflowFreezesOldPose();

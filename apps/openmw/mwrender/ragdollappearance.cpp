@@ -27,6 +27,31 @@
 
 namespace MWRender
 {
+    osg::ref_ptr<osg::ShapeDrawable> createWoundDrawable(osg::Shape* shape)
+    {
+        osg::ref_ptr<osg::ShapeDrawable> drawable = new osg::ShapeDrawable(shape);
+        drawable->setColor(osg::Vec4(.35f, .015f, .02f, 1));
+        auto* state = drawable->getOrCreateStateSet();
+        constexpr auto on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
+        constexpr auto off = osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
+        state->setAttributeAndModes(new SceneUtil::AutoDepth(osg::Depth::LEQUAL, 0, 1, true), on);
+        state->setMode(GL_BLEND, off);
+        state->setMode(GL_ALPHA_TEST, off);
+        state->setMode(GL_LIGHTING, off);
+        state->setRenderingHint(osg::StateSet::OPAQUE_BIN);
+        osg::ref_ptr<osg::Program> program = new osg::Program;
+        program->addShader(new osg::Shader(osg::Shader::VERTEX,
+            "#version 120\nuniform mat4 projectionMatrix; varying vec4 tint; varying vec3 normal; void main(){"
+            "mat4 p=projectionMatrix; if(p[0][0]==0.0) p=gl_ProjectionMatrix;"
+            "gl_Position=p*gl_ModelViewMatrix*gl_Vertex; tint=gl_Color; normal=gl_NormalMatrix*gl_Normal;}"));
+        program->addShader(new osg::Shader(osg::Shader::FRAGMENT,
+            "#version 120\nvarying vec4 tint; varying vec3 normal; void main(){"
+            "float light=0.45+0.55*abs(dot(normalize(normal),normalize(vec3(0.3,0.4,0.8))));"
+            "gl_FragColor=vec4(tint.rgb*light,1.0);}"));
+        state->setAttributeAndModes(program, on);
+        return drawable;
+    }
+
     namespace
     {
         constexpr int sTextureSize = 512;

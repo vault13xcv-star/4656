@@ -52,6 +52,7 @@ if(RAGDOLL_TEST_RENDERING)
         ../../apps/openmw/mwrender/ragdoll.cpp
         ../../apps/openmw/mwrender/ragdollappearance.cpp
         ../sceneutil/skeleton.cpp
+        ../sceneutil/riggeometry.cpp
         ../debug/debuglog.cpp
         ../files/conversion.cpp)
     target_compile_features(ragdoll-render-tests PRIVATE cxx_std_20)
@@ -82,5 +83,7 @@ if(RAGDOLL_TEST_RENDERING)
         add_test(NAME ragdoll-gl-poison-reversed COMMAND ragdoll-gl-tests reversed poison)
         add_test(NAME ragdoll-gl-shock COMMAND ragdoll-gl-tests normal shock)
         add_test(NAME ragdoll-gl-shock-reversed COMMAND ragdoll-gl-tests reversed shock)
+        add_test(NAME ragdoll-gl-wounds COMMAND ragdoll-gl-tests normal wounds)
+        add_test(NAME ragdoll-gl-wounds-reversed COMMAND ragdoll-gl-tests reversed wounds)
     endif()
 endif()

@@ -63,7 +63,7 @@ namespace SceneUtil
 
         osg::ref_ptr<osg::Geometry> getSourceGeometry() const;
         // Per-instance cloth pose; never mutates cached mesh/influence data.
-        void setBonePoseOverride(const std::map<std::string, osg::Matrixf>& matrices) { mBonePoseOverride = matrices; }
+        void setBonePoseOverride(const std::map<std::string, osg::Matrixf>& matrices, std::string anchor = {});
 
         void accept(osg::NodeVisitor& nv) override;
         bool supports(const osg::PrimitiveFunctor&) const override { return true; }
@@ -107,6 +107,7 @@ namespace SceneUtil
         osg::ref_ptr<InfluenceData> mData;
         std::vector<Bone*> mNodes;
         std::map<std::string, osg::Matrixf> mBonePoseOverride;
+        std::string mBonePoseAnchor;
 
         unsigned int mLastFrameNumber{ 0 };
         bool mBoundsFirstFrame{ true };

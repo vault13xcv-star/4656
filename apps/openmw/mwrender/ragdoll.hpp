@@ -97,7 +97,14 @@ namespace MWRender
         bool isSimulating() const;
         bool isPinned() const;
         Ragdoll::Wounds getWounds() const;
-        std::map<std::string, osg::Matrixf> getUncutBoneMatrices() const;
+        // Substitute only influences across a severed joint. Intact joints in
+        // the owning part continue to animate; whole robes follow the torso.
+        struct PartPose
+        {
+            std::string mAnchor;
+            std::map<std::string, osg::Matrixf> mOffsets;
+        };
+        const PartPose& getPartPose(std::size_t body, bool whole = false) const;
 
     private:
         struct Impl;

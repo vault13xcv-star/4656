@@ -219,6 +219,7 @@ namespace MWRender
         osg::Vec3f mRight;
         osg::Vec3f mForward;
         Ragdoll::Wounds mWounds;
+        std::map<std::pair<std::size_t, bool>, PartPose> mPartPoses;
         float mSinceBlood = .25f;
         struct WoundVisual
         {
@@ -232,10 +233,7 @@ namespace MWRender
         {
             osg::ref_ptr<osg::MatrixTransform> node = new osg::MatrixTransform;
             osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-            osg::ref_ptr<osg::ShapeDrawable> drawable = new osg::ShapeDrawable(shape);
-            drawable->setColor(osg::Vec4(.35f, .015f, .02f, 1));
-            geode->addDrawable(drawable);
-            geode->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+            geode->addDrawable(createWoundDrawable(shape));
             node->addChild(geode);
             mRoot->addChild(node);
             mWoundVisuals.push_back({ node, body, local });
@@ -1298,21 +1296,49 @@ namespace MWRender
     {
         return mImpl->mWounds;
     }
-    std::map<std::string, osg::Matrixf> RagdollController::getUncutBoneMatrices() const
+    const RagdollController::PartPose& RagdollController::getPartPose(std::size_t body, bool whole) const
     {
-        std::map<std::string, osg::Matrixf> result;
-        if (!mImpl->mWounds.mCuts)
-            return result;
-        const auto chest = std::find_if(mImpl->mBones.begin(), mImpl->mBones.end(),
-            [](const auto& bone) { return bone.mBody == 1; });
-        if (chest == mImpl->mBones.end())
-            return result;
-        const auto restChest = osg::Matrixf::inverse(chest->mRestWorld
-            * osg::Matrixf::inverse(chest->mBoneToBody));
-        const auto chestToSkeleton = mImpl->mBodyMatrices[1] * osg::Matrixf::inverse(rootWorldMatrix(*mImpl->mRoot));
+        static const PartPose empty;
+        if (!mImpl->mWounds.mCuts || body >= mImpl->mDefinitions.size())
+            return empty;
+        const auto key = std::make_pair(body, whole);
+        if (const auto found = mImpl->mPartPoses.find(key); found != mImpl->mPartPoses.end())
+            return found->second;
+        const auto anchor = std::find_if(mImpl->mBones.begin(), mImpl->mBones.end(),
+            [body](const auto& bone) { return bone.mBody == static_cast<int>(body); });
+        if (anchor == mImpl->mBones.end())
+            return empty;
+        PartPose result;
+
+        // The anatomy is parent-first. Each cut starts a separate connected
+        // component, retaining elbow, knee, wrist and ankle articulation.
+        std::vector<std::size_t> components(mImpl->mDefinitions.size(), 0);
+        for (const auto& joint : mImpl->mJoints)
+            components[joint.mChild] = mImpl->mWounds.cuts(joint.mChild)
+                ? joint.mChild : components[joint.mParent];
+        result.mAnchor = anchor->mNode->getName();
+        const auto restAnchor = osg::Matrixf::inverse(anchor->mRestWorld);
+        std::map<const osg::Node*, std::size_t> boneBodies;
         for (const auto& bone : mImpl->mBones)
-            result.emplace(bone.mNode->getName(), bone.mRestWorld * restChest * chestToSkeleton);
-        return result;
+        {
+            std::size_t owner = 0;
+            if (bone.mBody >= 0)
+                owner = static_cast<std::size_t>(bone.mBody);
+            else
+                for (auto parent = bone.mParents.rbegin(); parent != bone.mParents.rend(); ++parent)
+                    if (const auto found = boneBodies.find(*parent); found != boneBodies.end())
+                    {
+                        owner = found->second;
+                        break;
+                    }
+            boneBodies.emplace(bone.mNode.get(), owner);
+            // Clothing meshes have nonzero skin weights on adjacent parts even
+            // when they are separate NIF body parts. Reconstruct foreign bones
+            // relative to this part instead of blending toward a flying limb.
+            if (whole || components[owner] != components[body])
+                result.mOffsets.emplace(bone.mNode->getName(), bone.mRestWorld * restAnchor);
+        }
+        return mImpl->mPartPoses.emplace(key, std::move(result)).first->second;
     }
 
     osg::Vec3f RagdollController::getPosition() const

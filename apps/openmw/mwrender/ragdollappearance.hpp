@@ -5,6 +5,7 @@
 
 #include <osg/ref_ptr>
 #include <osg/Vec3f>
+#include <osg/ShapeDrawable>
 
 #include <memory>
 #include <span>
@@ -18,6 +19,10 @@ namespace osg
 
 namespace MWRender
 {
+    // Opaque physical wound surfaces use the same depth/projection contract as
+    // the world, including reversed Z and inherited NPC material overrides.
+    osg::ref_ptr<osg::ShapeDrawable> createWoundDrawable(osg::Shape* shape);
+
     // Explicit per-actor worn surfaces include skin, hair, clothes and armour.
     // Original cached textures and the materials of other actors stay immutable.
     class RagdollAppearance

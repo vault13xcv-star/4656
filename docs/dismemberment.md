@@ -1,4 +1,11 @@
-# Real Combat Ragdoll 0.6.0-preview.1
+# Real Combat Ragdoll 0.6.0-preview.2
+
+Fixes the stretched clothing and visible-through-walls wound surfaces reported
+in preview.1. Skin weights across a cut now use virtual bones relative to the
+owning body part; intact elbows/knees remain articulated and robes stay whole.
+Relative overrides follow the current frame, including elemental coating clones
+and saved corpses. Wound caps and head debris use opaque depth writes and the
+native projection uniform, supporting both normal and reversed Z buffers.
 
 Based on the 0.5.2-preview.1 build at engine commit
 66588b7c5a88a48f0beee689770dc00b916adc28.

@@ -727,17 +727,15 @@ namespace MWRender
         class ClothPose : public osg::NodeVisitor
         {
         public:
-            const std::map<std::string, osg::Matrixf>& mMatrices;
-            explicit ClothPose(const std::map<std::string, osg::Matrixf>& matrices)
-                : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN), mMatrices(matrices) { setNodeMaskOverride(~0u); }
+            const RagdollController::PartPose& mPose;
+            explicit ClothPose(const RagdollController::PartPose& pose)
+                : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN), mPose(pose) { setNodeMaskOverride(~0u); }
             void apply(osg::Drawable& drawable) override
             {
                 if (auto* rig = dynamic_cast<SceneUtil::RigGeometry*>(&drawable))
-                    rig->setBonePoseOverride(mMatrices);
+                    rig->setBonePoseOverride(mPose.mOffsets, mPose.mAnchor);
             }
         };
-        const auto matrices = ragdoll ? ragdoll->getUncutBoneMatrices() : std::map<std::string, osg::Matrixf>{};
-        ClothPose cloth(matrices);
         const bool female = !mNpc->isMale();
         const auto& bare = getBodyParts(mNpc->mRace, female, false, mNpcType == Type_Werewolf);
         const auto cutFor = [](int part) -> unsigned {
@@ -752,10 +750,33 @@ namespace MWRender
                 default: return 0;
             }
         };
+        const auto bodyFor = [](int part) -> std::size_t {
+            switch (part)
+            {
+                case ESM::PRT_Head: case ESM::PRT_Hair: return 2;
+                case ESM::PRT_Neck: case ESM::PRT_Cuirass: return 1;
+                case ESM::PRT_LUpperarm: case ESM::PRT_LPauldron: return 3;
+                case ESM::PRT_LForearm: return 4;
+                case ESM::PRT_RUpperarm: case ESM::PRT_RPauldron: return 5;
+                case ESM::PRT_RForearm: return 6;
+                case ESM::PRT_LLeg: return 7;
+                case ESM::PRT_LKnee: return 8;
+                case ESM::PRT_RLeg: return 9;
+                case ESM::PRT_RKnee: return 10;
+                case ESM::PRT_LHand: case ESM::PRT_LWrist: case ESM::PRT_Shield: return 11;
+                case ESM::PRT_RHand: case ESM::PRT_RWrist: case ESM::PRT_Weapon: return 12;
+                case ESM::PRT_LAnkle: case ESM::PRT_LFoot: return 13;
+                case ESM::PRT_RAnkle: case ESM::PRT_RFoot: return 14;
+                default: return 0;
+            }
+        };
+        static const RagdollController::PartPose emptyPose;
         for (int part = 0; part < ESM::PRT_Count; ++part)
         {
             const bool robe = mPartslots[part] == MWWorld::InventoryStore::Slot_Robe;
-            if (robe && mObjectParts[part])
+            const auto& pose = ragdoll ? ragdoll->getPartPose(robe ? 1 : bodyFor(part), robe) : emptyPose;
+            ClothPose cloth(pose);
+            if (mObjectParts[part])
                 mObjectParts[part]->getNode()->accept(cloth);
             const unsigned cut = cutFor(part);
             // Robes reserve (hide) the underlying body. Expose severed skin
@@ -774,6 +795,12 @@ namespace MWRender
             }
             else
                 mExposedRagdollParts[part].reset();
+            if (mExposedRagdollParts[part])
+            {
+                const auto& skinPose = ragdoll->getPartPose(bodyFor(part));
+                ClothPose skin(skinPose);
+                mExposedRagdollParts[part]->getNode()->accept(skin);
+            }
         }
     }
 
