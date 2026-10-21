@@ -472,12 +472,15 @@ namespace
             option.set(.5f);
             const auto low = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(),
                 type == ESM::Weapon::SpearTwoWide ? MWWorld::Ptr() : ammo.ptr(), 0, {}, { 0, 1, 0 });
-            option.set(2.f);
+            option.set(3.f);
             const auto high = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(),
                 type == ESM::Weapon::SpearTwoWide ? MWWorld::Ptr() : ammo.ptr(), 0, {}, { 0, 1, 0 });
             EXPECT_GT(high->mWeapon.mWeaponDistance, 0);
             EXPECT_FLOAT_EQ(high->mWeapon.mWeaponDistance, low->mWeapon.mWeaponDistance);
-            EXPECT_FLOAT_EQ(high->mWeapon.mWeaponMultiplier, low->mWeapon.mWeaponMultiplier * 4);
+            EXPECT_FLOAT_EQ(low->mWeapon.mWeaponImpulseScale, .5f);
+            EXPECT_FLOAT_EQ(high->mWeapon.mWeaponImpulseScale, 3.f);
+            EXPECT_FLOAT_EQ(high->mWeapon.mWeaponImpulseScale, low->mWeapon.mWeaponImpulseScale * 6);
+            EXPECT_FLOAT_EQ(high->mWeapon.mWeaponMultiplier, low->mWeapon.mWeaponMultiplier);
             EXPECT_EQ(high->mWeapon.mCrossbow, type == ESM::Weapon::Bolt);
             option.set(old);
         }
