@@ -1,0 +1,18 @@
+
+7-Zip 26.04 (x64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-10-05
+
+Scanning the drive for archives:
+1 file, 45527652 bytes (44 MiB)
+
+Testing archive: D:\a\4656\4656\dist\OpenMW-0.51-RealCombat-Ragdoll-0.6.0-preview.2-Windows-x64-31d25e2b4ac8.zip
+--
+Path = D:\a\4656\4656\dist\OpenMW-0.51-RealCombat-Ragdoll-0.6.0-preview.2-Windows-x64-31d25e2b4ac8.zip
+Type = zip
+Physical Size = 45527652
+
+Everything is Ok
+
+Folders: 63
+Files: 585
+Size:       127650092
+Compressed: 45527652
