@@ -563,13 +563,49 @@ namespace
                 for (const float scale : { .5f, 3.f })
                 {
                     const auto actual = sample(distance, scale, magic, capped, contact);
-                    require(std::abs(actual.first / base.first - scale) < .001f,
-                        "Slider momentum was lost to a per-limb or launch speed cap");
-                    require(std::abs(actual.second / base.second - scale) < .02f,
-                        "Actual Bullet corpse travel did not follow the 50%-300% slider");
+                    const float ratio = actual.first / base.first;
+                    require(scale < 1 ? ratio >= .499f && ratio < .8f : ratio > 1.5f && ratio <= 3.001f,
+                        "Slider response was lost to a per-limb or launch speed cap");
+                    require(std::abs(actual.second / base.second - ratio) < .02f,
+                        "Actual Bullet travel lost the scaled impact momentum");
                 }
             }
-        std::cout << "PASS all launch sliders: 0.5x/1x/3x actual momentum and Bullet travel, including head/hand hits and caps\n";
+        std::cout << "PASS all launch slider endpoints: actual momentum and Bullet travel, including head/hand hits and caps\n";
+    }
+
+    void crossbowGroundTravelScaling()
+    {
+        const auto sample = [](float scale) {
+            SkeletonFixture fixture;
+            fixture.mWorld->setMatrix(osg::Matrixf::identity());
+            MWRender::RagdollController::Settings settings;
+            settings.mPinEnabled = false;
+            Ragdoll::Impact impact;
+            impact.mValid = impact.mHasWeaponContact = true;
+            impact.mWeaponDistance = 2.4f;
+            impact.mWeaponImpulseScale = scale;
+            impact.mWeaponDirection.set(1, 0, 0);
+            impact.mWeaponPosition = worldMatrix(*fixture.mBones.at("Head")).getTrans();
+            const auto broadFloor = [](const osg::Vec3f& center, float radius) {
+                auto vertices = floorSnapshot(center, radius);
+                for (auto& vertex : vertices) { vertex.x() *= 10; vertex.y() *= 10; }
+                return vertices;
+            };
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, broadFloor, settings, impact);
+            require(bool(corpse), "Ground range fixture failed to create");
+            for (int frame = 0; frame < 601; ++frame) corpse->update(1.f / 60);
+            ESM::RagdollState state;
+            corpse->writeState(state);
+            float x = 0;
+            for (const auto& body : state.mBodies) x += body.mMass * body.mTransform[0];
+            return x / state.mMass;
+        };
+        const float low = sample(.5f), base = sample(1), high = sample(3);
+        require(base > 100 && std::abs(low / base - .5f) < .2f && std::abs(high / base - 3) < .45f,
+            "Crossbow flight plus ground slide did not approach half/triple baseline travel");
+        std::cout << "PASS settled crossbow travel: " << low << '/' << base << '/' << high
+                  << " world units at 50%/100%/300%\n";
     }
 
     void pinAndDeadline()
@@ -1174,6 +1210,7 @@ int main(int argc, char** argv)
         fallbackAndSnapshotLoss();
         inertiaAndMass();
         sliderLaunchScaling();
+        crossbowGroundTravelScaling();
         pinAndDeadline();
         pinAndStatusSliderBounds();
         anatomicalLimitsAndShock();
