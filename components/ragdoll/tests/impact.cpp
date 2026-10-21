@@ -351,6 +351,12 @@ int main()
         Ragdoll::Impact wound;
         wound.mValid = wound.mHasWeaponContact = true;
         wound.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
+        for (const float roll : { 0.f, .1f, .3f, .99f, 1.f })
+        {
+            check(!Ragdoll::selectWounds(wound, 4, roll, 0).mCuts, "0% chance severed a limb");
+            check(Ragdoll::selectWounds(wound, 4, roll, 1).mCuts == (1u << 3),
+                "100% chance failed, including the closed RNG endpoint");
+        }
         check(Ragdoll::selectWounds(wound, 4, .299f, .3f).mCuts == (1u << 3), "Blade did not sever struck arm");
         check(!Ragdoll::selectWounds(wound, 4, .3f, .3f).mCuts, "30% boundary was inclusive");
         check(!Ragdoll::selectWounds(wound, 1, 0, 1).mCuts, "One-hand blade bisected torso");
@@ -367,6 +373,25 @@ int main()
         check(Ragdoll::selectWounds(wound, 1, 0, 1).mCuts == 684, "Direct fire did not detach all five extremities");
         wound.mDeathElement = Ragdoll::DeathElement::Shock;
         check(Ragdoll::selectWounds(wound, 1, 0, 1).mBurstHead, "Direct shock did not burst head");
+        {
+            MWMechanics::RagdollMagicImpact context;
+            context.mHit = std::make_shared<MWMechanics::RagdollHit>();
+            context.mDirection.set(1, 0, 0);
+            for (const float scale : { .5f, 1.f, 3.f })
+            {
+                auto direct = MWMechanics::makeRagdollMagicImpact(context, {}, scale, Element::Fire, 50);
+                check(near(direct.mMagicDistance, scale) && near(direct.mMagicImpulseScale, scale),
+                    "Zero-area direct magic did not retain its 50%-300% impulse scale");
+                context.mHit->applyMagic(1, direct);
+                check(near(context.mHit->mApplied.mMagicImpulseScale, scale), "Magic provenance discarded its slider");
+            }
+            context.mHit->mWeapon.mWeaponImpulseScale = 3;
+            context.mHit->applyWeapon();
+            check(near(context.mHit->mApplied.mWeaponImpulseScale, 3), "Weapon provenance discarded its slider");
+            context.mHit->mContactAge = 1;
+            const auto tick = MWMechanics::makeRagdollMagicImpact(context, {}, 3, Element::Fire, 50);
+            check(near(tick.mMagicDistance, 0), "Duration tick invented a direct-hit impulse");
+        }
         testDominantDamageSelectsMotionAndElement();
         testOnlyEffectiveDamageContributes();
         testDistinctEffectsAndDurationTicks();

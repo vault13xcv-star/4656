@@ -92,7 +92,7 @@ namespace Ragdoll
         explicit Impl(const Settings& settings)
             : mSettings(settings)
         {
-            if (settings.mMaxActive < 1 || settings.mMaxActive > 200 || !std::isfinite(settings.mMaxSimulationTime)
+            if (settings.mMaxActive < 1 || settings.mMaxActive > 300 || !std::isfinite(settings.mMaxSimulationTime)
                 || settings.mMaxSimulationTime <= 0)
                 throw std::invalid_argument("Invalid item physics limits");
             mWorld.setGravity(btVector3(0, 0, -627.2));
@@ -314,18 +314,26 @@ namespace Ragdoll
         if (auto it = mImpl->mItems.find(id); it != mImpl->mItems.end())
             mImpl->activate(it->second);
     }
-    void ItemSimulation::impulse(Id id, const btVector3& momentum, const btVector3& point)
+    void ItemSimulation::impulse(Id id, const btVector3& momentum, const btVector3& point, btScalar strengthScale)
     {
         const auto it = mImpl->mItems.find(id);
-        if (it == mImpl->mItems.end() || !finite(momentum) || !finite(point) || momentum.fuzzyZero())
+        if (it == mImpl->mItems.end() || !finite(momentum) || !finite(point) || momentum.fuzzyZero()
+            || !std::isfinite(strengthScale) || strengthScale <= 0)
             return;
         mImpl->activate(it->second);
         auto& body = *it->second.mBody;
-        body.applyImpulse(momentum, point - body.getCenterOfMassPosition());
-        if (body.getLinearVelocity().length2() > 1200 * 1200)
-            body.setLinearVelocity(body.getLinearVelocity().normalized() * 1200);
-        if (body.getAngularVelocity().length2() > 25 * 25)
-            body.setAngularVelocity(body.getAngularVelocity().normalized() * 25);
+        // Bound the BASE impulse first, then apply the menu multiplier. Doing
+        // this in reverse made both ends of a slider hit the same 1200 cap.
+        const btScalar scale = std::min(strengthScale, btScalar(3));
+        const btScalar baseSpeed = momentum.length() / it->second.mMass;
+        const btVector3 bounded = momentum * (baseSpeed > 1200 ? 1200 / baseSpeed : btScalar(1));
+        body.applyImpulse(bounded * scale, point - body.getCenterOfMassPosition());
+        const btScalar maxLinear = 1200 * std::max(btScalar(1), scale);
+        const btScalar maxAngular = 25 * std::max(btScalar(1), scale);
+        if (body.getLinearVelocity().length2() > maxLinear * maxLinear)
+            body.setLinearVelocity(body.getLinearVelocity().normalized() * maxLinear);
+        if (body.getAngularVelocity().length2() > maxAngular * maxAngular)
+            body.setAngularVelocity(body.getAngularVelocity().normalized() * maxAngular);
         mImpl->mDirtyIds.insert(id);
     }
     bool ItemSimulation::hasActiveBodies() const
@@ -478,7 +486,7 @@ namespace Ragdoll
     }
     void ItemSimulation::setSettings(const Settings& settings)
     {
-        if (settings.mMaxActive < 1 || settings.mMaxActive > 200 || !std::isfinite(settings.mMaxSimulationTime)
+        if (settings.mMaxActive < 1 || settings.mMaxActive > 300 || !std::isfinite(settings.mMaxSimulationTime)
             || settings.mMaxSimulationTime <= 0)
             throw std::invalid_argument("Invalid item physics limits");
         if (settings.mMaxActive == mImpl->mSettings.mMaxActive

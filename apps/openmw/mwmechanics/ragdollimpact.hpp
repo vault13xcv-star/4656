@@ -28,6 +28,7 @@ namespace MWMechanics
             mApplied.mWeaponDirection = mWeapon.mWeaponDirection;
             mApplied.mWeaponDistance = mWeapon.mWeaponDistance;
             mApplied.mWeaponMultiplier = mWeapon.mWeaponMultiplier;
+            mApplied.mWeaponImpulseScale = mWeapon.mWeaponImpulseScale;
             mApplied.mWeaponPosition = mWeapon.mWeaponPosition;
             mApplied.mHasWeaponContact = mWeapon.mHasWeaponContact;
             mApplied.mCrossbow = mWeapon.mCrossbow;
@@ -81,6 +82,7 @@ namespace MWMechanics
                     mApplied.mDominantMagicDamage = contribution.mDominantMagicDamage;
                     mApplied.mDeathElement = contribution.mDeathElement;
                     mApplied.mMagicDistance = contribution.mMagicDistance;
+                    mApplied.mMagicImpulseScale = contribution.mMagicImpulseScale;
                     mApplied.mMagicDirection = contribution.mMagicDirection;
                     mApplied.mMagicOrigin = contribution.mMagicOrigin;
                     mApplied.mMagicTarget = contribution.mMagicTarget;
@@ -120,12 +122,14 @@ namespace MWMechanics
         if (!context.mHasImpulse)
             return impact;
         impact.mDirectMagic = !context.mExploded && context.mHit && context.mHit->mContactAge <= .1f;
+        impact.mMagicImpulseScale = scale;
         impact.mPosition = context.mOrigin;
         impact.mMagicOrigin = context.mOrigin;
         impact.mMagicTarget = context.mHasTargetPosition ? context.mTargetPosition : targetPosition;
-        // Health damage selects an ordinary corpse, including when it wins over
-        // an elemental effect. Zero-area magic still selects its visual status.
-        if (element == Ragdoll::DeathElement::None || !std::isfinite(context.mRadius) || context.mRadius <= 0.f
+        // Direct elemental hits without an explosion have a one-metre baseline.
+        // Duration ticks and splash still require an actual explosion radius.
+        const float radius = context.mRadius > 0.f ? context.mRadius : impact.mDirectMagic ? 1.f : 0.f;
+        if (element == Ragdoll::DeathElement::None || !std::isfinite(context.mRadius) || context.mRadius < 0.f || radius <= 0.f
             || !std::isfinite(scale) || scale <= 0.f)
             return impact;
         impact.mMagicDirection = context.mDirection;
@@ -146,10 +150,10 @@ namespace MWMechanics
             impact.mMagicAttraction = true;
             impact.mMagicDirection = -impact.mMagicDirection;
             impact.mMagicDistance
-                = distance <= context.mRadius ? std::min(distance, context.mRadius - 0.5f * distance) * scale : 0.f;
+                = distance <= radius ? std::min(distance, radius - 0.5f * distance) * scale : 0.f;
         }
         else
-            impact.mMagicDistance = std::max(0.f, context.mRadius - distance) * scale;
+            impact.mMagicDistance = std::max(0.f, radius - distance) * scale;
         return impact;
     }
 }

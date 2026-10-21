@@ -75,7 +75,8 @@ namespace MWPhysics
                                 << error.what();
         }
     }
-    void PhysicsSystem::applyItemImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point)
+    void PhysicsSystem::applyItemImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point,
+        float strengthScale)
     {
         if (!mItems || !Settings::ragdoll().mItemPhysics || ptr.isEmpty())
             return;
@@ -85,11 +86,11 @@ namespace MWPhysics
             mItems->wake(id(ptr));
         else
             mItems->impulse(id(ptr), Misc::Convert::toBullet(impulse * Settings::ragdoll().mItemImpulseScale.get()),
-                Misc::Convert::toBullet(point));
+                Misc::Convert::toBullet(point), strengthScale);
         syncItemStates();
         mItemSnapshotAge = 1.f;
     }
-    void PhysicsSystem::applyItemExplosion(const osg::Vec3f& origin, float radius, float strength)
+    void PhysicsSystem::applyItemExplosion(const osg::Vec3f& origin, float radius, float strength, float strengthScale)
     {
         if (!mItems || !Settings::ragdoll().mItemPhysics || radius <= 0 || strength <= 0)
             return;
@@ -112,7 +113,7 @@ namespace MWPhysics
                 continue;
             direction.z() += 0.2f;
             direction.normalize();
-            applyItemImpulse(ptr, direction * (strength * (1.f - distance / radius)), center);
+            applyItemImpulse(ptr, direction * (strength * (1.f - distance / radius)), center, strengthScale);
         }
     }
     void PhysicsSystem::updateItems(float duration,

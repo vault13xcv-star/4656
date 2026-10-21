@@ -87,6 +87,9 @@ namespace Ragdoll
         // All segments receive the same change in velocity; total momentum is
         // exactly the supplied impulse, independent of the mass distribution.
         void applyWholeBodyImpulse(const btVector3& impulse);
+        // Preserve total momentum without clipping a whole-body blow on a
+        // small hand/head. A bounded local share retains contact articulation.
+        void applyImpact(std::size_t body, const btVector3& impulse, const btVector3& worldPoint);
         // A finite-duration, mass-dependent spring/drag field. Forces are
         // distributed by segment mass, keeping the skeleton connected.
         void attract(

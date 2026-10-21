@@ -790,18 +790,18 @@
                 </Widget>
                 <Widget type="ScrollView" skin="MW_ScrollView" position="4 74 352 264" align="Stretch" name="PhysicsView">
                     <Property key="CanvasAlign" value="Left Top"/>
-                    <Property key="CanvasSize" value="352 664"/>
+                    <Property key="CanvasSize" value="352 724"/>
                     <Widget type="Widget" position="4 4 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsMeleeLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsMeleeSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="melee impulse scale"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value=".5"/>
-                            <UserString key="SettingMax" value="2"/>
+                            <UserString key="SettingMax" value="3"/>
                             <UserString key="SettingLabelWidget" value="PhysicsMeleeLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollMeleeValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
@@ -810,14 +810,14 @@
                     <Widget type="Widget" position="4 64 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsCrossbowLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsCrossbowSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="crossbow impulse scale"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value=".5"/>
-                            <UserString key="SettingMax" value="2"/>
+                            <UserString key="SettingMax" value="3"/>
                             <UserString key="SettingLabelWidget" value="PhysicsCrossbowLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollCrossbowValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
@@ -826,14 +826,14 @@
                     <Widget type="Widget" position="4 124 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsBowLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsBowSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="bow impulse scale"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value=".5"/>
-                            <UserString key="SettingMax" value="2"/>
+                            <UserString key="SettingMax" value="3"/>
                             <UserString key="SettingLabelWidget" value="PhysicsBowLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollBowValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
@@ -842,14 +842,14 @@
                     <Widget type="Widget" position="4 184 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsThrownLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsThrownSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="thrown impulse scale"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value=".5"/>
-                            <UserString key="SettingMax" value="2"/>
+                            <UserString key="SettingMax" value="3"/>
                             <UserString key="SettingLabelWidget" value="PhysicsThrownLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollThrownValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
@@ -858,14 +858,14 @@
                     <Widget type="Widget" position="4 244 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsMagicLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsMagicSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="magic distance scale"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value=".5"/>
-                            <UserString key="SettingMax" value="2"/>
+                            <UserString key="SettingMax" value="3"/>
                             <UserString key="SettingLabelWidget" value="PhysicsMagicLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollMagicValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
@@ -874,14 +874,14 @@
                     <Widget type="Widget" position="4 304 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsBodyTimeLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsBodyTimeSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="max simulation time"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value="5"/>
-                            <UserString key="SettingMax" value="20"/>
+                            <UserString key="SettingMax" value="30"/>
                             <UserString key="SettingLabelWidget" value="PhysicsBodyTimeLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollBodyTimeValue"/>
                         </Widget>
@@ -889,14 +889,14 @@
                     <Widget type="Widget" position="4 364 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsItemTimeLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsItemTimeSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="item simulation time"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value="5"/>
-                            <UserString key="SettingMax" value="20"/>
+                            <UserString key="SettingMax" value="30"/>
                             <UserString key="SettingLabelWidget" value="PhysicsItemTimeLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollItemTimeValue"/>
                         </Widget>
@@ -904,14 +904,14 @@
                     <Widget type="Widget" position="4 424 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsBodiesLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsBodiesSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="max active"/>
                             <UserString key="SettingValueType" value="Integer"/>
                             <UserString key="SettingMin" value="50"/>
-                            <UserString key="SettingMax" value="200"/>
+                            <UserString key="SettingMax" value="300"/>
                             <UserString key="SettingLabelWidget" value="PhysicsBodiesLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollBodiesValue"/>
                         </Widget>
@@ -919,14 +919,14 @@
                     <Widget type="Widget" position="4 484 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsItemsLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsItemsSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="max active items"/>
                             <UserString key="SettingValueType" value="Integer"/>
                             <UserString key="SettingMin" value="50"/>
-                            <UserString key="SettingMax" value="200"/>
+                            <UserString key="SettingMax" value="300"/>
                             <UserString key="SettingLabelWidget" value="PhysicsItemsLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollItemsValue"/>
                         </Widget>
@@ -934,14 +934,14 @@
                     <Widget type="Widget" position="4 544 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsPinLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsPinSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="pin max distance"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value="1.25"/>
-                            <UserString key="SettingMax" value="5"/>
+                            <UserString key="SettingMax" value="7.5"/>
                             <UserString key="SettingLabelWidget" value="PhysicsPinLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollPinValue"/>
                         </Widget>
@@ -949,14 +949,14 @@
                     <Widget type="Widget" position="4 604 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsStatusTimeLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsStatusTimeSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="251"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="status duration scale"/>
                             <UserString key="SettingValueType" value="Float"/>
                             <UserString key="SettingMin" value=".5"/>
-                            <UserString key="SettingMax" value="2"/>
+                            <UserString key="SettingMax" value="3"/>
                             <UserString key="SettingLabelWidget" value="PhysicsStatusTimeLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollStatusTimeValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
@@ -965,14 +965,14 @@
                     <Widget type="Widget" position="4 664 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsDismembermentLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsDismembermentSlider">
-                            <Property key="Range" value="151"/>
+                            <Property key="Range" value="101"/>
                             <Property key="Page" value="10"/>
                             <UserString key="SettingType" value="Slider"/>
                             <UserString key="SettingCategory" value="Ragdoll"/>
                             <UserString key="SettingName" value="dismemberment chance"/>
                             <UserString key="SettingValueType" value="Float"/>
-                            <UserString key="SettingMin" value=".15"/>
-                            <UserString key="SettingMax" value=".6"/>
+                            <UserString key="SettingMin" value="0"/>
+                            <UserString key="SettingMax" value="1"/>
                             <UserString key="SettingLabelWidget" value="PhysicsDismembermentLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollDismembermentValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>

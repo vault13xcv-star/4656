@@ -282,8 +282,8 @@ namespace MWClass
             osg::Vec3f direction = contact.second - ptr.getRefData().getPosition().asVec3();
             direction.normalize();
             MWBase::Environment::get().getWorld()->applyItemImpulse(contact.first,
-                direction * ((400.f + 800.f * attackStrength) * Settings::ragdoll().mMeleeImpulseScale.get()),
-                contact.second);
+                direction * (400.f + 800.f * attackStrength),
+                contact.second, Settings::ragdoll().mMeleeImpulseScale.get());
             return;
         }
         if (victim.isEmpty())

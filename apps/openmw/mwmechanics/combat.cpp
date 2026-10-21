@@ -144,7 +144,7 @@ namespace MWMechanics
             impact.mWeaponMultiplier = Ragdoll::meleeMultiplier(
                 weaponData ? weaponData->mWeight : 0.f, minimum, maximum, strength, weaponData != nullptr);
         }
-        impact.mWeaponMultiplier *= type == ESM::Weapon::Bolt || type == ESM::Weapon::MarksmanCrossbow
+        impact.mWeaponImpulseScale = type == ESM::Weapon::Bolt || type == ESM::Weapon::MarksmanCrossbow
             ? settings.mCrossbowImpulseScale.get()
             : type == ESM::Weapon::Arrow || type == ESM::Weapon::MarksmanBow ? settings.mBowImpulseScale.get()
             : type == ESM::Weapon::MarksmanThrown                            ? settings.mThrownImpulseScale.get()
@@ -349,7 +349,7 @@ namespace MWMechanics
                 const float scale = type == ESM::Weapon::Bolt ? settings.mCrossbowImpulseScale.get()
                     : type == ESM::Weapon::Arrow              ? settings.mBowImpulseScale.get()
                                                               : settings.mThrownImpulseScale.get();
-                world->applyItemImpulse(victim, direction * ((400.f + 600.f * attackStrength) * scale), hitPosition);
+                world->applyItemImpulse(victim, direction * (400.f + 600.f * attackStrength), hitPosition, scale);
             }
         }
 

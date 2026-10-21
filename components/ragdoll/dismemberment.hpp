@@ -18,7 +18,7 @@ namespace Ragdoll
     inline Wounds selectWounds(const Impact& hit, std::size_t part, float roll, float chance)
     {
         if (!hit.mValid || !std::isfinite(roll) || !std::isfinite(chance)
-            || roll < 0 || roll >= std::clamp(chance, 0.f, 1.f))
+            || roll < 0 || roll > 1 || chance <= 0 || (chance < 1 && roll >= chance))
             return {};
         constexpr auto bit = [](unsigned body) { return std::uint32_t(1) << body; };
         if (hit.mDirectMagic)

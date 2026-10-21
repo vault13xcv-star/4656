@@ -1,4 +1,29 @@
-# Real Combat Ragdoll 0.6.0-preview.2
+# Real Combat Ragdoll 0.6.0-preview.3
+
+Physics sliders now span 50–300% of their baseline. Dismemberment instead uses
+an absolute 0–100% probability with a 30% default, including exact RNG endpoints.
+Baseline impulse limits are applied before the menu scale. Weapon momentum is
+distributed over the corpse with a bounded local contact share, so light heads
+and hands no longer clip most of a strong hit. Horizontal throw scaling keeps
+the baseline flight time; on unobstructed identical trajectories it scales travel
+linearly. Contact, friction, body mass and walls still affect real final travel.
+Zero-area direct elemental spells now have a one-metre reference throw.
+
+| Control | Minimum | Default | Maximum |
+| --- | ---: | ---: | ---: |
+| Melee, crossbow, bow, thrown weapon and magic strength | 50% | 100% | 300% |
+| Active corpses / active items (independent) | 50 | 100 | 300 |
+| Corpse / item physics duration (independent) | 5 s | 10 s | 30 s |
+| Crossbow pinning search distance | 1.25 m | 2.5 m | 7.5 m |
+| Status duration | 50% | 100% | 300% |
+| Dismemberment chance | 0% | 30% | 100% |
+
+Changes affect new impacts. Timers and budgets update on resume without renewing
+elapsed time. A higher active budget permits more newly active bodies/items; it
+does not restart entities whose simulation has already ended. Pinning still
+requires the corpse to physically reach the wall. Tests cover actual Bullet
+momentum/travel at all three slider settings, saturated head/hand/item hits,
+300-body/item budgets, live timers, pinning bounds and status deadlines.
 
 Fixes the stretched clothing and visible-through-walls wound surfaces reported
 in preview.1. Skin weights across a cut now use virtual bones relative to the
@@ -27,12 +52,12 @@ New NPC death effects use one probability roll per lethal contact:
   not create these direct-contact wounds. On-strike enchantments share their
   native contact with physical weapon damage.
 
-At defaults the probability is 30%. Esc > Settings > Physics has a new
-**Dismemberment chance** multiplier, from 50% to 200% of that default (15–60%
-probability). The English Physics controls include melee, crossbow, bow, thrown
+At defaults the probability is 30%. Esc > Settings > Physics has a
+**Dismemberment chance** control, from 0% to 100% probability.
+The English Physics controls include melee, crossbow, bow, thrown
 weapons and magic impulses, independent corpse/item budgets and lifetimes,
 crossbow pinning distance and status lifetime. Reset includes the new option.
-The status multiplier controls bleeding too: 10 seconds at 100%, 5–20 seconds
+The status multiplier controls bleeding too: 10 seconds at 100%, 5–30 seconds
 across the slider. Changing it preserves elapsed time.
 
 Severed limbs retain their internal ragdoll joints. The renderer uses the NPC's

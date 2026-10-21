@@ -24,6 +24,7 @@
 #include <map>
 #include <stdexcept>
 #include <utility>
+#include <tuple>
 
 namespace
 {
@@ -507,6 +508,70 @@ namespace
         std::cout << "PASS weapon recoil, additive magic, cubic stature and equipped mass\n";
     }
 
+    void sliderLaunchScaling()
+    {
+        const auto sample = [](float distance, float scale, bool magic, bool capped, const std::string& contact) {
+            SkeletonFixture fixture;
+            fixture.mWorld->setMatrix(osg::Matrixf::translate(0, 0, 1000));
+            MWRender::RagdollController::Settings settings;
+            settings.mPinEnabled = false;
+            if (capped) settings.mMaxLaunchSpeed = 100;
+            Ragdoll::Impact impact;
+            impact.mValid = true;
+            if (magic)
+            {
+                impact.mMagicDistance = distance * scale;
+                impact.mMagicImpulseScale = scale;
+                impact.mMagicDirection.set(1, 0, 0);
+            }
+            else
+            {
+                impact.mWeaponDistance = distance;
+                impact.mWeaponImpulseScale = scale;
+                impact.mWeaponDirection.set(1, 0, 0);
+                impact.mHasWeaponContact = true;
+                impact.mWeaponPosition = worldMatrix(*fixture.mBones.at(contact)).getTrans();
+            }
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, impact);
+            require(bool(corpse), "Slider launch fixture failed to create");
+            ESM::RagdollState state;
+            corpse->writeState(state);
+            const auto centre = [](const ESM::RagdollState& state) {
+                osg::Vec3f position;
+                for (const auto& part : state.mBodies)
+                    position += osg::Vec3f(part.mTransform[0], part.mTransform[1], part.mTransform[2]) * part.mMass;
+                return position / state.mMass;
+            };
+            osg::Vec3f momentum;
+            for (const auto& part : state.mBodies)
+                momentum += osg::Vec3f(part.mLinearVelocity[0], part.mLinearVelocity[1], part.mLinearVelocity[2]) * part.mMass;
+            const auto start = centre(state);
+            for (int frame = 0; frame < 30; ++frame) corpse->update(1.f / 120);
+            corpse->writeState(state);
+            return std::pair(momentum.x(), (centre(state) - start).x());
+        };
+        for (const auto& [name, distance, magic, capped] : {
+                 std::tuple("melee", .25f, false, false), std::tuple("two-handed", 1.f, false, false),
+                 std::tuple("crossbow", 2.4f, false, false), std::tuple("bow", .3f, false, false),
+                 std::tuple("thrown", .15f, false, false), std::tuple("magic", 2.f, true, false),
+                 std::tuple("capped-crossbow", 2.4f, false, true) })
+            for (const std::string contact : { "Head", "L Hand", "Spine2" })
+            {
+                const auto base = sample(distance, 1, magic, capped, contact);
+                require(base.first > 0 && base.second > 1, "Baseline slider did not launch a corpse");
+                for (const float scale : { .5f, 3.f })
+                {
+                    const auto actual = sample(distance, scale, magic, capped, contact);
+                    require(std::abs(actual.first / base.first - scale) < .001f,
+                        "Slider momentum was lost to a per-limb or launch speed cap");
+                    require(std::abs(actual.second / base.second - scale) < .02f,
+                        "Actual Bullet corpse travel did not follow the 50%-300% slider");
+                }
+            }
+        std::cout << "PASS all launch sliders: 0.5x/1x/3x actual momentum and Bullet travel, including head/hand hits and caps\n";
+    }
+
     void pinAndDeadline()
     {
         SkeletonFixture fixture;
@@ -580,6 +645,60 @@ namespace
         timed->update(0.11f);
         require(!timed->isSimulating(), "deadline must use elapsed game time, not capped solver time");
         std::cout << "PASS bolt wall pin, floor exclusion, suspended freeze and elapsed deadline\n";
+    }
+
+    void pinAndStatusSliderBounds()
+    {
+        const auto wall = [](const osg::Vec3f& center, float radius) {
+            auto vertices = floorSnapshot(center, radius);
+            for (const auto& point : { osg::Vec3f(120, -300, 0), osg::Vec3f(120, 300, 0), osg::Vec3f(120, 300, 300),
+                     osg::Vec3f(120, -300, 0), osg::Vec3f(120, 300, 300), osg::Vec3f(120, -300, 300) })
+                vertices.push_back(point);
+            return vertices;
+        };
+        for (const float pinDistance : { 1.25f, 7.5f })
+        {
+            SkeletonFixture fixture;
+            fixture.mWorld->setMatrix(osg::Matrixf::identity());
+            MWRender::RagdollController::Settings settings;
+            settings.mPinMaxDistance = pinDistance;
+            Ragdoll::Impact impact;
+            impact.mValid = impact.mCrossbow = true;
+            impact.mWeaponDistance = 5;
+            impact.mWeaponDirection.set(1, 0, 0);
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, wall, settings, impact);
+            require(bool(corpse), "Pin slider fixture failed to create");
+            for (int frame = 0; frame < 240; ++frame) corpse->update(1.f / 120);
+            require(corpse->isPinned() == (pinDistance == 7.5f), "Pin distance slider failed to change wall eligibility");
+        }
+        for (const float scale : { .5f, 1.f, 3.f })
+        {
+            SkeletonFixture fixture;
+            MWRender::RagdollController::Settings settings;
+            settings.mNpc = true;
+            settings.mWoundRoll = 0;
+            settings.mMaxSimulationTime = .1f;
+            settings.mBleedDuration = 10 * scale;
+            settings.mFireEffectDuration = 15 * scale;
+            int blood = 0;
+            settings.mBloodEffect = [&](const auto&) { ++blood; };
+            Ragdoll::Impact impact;
+            impact.mValid = impact.mHasWeaponContact = true;
+            impact.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+            impact.mDeathElement = Ragdoll::DeathElement::Fire;
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, impact);
+            require(bool(corpse), "Status slider fixture failed to create");
+            corpse->update(10 * scale - .1f);
+            require(blood > 1 && corpse->hasFireEffect(), "Scaled blood/fire ended before their deadline");
+            const int before = blood;
+            corpse->update(.2f);
+            require(blood == before, "Bleeding did not end at the scaled deadline");
+            corpse->update(5 * scale);
+            require(!corpse->hasFireEffect(), "Flames did not end at the scaled deadline");
+        }
+        std::cout << "PASS min/max wall pin range and 50%/100%/300% blood/flame deadlines after physics freeze\n";
     }
 
     void anatomicalLimitsAndShock()
@@ -946,10 +1065,10 @@ namespace
     void liveSettingsAndExtendedBudget()
     {
         MWRender::RagdollController::Settings settings;
-        settings.mMaxActive = 200;
+        settings.mMaxActive = 300;
         std::vector<std::unique_ptr<SkeletonFixture>> fixtures;
         std::vector<std::unique_ptr<MWRender::RagdollController>> corpses;
-        for (int i = 0; i < 200; ++i)
+        for (int i = 0; i < 300; ++i)
         {
             auto fixture = std::make_unique<SkeletonFixture>();
             auto corpse = MWRender::RagdollController::create(
@@ -961,7 +1080,7 @@ namespace
         int active = 0;
         for (const auto& corpse : corpses)
             active += corpse->isSimulating();
-        require(active == 200, "UI +100% corpse budget was still clamped at 100");
+        require(active == 300, "UI +200% corpse budget was still clamped at 100");
         corpses.back()->setRuntimeSettings(50, 10, 2.5, 30, 20, 20);
         active = 0;
         for (const auto& corpse : corpses)
@@ -972,6 +1091,12 @@ namespace
         SkeletonFixture fixture;
         auto corpse = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, {});
         corpse->update(.2f);
+        corpse->setRuntimeSettings(300, 30, 7.5, 45, 30, 30, 30);
+        ESM::RagdollState maximum;
+        corpse->writeState(maximum);
+        require(std::abs(maximum.mTimeLeft - 29.8f) < .01f && maximum.mFireDuration == 45
+                && maximum.mPoisonDuration == 30 && maximum.mShockDuration == 30 && maximum.mBleedDuration == 30,
+            "300% corpse/status duration was clamped or failed to update");
         corpse->setRuntimeSettings(100, 5, 2.5, 30, 20, 20);
         ESM::RagdollState state;
         corpse->writeState(state);
@@ -991,7 +1116,7 @@ namespace
         require(std::abs(again.mTimeLeft - 9.8f) < .01f, "restored duration adjustment lost the elapsed window");
         require(again.mFireDuration == 15 && again.mPoisonDuration == 10 && again.mShockDuration == 10,
             "status duration settings failed to update saved corpse effects");
-        std::cout << "PASS 200 corpses, live budget reduction and saved runtime timer adjustments\n";
+        std::cout << "PASS 300 corpses, live budget reduction and saved runtime timer adjustments\n";
     }
 }
 
@@ -1048,7 +1173,9 @@ int main(int argc, char** argv)
         genericCreatureSkeleton();
         fallbackAndSnapshotLoss();
         inertiaAndMass();
+        sliderLaunchScaling();
         pinAndDeadline();
+        pinAndStatusSliderBounds();
         anatomicalLimitsAndShock();
         skinSurfacesAndCleanup();
         wornSurfaceCoverageAndDetail();

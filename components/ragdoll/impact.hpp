@@ -34,7 +34,9 @@ namespace Ragdoll
         bool mMagicAttraction = false;
         float mWeaponDistance = 0.f;
         float mWeaponMultiplier = 1.f;
+        float mWeaponImpulseScale = 1.f;
         float mMagicDistance = 0.f;
+        float mMagicImpulseScale = 1.f;
         bool mCrossbow = false;
         WoundWeapon mWoundWeapon = WoundWeapon::None;
         bool mDirectMagic = false;

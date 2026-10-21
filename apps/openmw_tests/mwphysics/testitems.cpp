@@ -200,6 +200,31 @@ namespace
         mPhysics->remove(floor.ptr());
     }
 
+    TEST_F(ItemPhysicsIntegration, AllImpulseSlidersReachTheNativeSolverAfterBaselineClamping)
+    {
+        Reference<ESM::Static> floor(0, 0, -1);
+        insert(floor.ptr(), "meshes/floor.osgt");
+        auto& settings = Settings::ragdoll();
+        for (auto* slider : { &settings.mMeleeImpulseScale, &settings.mCrossbowImpulseScale,
+                 &settings.mBowImpulseScale, &settings.mThrownImpulseScale, &settings.mMagicDistanceScale })
+        {
+            const float original = slider->get();
+            for (const float scale : { .5f, 1.f, 3.f })
+            {
+                slider->set(scale);
+                Reference<ESM::Potion> item(0, 0, 80, .05f);
+                insert(item.ptr());
+                mPhysics->applyItemImpulse(item.ptr(), osg::Vec3f(5000, 0, 0), osg::Vec3f(0, 0, 80), slider->get());
+                EXPECT_NEAR(item.ptr().getRefData().getItemPhysicsState().mLinearVelocity[0], 1200 * scale, .01f);
+                advance(1.f / 120);
+                EXPECT_NEAR(item.ptr().getRefData().getPosition().pos[0], 10 * scale, .1f);
+                mPhysics->remove(item.ptr());
+            }
+            slider->set(original);
+        }
+        mPhysics->remove(floor.ptr());
+    }
+
     TEST_F(ItemPhysicsIntegration, NativeExplosionPushesRegisteredItemsOutwardAccordingToMass)
     {
         Reference<ESM::Static> floor(0, 0, -1);

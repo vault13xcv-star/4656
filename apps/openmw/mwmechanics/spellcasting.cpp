@@ -129,7 +129,7 @@ namespace MWMechanics
         }
 
         world->applyItemExplosion(
-            mHitPosition, itemRadius, itemStrength * Settings::ragdoll().mMagicDistanceScale.get());
+            mHitPosition, itemRadius, itemStrength, Settings::ragdoll().mMagicDistanceScale.get());
 
         // Now apply the appropriate effects to each actor in range
         for (auto& applyPair : toApply)
@@ -207,7 +207,7 @@ namespace MWMechanics
             }
             if (strength > 0)
                 MWBase::Environment::get().getWorld()->applyItemImpulse(
-                    target, direction * (strength * Settings::ragdoll().mMagicDistanceScale.get()), mHitPosition);
+                    target, direction * strength, mHitPosition, Settings::ragdoll().mMagicDistanceScale.get());
         }
 
         ActiveSpells::ActiveSpellParams params(mCaster, mId, mSourceName, mItem);

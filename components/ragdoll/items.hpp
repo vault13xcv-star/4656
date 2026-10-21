@@ -36,7 +36,7 @@ namespace Ragdoll
         bool contains(Id id) const;
         bool empty() const;
         void move(Id id, const btTransform& transform);
-        void impulse(Id id, const btVector3& momentum, const btVector3& point);
+        void impulse(Id id, const btVector3& momentum, const btVector3& point, btScalar strengthScale = 1);
         void wake(Id id);
         void setObserverPosition(const btVector3& position);
         void setSettings(const Settings& settings);

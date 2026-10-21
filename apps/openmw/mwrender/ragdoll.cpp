@@ -394,7 +394,7 @@ namespace MWRender
 
         void acquireBudget(const std::shared_ptr<Impl>& self)
         {
-            enforceBudget(std::clamp(mSettings.mMaxActive, 1, 200) - 1);
+            enforceBudget(std::clamp(mSettings.mMaxActive, 1, 300) - 1);
             mActivation = ++sNextActivation;
             mBudgetSlot = true;
             ++sSimulatingCorpses;
@@ -772,6 +772,7 @@ namespace MWRender
             }
         }
         Ragdoll::Settings physics;
+        physics.mMaxLinearSpeed = std::max(2000.f, settings.mMaxLaunchSpeed * 9.f);
         if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Poison)
             physics.mBodyMode = Ragdoll::BodyMode::Soft;
         else if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Frost)
@@ -833,22 +834,35 @@ namespace MWRender
             };
             osg::Vec3f weaponVelocity
                 = launchVelocity(impact.mWeaponDistance, impact.mWeaponDirection) * impact.mWeaponMultiplier;
+            // Keep the flight time at the baseline. Scaling vertical lift with
+            // horizontal speed squared the travel and made the slider misleading.
+            const auto scaleTravel = [](osg::Vec3f velocity, float scale) {
+                scale = std::isfinite(scale) ? std::clamp(scale, .5f, 3.f) : 1.f;
+                if (velocity.x() * velocity.x() + velocity.y() * velocity.y() > .0001f)
+                {
+                    velocity.x() *= scale;
+                    velocity.y() *= scale;
+                }
+                else
+                    velocity.z() *= std::sqrt(scale);
+                return velocity;
+            };
             osg::Vec3f magicVelocity = impact.mMagicAttraction
                 ? osg::Vec3f()
-                : launchVelocity(impact.mMagicDistance, impact.mMagicDirection);
+                : launchVelocity(impact.mMagicDistance / std::max(.5f, impact.mMagicImpulseScale),
+                      impact.mMagicDirection);
+            const float referenceFactor = settings.mImpulseReferenceMass / mass * settings.mImpulseMultiplier;
+            const auto limitBase = [&](osg::Vec3f velocity) {
+                const float speed = velocity.length() * referenceFactor;
+                return speed > settings.mMaxLaunchSpeed ? velocity * (settings.mMaxLaunchSpeed / speed) : velocity;
+            };
+            // Limit the baseline, then scale. Limiting the final result erased
+            // differences at the upper end (or even at both ends) of a slider.
+            weaponVelocity = scaleTravel(limitBase(weaponVelocity), impact.mWeaponImpulseScale);
+            magicVelocity = scaleTravel(limitBase(magicVelocity), impact.mMagicImpulseScale);
             osg::Vec3f velocity
-                = (weaponVelocity
-                      + (impact.mMagicAttraction ? osg::Vec3f()
-                                                 : launchVelocity(impact.mMagicDistance, impact.mMagicDirection)))
+                = (weaponVelocity + magicVelocity)
                 * (settings.mImpulseReferenceMass / mass * settings.mImpulseMultiplier);
-            const float speed = velocity.length();
-            if (speed > settings.mMaxLaunchSpeed)
-            {
-                const float factor = settings.mMaxLaunchSpeed / speed;
-                velocity *= factor;
-                weaponVelocity *= factor;
-                magicVelocity *= factor;
-            }
             launched = velocity.length2() > 0.01f;
             if (impact.mHasWeaponContact && weaponVelocity.length2() > 0.f)
             {
@@ -865,7 +879,7 @@ namespace MWRender
                         closest = part;
                     }
                 }
-                impl->mSimulation->applyImpulse(closest,
+                impl->mSimulation->applyImpact(closest,
                     toBullet(weaponVelocity * (settings.mImpulseReferenceMass * settings.mImpulseMultiplier)),
                     toBullet(impact.mWeaponPosition));
                 impl->mPinBody = closest;
@@ -1090,6 +1104,7 @@ namespace MWRender
                 return nullptr;
             impl->mCollisionVertices = std::move(vertices);
             Ragdoll::Settings physics;
+            physics.mMaxLinearSpeed = std::max(2000.f, settings.mMaxLaunchSpeed * 9.f);
             physics.mBodyMode = impl->mMode;
             impl->mSimulation = std::make_unique<Ragdoll::Simulation>(
                 impl->mDefinitions, impl->mJoints, std::move(colliders), physics);
@@ -1140,7 +1155,7 @@ namespace MWRender
         if (impl.mSettings.mMaxActive != maxActive)
         {
             impl.mSettings.mMaxActive = maxActive;
-            impl.enforceBudget(std::clamp(maxActive, 1, 200));
+            impl.enforceBudget(std::clamp(maxActive, 1, 300));
         }
         if (maxSimulationTime != impl.mConfiguredSimulationTime)
         {
@@ -1246,6 +1261,7 @@ namespace MWRender
                             angular /= mImpl->mMass;
                             center /= mImpl->mMass;
                             Ragdoll::Settings physics;
+                            physics.mMaxLinearSpeed = std::max(2000.f, mImpl->mSettings.mMaxLaunchSpeed * 9.f);
                             physics.mBodyMode = Ragdoll::BodyMode::Rigid;
                             mImpl->mSimulation = std::make_unique<Ragdoll::Simulation>(
                                 bodies, mImpl->mJoints, makeCollisionMesh(mImpl->mCollisionVertices), physics);

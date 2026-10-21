@@ -75,7 +75,7 @@ namespace
             sim.replaceStaticColliders({ floor(), wall });
             sim.remove(2);
             sim.move(1, at(-12,0,20));
-            sim.impulse(1, btVector3(5000,0,0), btVector3(-12,0,20));
+            sim.impulse(1, btVector3(5000,0,0), btVector3(-12,0,20), 3);
             for (int i=0; i<int(0.5/dt); ++i)
                 for (const auto& p : sim.advance(dt)) check(p.mTransform.getOrigin().x()<0, "Fast item tunneled through wall");
         }
@@ -163,28 +163,50 @@ namespace
         check(sim.state(1).mTimeLeft < before, "actor contact did not retain a finite independent deadline");
         std::cout << "PASS kinematic actor-to-item contact\n";
     }
-    void liveSettingsAndDoubleBudget()
+    void scaledImpulses()
     {
-        Ragdoll::ItemSimulation sim({ 200, 10 });
+        btBoxShape box(btVector3(1, 1, 1));
+        for (const btScalar mass : { btScalar(.05), btScalar(1), btScalar(20) })
+            for (const btScalar strength : { btScalar(500), btScalar(5000) })
+                for (const btScalar scale : { btScalar(.5), btScalar(1), btScalar(3) })
+                {
+                    Ragdoll::ItemSimulation sim;
+                    sim.add(1, box, at(0, 0, 10000), mass);
+                    sim.impulse(1, btVector3(strength, 0, 0), btVector3(0, 0, 10000), scale);
+                    const auto expected = std::min(btScalar(1200), strength / mass) * scale;
+                    check(std::abs(sim.velocity(1).x() - expected) < .001,
+                        "Item slider was erased by the baseline speed cap");
+                    const auto start = sim.state(1).mTransform.getOrigin().x();
+                    sim.advance(1.0 / 120);
+                    const auto travel = sim.state(1).mTransform.getOrigin().x() - start;
+                    check(travel > expected / 120 * .99 && travel < expected / 120 * 1.01,
+                        "Actual item motion did not follow its scaled impulse");
+                }
+        std::cout << "PASS physical item 0.5x/1x/3x impulses and travel for light/heavy/saturated hits\n";
+    }
+
+    void liveSettingsAndTripleBudget()
+    {
+        Ragdoll::ItemSimulation sim({ 300, 10 });
         btBoxShape box(btVector3(2, 2, 2));
-        for (std::uintptr_t id = 1; id <= 200; ++id)
+        for (std::uintptr_t id = 1; id <= 300; ++id)
         {
             sim.add(id, box, at(id * 10, 0, 1000), 1);
             sim.wake(id);
         }
-        check(sim.activeCount() == 200, "UI +100% item budget was still capped at 100");
+        check(sim.activeCount() == 300, "UI +200% item budget was still capped at 100");
         sim.elapseWithoutPhysics(2);
-        sim.setSettings({ 50, 20 });
+        sim.setSettings({ 50, 30 });
         check(sim.activeCount() == 50 && sim.contains(1), "live budget reduction removed items or exceeded its limit");
         std::uintptr_t active = 0;
-        for (std::uintptr_t id = 1; id <= 200; ++id)
+        for (std::uintptr_t id = 1; id <= 300; ++id)
             if (sim.state(id).mActive)
                 active = id;
-        check(active != 0 && std::abs(sim.state(active).mTimeLeft - 18) < .001,
+        check(active != 0 && std::abs(sim.state(active).mTimeLeft - 28) < .001,
             "live duration adjustment renewed an item window instead of preserving age");
-        sim.setSettings({ 200, 1 });
+        sim.setSettings({ 300, 1 });
         check(sim.activeCount() == 0, "shortening duration below elapsed time did not freeze items");
-        std::cout << "PASS 200 items, live budget shrink and duration changes without restarting timers\n";
+        std::cout << "PASS 300 items, live budget shrink and duration changes without restarting timers\n";
     }
 }
 int main()
@@ -197,7 +219,8 @@ int main()
         deadlinesAndRestore();
         boundedActivation();
         actorContact();
-        liveSettingsAndDoubleBudget();
+        scaledImpulses();
+        liveSettingsAndTripleBudget();
     }
     catch(const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

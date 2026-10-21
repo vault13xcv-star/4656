@@ -1423,14 +1423,14 @@ namespace MWWorld
         return mPhysics->getRagdollCollisionTriangles(center, radius);
     }
 
-    void World::applyItemImpulse(const Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point)
+    void World::applyItemImpulse(const Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point, float strengthScale)
     {
-        mPhysics->applyItemImpulse(ptr, impulse, point);
+        mPhysics->applyItemImpulse(ptr, impulse, point, strengthScale);
     }
 
-    void World::applyItemExplosion(const osg::Vec3f& origin, float radius, float strength)
+    void World::applyItemExplosion(const osg::Vec3f& origin, float radius, float strength, float strengthScale)
     {
-        mPhysics->applyItemExplosion(origin, radius, strength);
+        mPhysics->applyItemExplosion(origin, radius, strength, strengthScale);
     }
 
     bool World::rotateDoor(const Ptr door, MWWorld::DoorState state, float duration)

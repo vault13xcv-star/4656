@@ -315,8 +315,10 @@ namespace MWBase
         /// Immutable world-space triangle triples, copied safely from nearby solid collision geometry.
         /// Main thread only. Empty means unavailable; callers must retain their existing death animation.
         virtual std::vector<osg::Vec3f> getRagdollCollisionTriangles(const osg::Vec3f& center, float radius) const = 0;
-        virtual void applyItemImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point) = 0;
-        virtual void applyItemExplosion(const osg::Vec3f& origin, float radius, float strength) = 0;
+        virtual void applyItemImpulse(const MWWorld::Ptr& ptr, const osg::Vec3f& impulse, const osg::Vec3f& point,
+            float strengthScale = 1.f) = 0;
+        virtual void applyItemExplosion(const osg::Vec3f& origin, float radius, float strength,
+            float strengthScale = 1.f) = 0;
 
         virtual bool castRenderingRay(MWPhysics::RayCastingResult& res, const osg::Vec3f& from, const osg::Vec3f& to,
             bool ignorePlayer, bool ignoreActors, std::span<const MWWorld::Ptr> ignoreList = {})

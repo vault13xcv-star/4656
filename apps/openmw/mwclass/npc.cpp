@@ -626,9 +626,8 @@ namespace MWClass
             const float weight = weapon.isEmpty() ? 1.f : weapon.getClass().getWeight(weapon);
             MWBase::Environment::get().getWorld()->applyItemImpulse(contact.first,
                 direction
-                    * (((200.f + weight * 100.f) * (0.25f + attackStrength))
-                        * Settings::ragdoll().mMeleeImpulseScale.get()),
-                contact.second);
+                    * ((200.f + weight * 100.f) * (0.25f + attackStrength)),
+                contact.second, Settings::ragdoll().mMeleeImpulseScale.get());
             MWMechanics::applyOnStrikeEnchantment(ptr, contact.first, weapon, contact.second, false);
             return;
         }

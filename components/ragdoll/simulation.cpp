@@ -827,6 +827,16 @@ namespace Ragdoll
         }
     }
 
+    void Simulation::applyImpact(std::size_t part, const btVector3& impulse, const btVector3& worldPoint)
+    {
+        if (!finite(impulse) || !finite(worldPoint))
+            throw std::invalid_argument("Invalid ragdoll impact");
+        const auto& target = mImpl->bodyForPart(part);
+        const btScalar local = std::min(btScalar(.15), target.getMass() / mImpl->mTotalMass);
+        applyWholeBodyImpulse(impulse * (1 - local));
+        applyImpulse(part, impulse * local, worldPoint);
+    }
+
     void Simulation::detachJoint(std::size_t joint)
     {
         auto& constraint = *mImpl->mConstraints.at(joint);

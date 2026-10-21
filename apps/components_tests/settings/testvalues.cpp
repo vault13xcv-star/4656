@@ -155,7 +155,7 @@ namespace Settings
             values.mCamera.mFieldOfView.set(values.mCamera.mFieldOfView.get());
             EXPECT_THAT(Manager::mChangedSettings, ElementsAre());
         }
-        TEST_F(SettingsValuesTest, physicsMenuCanDoubleBudgetsAndResetEveryControl)
+        TEST_F(SettingsValuesTest, physicsMenuCanTripleBudgetsAndResetEveryControl)
         {
             Index index;
             Values defaults(index);
@@ -164,25 +164,25 @@ namespace Settings
             for (auto* scale : { &physics.mMeleeImpulseScale, &physics.mCrossbowImpulseScale, &physics.mBowImpulseScale,
                      &physics.mThrownImpulseScale, &physics.mStatusDurationScale })
             {
-                scale->set(2.f);
-                EXPECT_FLOAT_EQ(scale->get(), 2.f);
+                scale->set(3.f);
+                EXPECT_FLOAT_EQ(scale->get(), 3.f);
                 scale->set(.5f);
                 EXPECT_FLOAT_EQ(scale->get(), .5f);
                 scale->reset();
                 EXPECT_FLOAT_EQ(scale->get(), 1.f);
             }
-            physics.mMagicDistanceScale.set(2.f);
-            physics.mMaxSimulationTime.set(20.f);
-            physics.mItemSimulationTime.set(5.f);
-            physics.mPinMaxDistance.set(5.f);
-            physics.mMaxActive.set(200);
-            physics.mMaxActiveItems.set(200);
-            physics.mDismembermentChance.set(.6f);
-            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .6f);
-            physics.mDismembermentChance.set(.15f);
-            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .15f);
-            EXPECT_EQ(physics.mMaxActive.get(), 200);
-            EXPECT_EQ(physics.mMaxActiveItems.get(), 200);
+            physics.mMagicDistanceScale.set(3.f);
+            physics.mMaxSimulationTime.set(30.f);
+            physics.mItemSimulationTime.set(30.f);
+            physics.mPinMaxDistance.set(7.5f);
+            physics.mMaxActive.set(300);
+            physics.mMaxActiveItems.set(300);
+            physics.mDismembermentChance.set(1.f);
+            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), 1.f);
+            physics.mDismembermentChance.set(0.f);
+            EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), 0.f);
+            EXPECT_EQ(physics.mMaxActive.get(), 300);
+            EXPECT_EQ(physics.mMaxActiveItems.get(), 300);
             physics.mMagicDistanceScale.reset();
             physics.mMaxSimulationTime.reset();
             physics.mItemSimulationTime.reset();
@@ -199,7 +199,7 @@ namespace Settings
             EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .3f);
             EXPECT_EQ(Manager::getFloat("bow impulse scale", "Ragdoll"), 1.f);
         }
-        TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToHalfAndDoubleItsActualDefault)
+        TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToHalfAndTripleItsActualDefault)
         {
             const auto data = mSettingsDefaultPath.parent_path() / "data";
             MyGUI::xml::Document document;
@@ -236,8 +236,26 @@ namespace Settings
                     }
                     // Widgets and settings both store float boundaries. Decimal
                     // probabilities such as 0.3 do not have exact binary doubles.
-                    EXPECT_FLOAT_EQ(std::stof(metadata["SettingMin"]), static_cast<float>(base * .5));
-                    EXPECT_FLOAT_EQ(std::stof(metadata["SettingMax"]), static_cast<float>(base * 2));
+                    const float minimum = std::stof(metadata["SettingMin"]);
+                    const float maximum = std::stof(metadata["SettingMax"]);
+                    EXPECT_FLOAT_EQ(minimum, name == "dismemberment chance" ? 0.f : static_cast<float>(base * .5));
+                    EXPECT_FLOAT_EQ(maximum, name == "dismemberment chance" ? 1.f : static_cast<float>(base * 3));
+                    if (integer)
+                    {
+                        auto& setting = index.get<int>("Ragdoll", name);
+                        setting.set(static_cast<int>(maximum));
+                        EXPECT_EQ(setting.get(), static_cast<int>(maximum));
+                        setting.set(static_cast<int>(minimum));
+                        EXPECT_EQ(setting.get(), static_cast<int>(minimum));
+                    }
+                    else
+                    {
+                        auto& setting = index.get<float>("Ragdoll", name);
+                        setting.set(maximum);
+                        EXPECT_FLOAT_EQ(setting.get(), maximum);
+                        setting.set(minimum);
+                        EXPECT_FLOAT_EQ(setting.get(), minimum);
+                    }
                     for (const auto& [messages, locale] : { std::pair(english, "en"), std::pair(russian, "ru") })
                     {
                         const auto message = messages[metadata["SettingLabelCaption"]];
