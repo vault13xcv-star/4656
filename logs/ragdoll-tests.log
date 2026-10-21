@@ -1,0 +1,33 @@
+Internal ctest changing into directory: D:/a/4656/4656/build-ragdoll-tests
+Test project D:/a/4656/4656/build-ragdoll-tests
+    Start 1: ragdoll-physics
+1/4 Test #1: ragdoll-physics ..................   Passed    1.14 sec
+    Start 2: item-physics
+2/4 Test #2: item-physics .....................   Passed    0.11 sec
+    Start 3: ragdoll-rendering
+3/4 Test #3: ragdoll-rendering ................***Failed    2.78 sec
+PASS severed head, dynamic gibs, saved gore, bleeding deadline and cleanup
+PASS 300 corpses, live budget reduction and saved runtime timer adjustments
+PASS actual mixed-weight skinning, extremities, moving coating clones, save/restore, intact joints and whole robe
+PASS actual mixed-weight skinning, waist, moving coating clones, save/restore, intact joints and whole robe
+PASS pose transition, callback rebuild, root movement and teardown
+PASS real Bullet floor collision, freeze and active budget
+PASS deterministic corpse overflow and retained frozen pose
+PASS active/frozen corpse pose restore and remaining physics/effect timers
+PASS generic creature anatomy, mass, rigid frost and saved pose
+PASS unsupported skeleton, missing geometry and lost snapshot fallbacks
+PASS weapon recoil, additive magic, cubic stature and equipped mass
+PASS all launch slider endpoints: actual momentum and Bullet travel, including head/hand hits and caps
+Settled crossbow measurements: 109.362/116.356/214.891
+FAIL Crossbow flight plus ground slide did not approach half/triple baseline travel
+
+    Start 4: ragdoll-impact
+4/4 Test #4: ragdoll-impact ...................   Passed    0.07 sec
+
+75% tests passed, 1 tests failed out of 4
+
+Total Test time (real) =   4.12 sec
+
+The following tests FAILED:
+	  3 - ragdoll-rendering (Failed)
+Errors while running CTest
