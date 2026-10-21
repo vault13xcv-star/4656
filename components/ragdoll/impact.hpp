@@ -46,6 +46,7 @@ namespace Ragdoll
         // contact must not be guessed again from the later death pose.
         int mWeaponHitBody = -1;
         bool mDirectMagic = false;
+        bool mInitialMagicApplication = false;
         DeathElement mDeathElement = DeathElement::None;
         float mDominantMagicDamage = 0.f;
         bool mShock = false; // Compatibility flag; true only for dominant Shock.

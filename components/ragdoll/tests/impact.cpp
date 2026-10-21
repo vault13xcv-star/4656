@@ -443,6 +443,54 @@ namespace
             }
         }
     }
+
+    void testLethalMagicIsPreservedWhileWaitingForWeapon()
+    {
+        MWMechanics::RagdollMagicImpact context;
+        context.mHit = std::make_shared<MWMechanics::RagdollHit>();
+        context.mHit->mAwaitingWeapon = true;
+        context.mRadius = 10;
+        context.mDirection.set(1, 0, 0);
+        auto& hit = *context.mHit;
+        hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Fire, 50, true));
+        // The other effect in the same lethal application is still considered.
+        context.mRadius = 4;
+        hit.applyMagic(2, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Frost, 70, true));
+        check(hit.mApplied.mDeathElement == Element::Frost && near(hit.mApplied.mMagicDistance, 4),
+            "Sealing happened before all lethal spell effects were considered");
+        hit.sealMagic(); // The next ActiveSpells update starts with the actor already dead.
+        for (int tick = 0; tick < 30; ++tick)
+            hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Fire, 200, false));
+        hit.mWeapon.mHasWeaponContact = true;
+        hit.mWeapon.mWeaponHitBody = 2;
+        hit.mWeapon.mAttackType = Ragdoll::AttackType::Chop;
+        hit.mWeapon.mWeaponDistance = 1;
+        hit.mWeapon.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+        hit.applyWeapon();
+        hit.mAwaitingWeapon = false;
+        check(hit.mApplied.mDeathElement == Element::Frost && near(hit.mApplied.mMagicDistance, 4)
+                && hit.mApplied.mDirectMagic && near(hit.mApplied.mWeaponDistance, 1)
+                && hit.mApplied.mWeaponHitBody == 2,
+            "A dead-actor DOT update erased an instant lethal blast before deferred weapon damage merged");
+        // The reverse native order also occurs: physical Lua damage can kill
+        // before the queued enchantment's very first application. That first
+        // application must still join the same contact, even after sealing.
+        MWMechanics::RagdollHit weaponFirst;
+        weaponFirst.mWeapon = hit.mWeapon;
+        weaponFirst.applyWeapon();
+        weaponFirst.sealMagic();
+        weaponFirst.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Frost, 70, true));
+        check(weaponFirst.mApplied.mDeathElement == Element::Frost && near(weaponFirst.mApplied.mMagicDistance, 4)
+                && near(weaponFirst.mApplied.mWeaponDistance, 1),
+            "A queued enchantment's initial application was rejected after physical damage killed first");
+        // A resurrected actor can still die from the ongoing spell, without the
+        // old blast or physical hit coming back with it.
+        hit.beginMagicTick(.2f);
+        hit.applyMagic(1, MWMechanics::makeRagdollMagicImpact(context, {}, 1, Element::Fire, 8, false));
+        check(hit.mApplied.mDeathElement == Element::Fire && near(hit.mApplied.mMagicDistance, 0)
+                && !hit.mApplied.mHasWeaponContact && !hit.mApplied.mDirectMagic,
+            "Resurrection retained sealed provenance or revived the old explosion");
+    }
 }
 
 int main()
@@ -509,7 +557,8 @@ int main()
         testSavedItemRotation();
         testStrikeTypeAndAnatomyRules();
         testOnlyInitialDamageApplicationCarriesBlast();
-        std::cout << "Ragdoll impact: 14 groups passed\n";
+        testLethalMagicIsPreservedWhileWaitingForWeapon();
+        std::cout << "Ragdoll impact: 15 groups passed\n";
     }
     catch (const std::exception& error)
     {

@@ -27,6 +27,8 @@ appearance but get no old explosion, attraction or direct-hit dismemberment.
 This uses the effect's actual applied flag, not a frame-time grace period. A
 duration spell that kills on its very first damage tick still counts as an
 initial lethal hit. Existing saved corpse wounds are not recomputed.
+The complete lethal update is retained while asynchronous weapon damage merges;
+later dead-actor DOT updates cannot erase an instant lethal explosion.
 
 Previous slider and rendering fixes are retained:
 

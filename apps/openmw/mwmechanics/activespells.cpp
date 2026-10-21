@@ -238,6 +238,8 @@ namespace MWMechanics
             return;
         auto& creatureStats = ptr.getClass().getCreatureStats(ptr);
         assert(&creatureStats.getActiveSpells() == this);
+        if (creatureStats.isDead())
+            creatureStats.sealRagdollDeathMagic();
         IterationGuard guard{ *this };
         // Erase no longer active spells and effects
         for (auto spellIt = mSpells.begin(); spellIt != mSpells.end();)
