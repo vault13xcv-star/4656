@@ -1,20 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(571): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-[572/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ragdoll.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(277): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(428): warning C4244: 'initializing': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(427): warning C4244: 'initializing': conversion from 'btScalar' to 'const float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(438): warning C4244: 'argument': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(806): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=GLsizei
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(833): warning C4244: '+=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(834): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(874): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(875): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1092): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1093): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1099): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
         with
         [
@@ -178,3 +161,20 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1153): warning C4244: '=': conve
 [707/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\uibindings.cpp.obj
 [708/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\soundbindings.cpp.obj
 [709/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\nearbybindings.cpp.obj
+[710/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\inputbindings.cpp.obj
+[711/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\objectbindings.cpp.obj
+[712/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\postprocessingbindings.cpp.obj
+[713/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\debugbindings.cpp.obj
+[714/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\corebindings.cpp.obj
+[715/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\worldbindings.cpp.obj
+[716/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\worker.cpp.obj
+[717/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\landbindings.cpp.obj
+[718/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\stats.cpp.obj
+[719/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\dialoguebindings.cpp.obj
+[720/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\classbindings.cpp.obj
+[721/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\factionbindings.cpp.obj
+[722/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\itemdata.cpp.obj
+[723/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\animationbindings.cpp.obj
+[724/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\birthsignbindings.cpp.obj
+[725/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\markupbindings.cpp.obj
+[726/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\racebindings.cpp.obj
