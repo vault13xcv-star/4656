@@ -1,8 +1,3 @@
-[820/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\mtphysics.cpp.obj
-[821/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectileconvexcallback.cpp.obj
-[822/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\classes.cpp.obj
-[823/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\activator.cpp.obj
-[824/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creature.cpp.obj
 [825/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\weapon.cpp.obj
 [826/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\potion.cpp.obj
 [827/995] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\npc.cpp.obj
@@ -178,3 +173,8 @@ D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(441): warning C4244: '=
 [987/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
 [988/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testtimestamp.cpp.obj
 [989/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
+[990/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[991/995] Linking CXX executable components-tests.exe
+[992/995] Linking CXX executable openmw.exe
+[993/995] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[994/995] Linking CXX executable openmw-tests.exe
