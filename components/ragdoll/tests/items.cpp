@@ -181,6 +181,10 @@ namespace
                     const auto travel = sim.state(1).mTransform.getOrigin().x() - start;
                     check(travel > expected / 120 * .99 && travel < expected / 120 * 1.01,
                         "Actual item motion did not follow its scaled impulse");
+                    sim.add(2, box, at(100, 0, 10000), mass);
+                    sim.impulse(2, btVector3(strength, 0, 0), btVector3(100, 0, 10010), scale);
+                    check(std::abs(sim.state(2).mAngularVelocity.length() - 25 * scale) < .001,
+                        "Off-centre item spin did not scale after its baseline angular cap");
                 }
         std::cout << "PASS physical item 0.5x/1x/3x impulses and travel for light/heavy/saturated hits\n";
     }

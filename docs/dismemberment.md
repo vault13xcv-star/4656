@@ -5,10 +5,11 @@ an absolute 0–100% probability with a 30% default, including exact RNG endpoin
 Baseline impulse limits are applied before the menu scale. Weapon momentum is
 distributed over the corpse with a bounded local contact share, so light heads
 and hands no longer clip most of a strong hit. Horizontal throw scaling keeps
-the baseline flight time. Fast launches also compensate for the quadratic
-stopping distance during ground sliding; the settled crossbow regression checks
-approximately half/triple baseline travel on an open flat surface. Contact,
-friction, body mass and walls still affect real final travel.
+the baseline flight time and scales initial horizontal momentum by exactly
+0.5–3. Final settled travel also includes toppling, friction and collision
+responses, so it is not guaranteed to be exactly half/triple on every surface.
+Experiments with a ground-slide estimator were discarded because they compressed
+the minimum/default response on the target Windows solver.
 Zero-area direct elemental spells now have a one-metre reference throw.
 
 | Control | Minimum | Default | Maximum |

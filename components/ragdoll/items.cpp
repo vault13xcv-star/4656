@@ -327,7 +327,12 @@ namespace Ragdoll
         const btScalar scale = std::min(strengthScale, btScalar(3));
         const btScalar baseSpeed = momentum.length() / it->second.mMass;
         const btVector3 bounded = momentum * (baseSpeed > 1200 ? 1200 / baseSpeed : btScalar(1));
-        body.applyImpulse(bounded * scale, point - body.getCenterOfMassPosition());
+        btVector3 torque = (point - body.getCenterOfMassPosition()).cross(bounded);
+        const btScalar spin = (body.getInvInertiaTensorWorld() * torque).length();
+        if (spin > 25)
+            torque *= 25 / spin;
+        body.applyCentralImpulse(bounded * scale);
+        body.applyTorqueImpulse(torque * scale);
         const btScalar maxLinear = 1200 * std::max(btScalar(1), scale);
         const btScalar maxAngular = 25 * std::max(btScalar(1), scale);
         if (body.getLinearVelocity().length2() > maxLinear * maxLinear)

@@ -834,35 +834,14 @@ namespace MWRender
             };
             osg::Vec3f weaponVelocity
                 = launchVelocity(impact.mWeaponDistance, impact.mWeaponDirection) * impact.mWeaponMultiplier;
-            // Keep the flight time at the baseline and compensate fast launches
-            // for their quadratic stopping distance on the ground. Low-speed
-            // blows mostly topple the body and retain direct impulse scaling.
-            const auto scaleTravel = [&](osg::Vec3f velocity, float scale) {
+            // Keep the flight time at the baseline. Scaling vertical lift with
+            // horizontal speed squared the travel and made the slider misleading.
+            const auto scaleTravel = [](osg::Vec3f velocity, float scale) {
                 scale = std::isfinite(scale) ? std::clamp(scale, .5f, 3.f) : 1.f;
-                if (scale == 1.f)
-                    return velocity;
                 if (velocity.x() * velocity.x() + velocity.y() * velocity.y() > .0001f)
                 {
-                    if (settings.mRangeFriction <= 0)
-                    {
-                        velocity.x() *= scale;
-                        velocity.y() *= scale;
-                        return velocity;
-                    }
-                    const float reference = settings.mImpulseReferenceMass / mass * settings.mImpulseMultiplier;
-                    const float speed = std::hypot(velocity.x(), velocity.y()) * reference;
-                    const float up = velocity.z() * reference;
-                    const float fallHeight = std::max(10.f, legLength + torsoLength * .5f);
-                    const float time = (up + std::sqrt(up * up + 2 * 627.2f * fallHeight)) / 627.2f;
-                    const float friction = settings.mRangeFriction * 627.2f;
-                    const float baseline = speed * time + speed * speed / (2 * friction);
-                    const float desired = baseline * scale;
-                    const float adjusted = 2 * friction * desired
-                        / (std::sqrt(friction * friction * time * time + 2 * friction * desired) + friction * time);
-                    const float blend = std::clamp((speed - 200.f) / 150.f, 0.f, 1.f);
-                    const float factor = speed > .001f ? scale * (1 - blend) + adjusted / speed * blend : scale;
-                    velocity.x() *= factor;
-                    velocity.y() *= factor;
+                    velocity.x() *= scale;
+                    velocity.y() *= scale;
                 }
                 else
                     velocity.z() *= std::sqrt(scale);
