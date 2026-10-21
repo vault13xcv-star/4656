@@ -53,6 +53,7 @@ namespace MWRender
             float mDeathAge = 0.f;
             float mImpulseMultiplier = 1.f;
             float mMaxLaunchSpeed = 1400.f;
+            float mRangeFriction = .64f;
             float mShockDuration = 10.f;
             float mShockStrength = 1.f;
             bool mPinEnabled = true;

@@ -575,11 +575,12 @@ namespace
 
     void crossbowGroundTravelScaling()
     {
-        const auto sample = [](float scale) {
+        const auto sample = [](float scale, bool compensate = true) {
             SkeletonFixture fixture;
             fixture.mWorld->setMatrix(osg::Matrixf::identity());
             MWRender::RagdollController::Settings settings;
             settings.mPinEnabled = false;
+            if (!compensate) settings.mRangeFriction = 0;
             Ragdoll::Impact impact;
             impact.mValid = impact.mHasWeaponContact = true;
             impact.mWeaponDistance = 2.4f;
@@ -603,6 +604,8 @@ namespace
         };
         const float low = sample(.5f), base = sample(1), high = sample(3);
         std::cout << "Settled crossbow measurements: " << low << '/' << base << '/' << high << std::endl;
+        const float rawLow = sample(.5f, false), rawBase = sample(1, false), rawHigh = sample(3, false);
+        std::cout << "Uncompensated crossbow measurements: " << rawLow << '/' << rawBase << '/' << rawHigh << std::endl;
         require(base > 100 && std::abs(low / base - .5f) < .2f && std::abs(high / base - 3) < .45f,
             "Crossbow flight plus ground slide did not approach half/triple baseline travel");
         std::cout << "PASS settled crossbow travel: " << low << '/' << base << '/' << high

@@ -843,12 +843,18 @@ namespace MWRender
                     return velocity;
                 if (velocity.x() * velocity.x() + velocity.y() * velocity.y() > .0001f)
                 {
+                    if (settings.mRangeFriction <= 0)
+                    {
+                        velocity.x() *= scale;
+                        velocity.y() *= scale;
+                        return velocity;
+                    }
                     const float reference = settings.mImpulseReferenceMass / mass * settings.mImpulseMultiplier;
                     const float speed = std::hypot(velocity.x(), velocity.y()) * reference;
                     const float up = velocity.z() * reference;
                     const float fallHeight = std::max(10.f, legLength + torsoLength * .5f);
                     const float time = (up + std::sqrt(up * up + 2 * 627.2f * fallHeight)) / 627.2f;
-                    const float friction = .64f * 627.2f;
+                    const float friction = settings.mRangeFriction * 627.2f;
                     const float baseline = speed * time + speed * speed / (2 * friction);
                     const float desired = baseline * scale;
                     const float adjusted = 2 * friction * desired
