@@ -602,6 +602,7 @@ namespace
             return x / state.mMass;
         };
         const float low = sample(.5f), base = sample(1), high = sample(3);
+        std::cout << "Settled crossbow measurements: " << low << '/' << base << '/' << high << std::endl;
         require(base > 100 && std::abs(low / base - .5f) < .2f && std::abs(high / base - 3) < .45f,
             "Crossbow flight plus ground slide did not approach half/triple baseline travel");
         std::cout << "PASS settled crossbow travel: " << low << '/' << base << '/' << high
