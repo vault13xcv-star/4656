@@ -176,6 +176,7 @@ namespace MWRender
             MWWorld::Ptr mHitObject;
             ESM::RefNum mHitRefnum;
             float mRatio;
+            int mHitBody = -1;
         };
 
         RayResult castRay(const osg::Vec3f& origin, const osg::Vec3f& dest, bool ignorePlayer,

@@ -342,6 +342,107 @@ namespace
             "A later duration tick reused an expired element or the original weapon blow");
         check(near(hit.mApplied.mMagicDistance, 3), "A delayed effect accumulated the old contact impulse");
     }
+
+    void testStrikeTypeAndAnatomyRules()
+    {
+        using Attack = Ragdoll::AttackType;
+        using Weapon = Ragdoll::WoundWeapon;
+        Ragdoll::Impact hit;
+        hit.mValid = hit.mHasWeaponContact = true;
+        hit.mWeaponDirection.set(1, 0, 0);
+        const auto expect = [&](Weapon weapon, Attack attack, int body, std::uint32_t cuts, bool burst = false,
+                                float roll = .1f) {
+            hit.mWoundWeapon = weapon;
+            hit.mAttackType = attack;
+            const auto wound = Ragdoll::selectWounds(hit, body, roll, .3f);
+            check(wound.mCuts == cuts && wound.mBurstHead == burst,
+                "Incorrect wound for weapon/attack/body " + std::to_string(int(weapon)) + "/"
+                    + std::to_string(int(attack)) + "/" + std::to_string(body));
+        };
+        expect(Weapon::HeavyBlade, Attack::Chop, 2, 1u << 2);
+        expect(Weapon::HeavyBlade, Attack::Chop, 1, 0);
+        expect(Weapon::HeavyBlade, Attack::Chop, 4, 1u << 3);
+        expect(Weapon::HeavyBlade, Attack::Chop, 6, 1u << 5);
+        expect(Weapon::HeavyBlade, Attack::Slash, 1, 1u << 1);
+        expect(Weapon::HeavyBlade, Attack::Slash, 4, 1u << 1);
+        expect(Weapon::HeavyBlade, Attack::Slash, 4, 1u << 3, false, .25f);
+        expect(Weapon::HeavyBlade, Attack::Slash, 2, 1u << 2);
+        expect(Weapon::HeavyBlade, Attack::Slash, 8, 1u << 7);
+        expect(Weapon::HeavyBlade, Attack::Slash, 10, 1u << 9);
+        expect(Weapon::Blade, Attack::Slash, 1, 0);
+        expect(Weapon::Blade, Attack::Slash, 4, 1u << 3);
+        expect(Weapon::Blade, Attack::Chop, 10, 1u << 9);
+        // A slash key alone cannot make a steeply vertical impact bisect a torso.
+        hit.mWeaponDirection.set(0, 0, -1);
+        expect(Weapon::HeavyBlade, Attack::Slash, 1, 0);
+        expect(Weapon::HeavyBlade, Attack::Slash, 4, 1u << 3);
+        hit.mWeaponDirection.set(1, 0, 0);
+        for (int body = 0; body < 15; ++body)
+        {
+            expect(Weapon::Blade, Attack::Thrust, body, 0);
+            expect(Weapon::HeavyBlade, Attack::Thrust, body, 0);
+            expect(Weapon::HeavyBlade, Attack::Unknown, body, 0);
+            expect(Weapon::None, Attack::Slash, body, 0); // Spears, short blades, unarmed.
+            expect(Weapon::Blunt, Attack::Chop, body, body == 2 ? 1u << 2 : 0, body == 2);
+            expect(Weapon::Bolt, Attack::Projectile, body, body == 2 ? 1u << 2 : 0, body == 2);
+        }
+        expect(Weapon::Blunt, Attack::Thrust, 2, 0);
+        expect(Weapon::Blade, Attack::Chop, -1, 0);
+        expect(Weapon::HeavyBlade, Attack::Slash, 15, 0);
+        // The snapshot and native key must survive the deferred Lua hit action
+        // and either ordering of an on-strike enchantment.
+        for (bool magicFirst : { false, true })
+        {
+            MWMechanics::RagdollHit contact;
+            hit.mAttackType = Attack::Chop;
+            hit.mWoundWeapon = Weapon::HeavyBlade;
+            hit.mWeaponHitBody = 2;
+            contact.mWeapon = hit;
+            if (magicFirst) contact.applyMagic(1, magic({}, 0, Element::Poison, 1));
+            contact.applyWeapon();
+            if (!magicFirst) contact.applyMagic(1, magic({}, 0, Element::Poison, 1));
+            check(contact.mApplied.mWeaponHitBody == 2 && contact.mApplied.mAttackType == Attack::Chop
+                    && Ragdoll::selectWounds(contact.mApplied, contact.mApplied.mWeaponHitBody, 0, 1).mCuts == (1u << 2),
+                "Deferred/enchantment ordering lost the original head contact or animation key");
+        }
+    }
+
+    void testOnlyInitialDamageApplicationCarriesBlast()
+    {
+        for (const auto element : { Element::Fire, Element::Frost, Element::Shock, Element::Poison })
+        for (bool exploded : { false, true })
+        for (float radius : { 0.f, 10.f })
+        {
+            MWMechanics::RagdollMagicImpact context;
+            context.mHit = std::make_shared<MWMechanics::RagdollHit>();
+            context.mExploded = exploded;
+            context.mRadius = radius;
+            context.mOrigin.set(0, 0, 0);
+            context.mDirection.set(1, 0, 0);
+            const osg::Vec3f target(2 * Constants::UnitsPerMeter, 0, 0);
+            // A slow first frame is still the first native damage application.
+            context.mHit->beginMagicTick(.25f);
+            const auto initial = MWMechanics::makeRagdollMagicImpact(context, target, 3, element, 20, true);
+            check(initial.mDirectMagic == !exploded, "Frame time incorrectly changed initial direct-hit attribution");
+            if (radius > 0)
+                check(initial.mMagicDistance > 0.f, "Instant lethal damage lost its explosion/attraction");
+            context.mHit->applyMagic(1, initial);
+            for (float elapsed : { .001f, .05f, 2.f, 10.f })
+            {
+                context.mHit->beginMagicTick(elapsed);
+                const auto dot = MWMechanics::makeRagdollMagicImpact(context, target, 3, element, 7, false);
+                context.mHit->applyMagic(1, dot);
+                const auto& death = context.mHit->mApplied;
+                check(death.mValid && death.mDeathElement == element && near(death.mDominantMagicDamage, 7),
+                    "DOT lost its element or effective lethal damage");
+                check(near(death.mMagicDistance, 0) && near(death.mMagicDirection, osg::Vec3f())
+                        && !death.mMagicAttraction && !death.mDirectMagic && !death.mHasWeaponContact,
+                    "A later DOT death replayed the initial blast, attraction or direct contact");
+                check(!Ragdoll::selectWounds(death, 2, 0, 1).mCuts,
+                    "DOT death reused initial direct-hit dismemberment");
+            }
+        }
+    }
 }
 
 int main()
@@ -351,6 +452,8 @@ int main()
         Ragdoll::Impact wound;
         wound.mValid = wound.mHasWeaponContact = true;
         wound.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
+        wound.mAttackType = Ragdoll::AttackType::Slash;
+        wound.mWeaponDirection.set(1, 0, 0);
         for (const float roll : { 0.f, .1f, .3f, .99f, 1.f })
         {
             check(!Ragdoll::selectWounds(wound, 4, roll, 0).mCuts, "0% chance severed a limb");
@@ -389,7 +492,7 @@ int main()
             context.mHit->applyWeapon();
             check(near(context.mHit->mApplied.mWeaponImpulseScale, 3), "Weapon provenance discarded its slider");
             context.mHit->mContactAge = 1;
-            const auto tick = MWMechanics::makeRagdollMagicImpact(context, {}, 3, Element::Fire, 50);
+            const auto tick = MWMechanics::makeRagdollMagicImpact(context, {}, 3, Element::Fire, 50, false);
             check(near(tick.mMagicDistance, 0), "Duration tick invented a direct-hit impulse");
         }
         testDominantDamageSelectsMotionAndElement();
@@ -404,7 +507,9 @@ int main()
         testRestoredEffectPresentationHasNoInventedImpulse();
         testExplosionWaveGeometry();
         testSavedItemRotation();
-        std::cout << "Ragdoll impact: 12 groups passed\n";
+        testStrikeTypeAndAnatomyRules();
+        testOnlyInitialDamageApplicationCarriesBlast();
+        std::cout << "Ragdoll impact: 14 groups passed\n";
     }
     catch (const std::exception& error)
     {

@@ -24,6 +24,7 @@
 #include <components/esm3/loadstat.hpp>
 #include <components/esm3/loadweap.hpp>
 #include <components/misc/mathutil.hpp>
+#include <components/ragdoll/dismemberment.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/shadow.hpp>
@@ -488,5 +489,48 @@ namespace
         EXPECT_FLOAT_EQ(settings.mBowDistance, .3f);
         EXPECT_FLOAT_EQ(settings.mSpearDistance, .3f);
         EXPECT_FLOAT_EQ(settings.mPinMaxDistance, 2.5f);
+    }
+
+    TEST_F(ItemPhysicsIntegration, NativeWeaponClassesAndAnimationKeysSelectOnlyEligibleWounds)
+    {
+        using Attack = Ragdoll::AttackType;
+        using Weapon = Ragdoll::WoundWeapon;
+        Reference<ESM::Weapon> weapon(0, 0, 0);
+        for (const auto& [type, group] : {
+                 std::pair(ESM::Weapon::LongBladeOneHand, Weapon::Blade),
+                 std::pair(ESM::Weapon::LongBladeTwoHand, Weapon::HeavyBlade),
+                 std::pair(ESM::Weapon::AxeOneHand, Weapon::HeavyBlade),
+                 std::pair(ESM::Weapon::AxeTwoHand, Weapon::HeavyBlade),
+                 std::pair(ESM::Weapon::ShortBladeOneHand, Weapon::None),
+                 std::pair(ESM::Weapon::SpearTwoWide, Weapon::None),
+                 std::pair(ESM::Weapon::BluntOneHand, Weapon::Blunt),
+                 std::pair(ESM::Weapon::BluntTwoClose, Weapon::Blunt),
+                 std::pair(ESM::Weapon::BluntTwoWide, Weapon::Blunt) })
+        {
+            weapon.mBase.mData.mType = type;
+            for (const auto& [key, attack] : { std::pair(ESM::Weapon::AT_Chop, Attack::Chop),
+                     std::pair(ESM::Weapon::AT_Slash, Attack::Slash), std::pair(ESM::Weapon::AT_Thrust, Attack::Thrust) })
+            {
+                auto contact = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(), {}, key, {}, { 0, 1, 0 });
+                EXPECT_EQ(contact->mWeapon.mWoundWeapon, group);
+                EXPECT_EQ(contact->mWeapon.mAttackType, attack);
+                contact->mWeapon.mWeaponHitBody = 2;
+                contact->applyWeapon();
+                const auto& hit = contact->mApplied;
+                EXPECT_EQ(hit.mWeaponHitBody, 2);
+                EXPECT_EQ(hit.mAttackType, attack);
+                const auto wound = Ragdoll::selectWounds(hit, hit.mWeaponHitBody, 0, 1);
+                const bool cutting = group == Weapon::Blade || group == Weapon::HeavyBlade;
+                const bool eligible = (cutting || group == Weapon::Blunt) && attack != Attack::Thrust;
+                EXPECT_EQ(wound.mCuts, eligible ? 1u << 2 : 0);
+                EXPECT_EQ(wound.mBurstHead, eligible && group == Weapon::Blunt);
+                EXPECT_FALSE(wound.cuts(1));
+                contact->mWeapon.mWeaponHitBody = 1;
+                contact->applyWeapon();
+                const auto torso = Ragdoll::selectWounds(contact->mApplied, 1, 0, 1);
+                EXPECT_EQ(torso.cuts(1), group == Weapon::HeavyBlade && attack == Attack::Slash);
+                EXPECT_FALSE(torso.mBurstHead);
+            }
+        }
     }
 }

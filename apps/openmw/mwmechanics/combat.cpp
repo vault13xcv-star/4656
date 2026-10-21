@@ -25,7 +25,9 @@
 
 #include "../mwphysics/itemhit.hpp"
 #include "../mwphysics/raycasting.hpp"
+#include "../mwrender/animation.hpp"
 #include "../mwrender/camera.hpp"
+#include "../mwrender/ragdoll.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/globals.hpp"
@@ -45,6 +47,53 @@ namespace
     float signedAngleRadians(const osg::Vec3f& v1, const osg::Vec3f& v2, const osg::Vec3f& normal)
     {
         return std::atan2((normal * (v1 ^ v2)), (v1 * v2));
+    }
+
+    void captureWoundContact(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim,
+        const MWWorld::Ptr& projectile, Ragdoll::Impact& impact)
+    {
+        if (victim.isEmpty() || !victim.getClass().isNpc())
+            return;
+        const auto world = MWBase::Environment::get().getWorld();
+        auto* animation = world->getAnimation(victim);
+        if (!animation || !animation->getObjectRoot())
+            return;
+        const auto extents = world->getHalfExtents(victim);
+        osg::Vec3f from, to;
+        if (!projectile.isEmpty())
+        {
+            // Physics reports a contact on the actor's coarse collision shape.
+            // Trace through it along the actual projectile flight to find the
+            // visible body surface (or reject an anatomical miss).
+            const float span = std::max(16.f, extents.length() * 2.f);
+            from = impact.mWeaponPosition - impact.mWeaponDirection * span;
+            to = impact.mWeaponPosition + impact.mWeaponDirection * span;
+        }
+        else if (!attacker.isEmpty())
+        {
+            const auto& position = attacker.getRefData().getPosition();
+            from = world->getActorHeadTransform(attacker).getTrans();
+            if (!std::isfinite(from.length2()) || from == osg::Vec3f())
+                from = position.asVec3() + osg::Vec3f(0, 0, world->getHalfExtents(attacker, true).z() * 1.7f);
+            auto direction = MWPhysics::itemAimDirection(position.rot[0], position.rot[2]);
+            const auto* camera = world->getCamera();
+            if (attacker == world->getPlayerPtr() && camera && !camera->isVanityOrPreviewModeEnabled())
+                std::tie(from, direction) = MWPhysics::itemViewRay(camera->getViewMatrix());
+            to = from + direction * ((victim.getRefData().getPosition().asVec3() - from).length()
+                + extents.length() * 2.f);
+        }
+        else
+            return;
+        std::vector<MWWorld::Ptr> ignored;
+        if (!attacker.isEmpty())
+            ignored.push_back(attacker);
+        MWPhysics::RayCastingResult surface{};
+        if (!world->castRenderingRay(surface, from, to, attacker == world->getPlayerPtr(), false, ignored)
+            || surface.mHitObject != victim || surface.mHitBody == -2)
+            return;
+        impact.mWeaponPosition = surface.mHitPos;
+        impact.mWeaponHitBody = surface.mHitBody >= 0 ? surface.mHitBody
+            : MWRender::RagdollController::findHitBody(*animation->getObjectRoot(), surface.mHitPos);
     }
 
 }
@@ -80,6 +129,11 @@ namespace MWMechanics
         const auto* ammoData = !projectile.isEmpty() && projectile.getType() == ESM::Weapon::sRecordId
             ? &projectile.get<ESM::Weapon>()->mBase->mData : nullptr;
         const int type = ammoData ? ammoData->mType : weaponData ? weaponData->mType : static_cast<int>(ESM::Weapon::HandToHand);
+        impact.mAttackType = !projectile.isEmpty() ? Ragdoll::AttackType::Projectile
+            : attackType == ESM::Weapon::AT_Chop ? Ragdoll::AttackType::Chop
+            : attackType == ESM::Weapon::AT_Slash ? Ragdoll::AttackType::Slash
+            : attackType == ESM::Weapon::AT_Thrust ? Ragdoll::AttackType::Thrust
+                                                  : Ragdoll::AttackType::Unknown;
         if (type == ESM::Weapon::LongBladeOneHand)
             impact.mWoundWeapon = Ragdoll::WoundWeapon::Blade;
         else if (type == ESM::Weapon::LongBladeTwoHand || type == ESM::Weapon::AxeOneHand
@@ -131,6 +185,7 @@ namespace MWMechanics
             direction.normalize();
         }
         impact.mWeaponDirection = direction;
+        captureWoundContact(attacker, victim, projectile, impact);
         if (projectile.isEmpty() && !attacker.isEmpty() && attacker.getClass().isActor()
             && (!weaponData || (type >= ESM::Weapon::ShortBladeOneHand && type <= ESM::Weapon::SpearTwoWide)))
         {

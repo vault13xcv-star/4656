@@ -1,4 +1,34 @@
-# Real Combat Ragdoll 0.6.0-preview.3
+# Real Combat Ragdoll 0.6.0-preview.4
+
+Wounds now retain the native chop/slash/thrust hit key and the anatomical part
+captured on the living NPC before weapon damage, on-strike magic and deferred
+Lua damage. Rendering rays identify the actual attached body/clothing/armour
+part, so a foreground arm is not confused with the leg behind it. Whole robes
+and untagged models use the current skeletal segments with signed capsule
+distance; no later death pose or random blood-effect position chooses the cut.
+An unverified surface contact produces no physical dismemberment.
+
+| Physical weapon / attack | Eligible result after a successful wound roll |
+| --- | --- |
+| Long blade, chop or slash into head/arm/leg | Sever the struck extremity |
+| Two-handed long blade or axe, horizontal slash into torso | Waist separation |
+| Two-handed long blade or axe, horizontal slash into arm | Sever that arm or continue through the torso (equal shares of the wound chance) |
+| Heavy cutting weapon, vertical chop into head/limb | Sever that extremity; no waist separation |
+| Thrust, spear, short blade or unarmed | No physical severing or head burst |
+| Blunt chop/slash into head | Head burst; other hit locations do not burst the head |
+| Crossbow bolt into head | Head burst; other hit locations do not burst the head |
+
+Direct elemental on-strike enchantments retain their separate magical wound
+rules, including on spears and thrusts. A plain sword never bursts the head.
+
+Magic motion now belongs only to the first native damage application. Instant
+lethal hits retain their blast/attraction; later DOT deaths retain the elemental
+appearance but get no old explosion, attraction or direct-hit dismemberment.
+This uses the effect's actual applied flag, not a frame-time grace period. A
+duration spell that kills on its very first damage tick still counts as an
+initial lethal hit. Existing saved corpse wounds are not recomputed.
+
+Previous slider and rendering fixes are retained:
 
 Physics sliders now span 50–300% of their baseline. Dismemberment instead uses
 an absolute 0–100% probability with a 30% default, including exact RNG endpoints.
@@ -46,10 +76,11 @@ actor-cone fallback otherwise. Impulses do not change damage or hit chance.
 
 New NPC death effects use one probability roll per lethal contact:
 
-- Long blades detach the struck arm, leg or head. Short blades are excluded.
-- Two-handed long blades and axes can also separate the upper torso at the waist
-  when the lethal contact strikes the torso.
-- Blunt weapons burst the head; crossbow bolts do so only on a head contact.
+- Chopping/slashing long blades detach the struck arm, leg or head. Short blades
+  and thrusts are excluded.
+- Two-handed long blades and axes can separate the upper torso only with a
+  horizontal slash into torso/arm, as specified above.
+- Blunt chopping/slashing head hits and crossbow head hits can burst the head.
 - Direct lethal fire/frost damage detaches all extremities. Direct lethal shock
   bursts the head. Damage over time, restored effects and splash damage alone do
   not create these direct-contact wounds. On-strike enchantments share their

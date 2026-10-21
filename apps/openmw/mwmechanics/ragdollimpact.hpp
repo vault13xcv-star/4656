@@ -33,6 +33,8 @@ namespace MWMechanics
             mApplied.mHasWeaponContact = mWeapon.mHasWeaponContact;
             mApplied.mCrossbow = mWeapon.mCrossbow;
             mApplied.mWoundWeapon = mWeapon.mWoundWeapon;
+            mApplied.mAttackType = mWeapon.mAttackType;
+            mApplied.mWeaponHitBody = mWeapon.mWeaponHitBody;
             mApplied.mPosition = mWeapon.mPosition;
             mApplied.mValid = true;
         }
@@ -112,22 +114,25 @@ namespace MWMechanics
         bool mHasImpulse = true; // False when only the effect survives a save/load.
     };
     inline Ragdoll::Impact makeRagdollMagicImpact(const RagdollMagicImpact& context, const osg::Vec3f& targetPosition,
-        float scale, Ragdoll::DeathElement element, float effectiveDamage)
+        float scale, Ragdoll::DeathElement element, float effectiveDamage, bool initialApplication = true)
     {
         Ragdoll::Impact impact;
         impact.mDeathElement = element;
         impact.mDominantMagicDamage = effectiveDamage;
         impact.mShock = element == Ragdoll::DeathElement::Shock;
         impact.mValid = true;
-        if (!context.mHasImpulse)
+        // An explosion is a contact event, not a property of its lasting spell.
+        // Keep elemental death presentation on DOT, but never replay the wave,
+        // direct-hit dismemberment or poison attraction on a later damage tick.
+        if (!context.mHasImpulse || !initialApplication)
             return impact;
-        impact.mDirectMagic = !context.mExploded && context.mHit && context.mHit->mContactAge <= .1f;
+        impact.mDirectMagic = !context.mExploded && context.mHit;
         impact.mMagicImpulseScale = scale;
         impact.mPosition = context.mOrigin;
         impact.mMagicOrigin = context.mOrigin;
         impact.mMagicTarget = context.mHasTargetPosition ? context.mTargetPosition : targetPosition;
         // Direct elemental hits without an explosion have a one-metre baseline.
-        // Duration ticks and splash still require an actual explosion radius.
+        // Indirect splash requires an actual explosion radius.
         const float radius = context.mRadius > 0.f ? context.mRadius : impact.mDirectMagic ? 1.f : 0.f;
         if (element == Ragdoll::DeathElement::None || !std::isfinite(context.mRadius) || context.mRadius < 0.f || radius <= 0.f
             || !std::isfinite(scale) || scale <= 0.f)

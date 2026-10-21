@@ -19,6 +19,8 @@ namespace Ragdoll
     };
 
     enum class WoundWeapon { None, Blade, HeavyBlade, Blunt, Bolt };
+    // Native animation hit key, independent of the direction of the death impulse.
+    enum class AttackType { Unknown, Chop, Slash, Thrust, Projectile };
 
     // Transient, world-space provenance of the lethal contact. Distances are metres
     // for a reference-mass body; the renderer converts these to momentum.
@@ -39,6 +41,10 @@ namespace Ragdoll
         float mMagicImpulseScale = 1.f;
         bool mCrossbow = false;
         WoundWeapon mWoundWeapon = WoundWeapon::None;
+        AttackType mAttackType = AttackType::Unknown;
+        // Captured on the living skeleton before damage/enchantments. An unknown
+        // contact must not be guessed again from the later death pose.
+        int mWeaponHitBody = -1;
         bool mDirectMagic = false;
         DeathElement mDeathElement = DeathElement::None;
         float mDominantMagicDamage = 0.f;

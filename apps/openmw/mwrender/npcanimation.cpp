@@ -19,6 +19,7 @@
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/depth.hpp>
+#include <components/sceneutil/hitlocation.hpp>
 #include <components/sceneutil/keyframe.hpp>
 #include <components/sceneutil/lightcommon.hpp>
 #include <components/sceneutil/visitor.hpp>
@@ -50,6 +51,29 @@
 
 namespace
 {
+
+    std::size_t bodyFor(int part)
+    {
+        switch (part)
+        {
+            case ESM::PRT_Head: case ESM::PRT_Hair: return 2;
+            case ESM::PRT_Neck: case ESM::PRT_Cuirass: return 1;
+            case ESM::PRT_LUpperarm: case ESM::PRT_LPauldron: return 3;
+            case ESM::PRT_LForearm: return 4;
+            case ESM::PRT_RUpperarm: case ESM::PRT_RPauldron: return 5;
+            case ESM::PRT_RForearm: return 6;
+            case ESM::PRT_LLeg: return 7;
+            case ESM::PRT_LKnee: return 8;
+            case ESM::PRT_RLeg: return 9;
+            case ESM::PRT_RKnee: return 10;
+            case ESM::PRT_LHand: case ESM::PRT_LWrist: case ESM::PRT_Shield: return 11;
+            case ESM::PRT_RHand: case ESM::PRT_RWrist: case ESM::PRT_Weapon: return 12;
+            case ESM::PRT_LAnkle: case ESM::PRT_LFoot: return 13;
+            case ESM::PRT_RAnkle: case ESM::PRT_RFoot: return 14;
+            default: return 0;
+        }
+    }
+
 
     std::string getVampireHead(const ESM::RefId& race, bool female)
     {
@@ -750,26 +774,6 @@ namespace MWRender
                 default: return 0;
             }
         };
-        const auto bodyFor = [](int part) -> std::size_t {
-            switch (part)
-            {
-                case ESM::PRT_Head: case ESM::PRT_Hair: return 2;
-                case ESM::PRT_Neck: case ESM::PRT_Cuirass: return 1;
-                case ESM::PRT_LUpperarm: case ESM::PRT_LPauldron: return 3;
-                case ESM::PRT_LForearm: return 4;
-                case ESM::PRT_RUpperarm: case ESM::PRT_RPauldron: return 5;
-                case ESM::PRT_RForearm: return 6;
-                case ESM::PRT_LLeg: return 7;
-                case ESM::PRT_LKnee: return 8;
-                case ESM::PRT_RLeg: return 9;
-                case ESM::PRT_RKnee: return 10;
-                case ESM::PRT_LHand: case ESM::PRT_LWrist: case ESM::PRT_Shield: return 11;
-                case ESM::PRT_RHand: case ESM::PRT_RWrist: case ESM::PRT_Weapon: return 12;
-                case ESM::PRT_LAnkle: case ESM::PRT_LFoot: return 13;
-                case ESM::PRT_RAnkle: case ESM::PRT_RFoot: return 14;
-                default: return 0;
-            }
-        };
         static const RagdollController::PartPose emptyPose;
         for (int part = 0; part < ESM::PRT_Count; ++part)
         {
@@ -934,6 +938,9 @@ namespace MWRender
         }
 
         osg::Node* node = mObjectParts[type]->getNode();
+        const int hitBody = type == ESM::PRT_Weapon || type == ESM::PRT_Shield ? -2
+            : group == MWWorld::InventoryStore::Slot_Robe ? -1 : static_cast<int>(bodyFor(type));
+        node->setUserValue(SceneUtil::HitBodyTag, hitBody);
         if (node->getNumChildrenRequiringUpdateTraversal() > 0)
         {
             std::shared_ptr<SceneUtil::ControllerSource> src;

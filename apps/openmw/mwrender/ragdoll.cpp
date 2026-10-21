@@ -152,6 +152,107 @@ namespace MWRender
             }
         };
 
+        struct HumanoidPose
+        {
+            std::array<int, 15> mDriven;
+            std::array<osg::Vec3f, 15> mStarts, mStops;
+            float mTorsoLength = 0.f;
+            bool mValid = false;
+
+            HumanoidPose(const CollectBones& visitor, const osg::Vec3f& forward)
+            {
+                const auto find = [&](std::initializer_list<const char*> names) -> int {
+                    for (const char* name : names)
+                        if (const auto found = visitor.mNames.find(name); found != visitor.mNames.end())
+                            return static_cast<int>(found->second);
+                    return -1;
+                };
+                // The order is also the saved humanoid body/joint numbering.
+                mDriven = { find({ "bip01 pelvis" }), find({ "bip01 spine2", "bip01 spine1", "bip01 spine" }),
+                    find({ "bip01 head" }), find({ "bip01 l upperarm" }), find({ "bip01 l forearm" }),
+                    find({ "bip01 r upperarm" }), find({ "bip01 r forearm" }), find({ "bip01 l thigh" }),
+                    find({ "bip01 l calf" }), find({ "bip01 r thigh" }), find({ "bip01 r calf" }),
+                    find({ "bip01 l hand" }), find({ "bip01 r hand" }), find({ "bip01 l foot" }), find({ "bip01 r foot" }) };
+                const std::array<int, 5> ends{ find({ "bip01 neck" }), find({ "bip01 l hand" }),
+                    find({ "bip01 r hand" }), find({ "bip01 l foot" }), find({ "bip01 r foot" }) };
+                if (std::ranges::any_of(mDriven, [](int i) { return i < 0; })
+                    || std::ranges::any_of(ends, [](int i) { return i < 0; }))
+                    return;
+                const auto position = [&](int index) { return osg::Vec3f(visitor.mBones[index].mRestWorld.getTrans()); };
+                const osg::Vec3f pelvis = position(mDriven[0]);
+                const osg::Vec3f neck = position(ends[0]);
+                mTorsoLength = (neck - pelvis).length();
+                if (!std::isfinite(mTorsoLength) || mTorsoLength < 8.f || mTorsoLength > 512.f)
+                    return;
+                for (std::size_t i = 0; i < mDriven.size(); ++i)
+                    mStarts[i] = position(mDriven[i]);
+                mStops[0] = pelvis + (neck - pelvis) * .3f;
+                mStarts[1] = mStops[0];
+                mStops[1] = neck;
+                osg::Vec3f headAxis = position(mDriven[2]) - neck;
+                if (headAxis.length2() < 1.f)
+                    headAxis = (neck - pelvis) * .2f;
+                mStarts[2] = neck;
+                mStops[2] = position(mDriven[2]) + headAxis * .5f;
+                mStops[3] = position(mDriven[4]);
+                mStops[4] = position(ends[1]);
+                mStops[5] = position(mDriven[6]);
+                mStops[6] = position(ends[2]);
+                mStops[7] = position(mDriven[8]);
+                mStops[8] = position(ends[3]);
+                mStops[9] = position(mDriven[10]);
+                mStops[10] = position(ends[4]);
+                mStops[11] = mStarts[11] + unit(mStops[4] - mStarts[4]) * (mTorsoLength * .14f);
+                mStops[12] = mStarts[12] + unit(mStops[6] - mStarts[6]) * (mTorsoLength * .14f);
+                mStops[13] = mStarts[13] + forward * (mTorsoLength * .2f);
+                mStops[14] = mStarts[14] + forward * (mTorsoLength * .2f);
+                mValid = true;
+                for (std::size_t i = 0; i < mDriven.size(); ++i)
+                {
+                    const float length = (mStops[i] - mStarts[i]).length();
+                    mValid &= std::isfinite(length) && length >= 1.f && length <= mTorsoLength * 4.f;
+                }
+            }
+
+            float radius(std::size_t part) const
+            {
+                constexpr std::array<float, 15> radii{ .22f, .22f, .16f, .09f, .075f, .09f, .075f,
+                    .13f, .10f, .13f, .10f, .07f, .07f, .09f, .09f };
+                const float length = (mStops[part] - mStarts[part]).length();
+                return std::max(1.f, part == 0 ? mTorsoLength * radii[part]
+                    : std::min(mTorsoLength * radii[part], length * .45f));
+            }
+
+            int hitBody(const osg::Vec3f& contact) const
+            {
+                if (!mValid || !std::isfinite(contact.length2()))
+                    return -1;
+                int closest = -1;
+                float distance = std::numeric_limits<float>::max();
+                for (std::size_t part = 0; part < mDriven.size(); ++part)
+                {
+                    const auto axis = mStops[part] - mStarts[part];
+                    const float length = axis.length();
+                    const float r = radius(part);
+                    const auto centre = (mStarts[part] + mStops[part]) * .5f;
+                    const auto direction = axis / length;
+                    const float half = std::max(0.f, length * .5f - r);
+                    const auto point = centre + direction * std::clamp((contact - centre) * direction, -half, half);
+                    // Keep signed depth: clamping overlapping capsules to zero
+                    // made their array order choose the pelvis over an arm/head.
+                    const float d = (contact - point).length() - r;
+                    if (d < distance)
+                    {
+                        distance = d;
+                        closest = static_cast<int>(part);
+                    }
+                }
+                // Bulky clothing may sit outside a capsule, but distant contacts
+                // and unsupported body layouts must never invent an amputation.
+                return distance <= mTorsoLength * .25f ? closest : -1;
+            }
+        };
+
         struct CollisionMesh
         {
             // Destruction order matters: the shape must die before its triangle storage.
@@ -437,6 +538,14 @@ namespace MWRender
 
     RagdollController::~RagdollController() = default;
 
+    int RagdollController::findHitBody(osg::Group& root, const osg::Vec3f& contact)
+    {
+        const auto matrix = rootWorldMatrix(root);
+        CollectBones visitor(matrix);
+        root.accept(visitor);
+        return HumanoidPose(visitor, unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), matrix))).hitBody(contact);
+    }
+
     std::unique_ptr<RagdollController> RagdollController::create(osg::Group& root, SceneUtil::Skeleton& skeleton,
         CollisionSnapshot snapshot, const Settings& settings, const Ragdoll::Impact& impact)
     {
@@ -445,66 +554,22 @@ namespace MWRender
 
         CollectBones visitor(rootWorldMatrix(root));
         root.accept(visitor);
-        const auto find = [&](std::initializer_list<const char*> names) -> int {
-            for (const char* name : names)
-                if (const auto found = visitor.mNames.find(name); found != visitor.mNames.end())
-                    return static_cast<int>(found->second);
-            return -1;
-        };
-
-        // Morrowind's standard humanoid skeleton. Custom or creature skeletons are not guessed.
-        const std::array<int, 15> driven = { find({ "bip01 pelvis" }),
-            find({ "bip01 spine2", "bip01 spine1", "bip01 spine" }), find({ "bip01 head" }),
-            find({ "bip01 l upperarm" }), find({ "bip01 l forearm" }), find({ "bip01 r upperarm" }),
-            find({ "bip01 r forearm" }), find({ "bip01 l thigh" }), find({ "bip01 l calf" }), find({ "bip01 r thigh" }),
-            find({ "bip01 r calf" }), find({ "bip01 l hand" }), find({ "bip01 r hand" }), find({ "bip01 l foot" }),
-            find({ "bip01 r foot" }) };
-        const std::array<int, 5> ends = { find({ "bip01 neck" }), find({ "bip01 l hand" }), find({ "bip01 r hand" }),
-            find({ "bip01 l foot" }), find({ "bip01 r foot" }) };
-        const bool humanoid = !std::ranges::any_of(driven, [](int i) { return i < 0; })
-            && !std::ranges::any_of(ends, [](int i) { return i < 0; });
         float torsoLength = 40, legLength = 40, mass = settings.mBaseMass;
         std::vector<Ragdoll::BodyDefinition> bodies;
         std::vector<Ragdoll::JointDefinition> joints;
         const osg::Matrixf rootMatrix = rootWorldMatrix(root);
         const osg::Vec3f forward = unit(osg::Matrixf::transform3x3(osg::Vec3f(0, 1, 0), rootMatrix));
         const osg::Vec3f right = unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), rootMatrix));
+        const HumanoidPose anatomy(visitor, forward);
+        const bool humanoid = anatomy.mValid;
         if (humanoid)
         {
-            const auto position = [&](int index) { return osg::Vec3f(visitor.mBones[index].mRestWorld.getTrans()); };
-            const osg::Vec3f pelvis = position(driven[0]);
-            const osg::Vec3f neck = position(ends[0]);
-            torsoLength = (neck - pelvis).length();
-            // Degenerate transforms, unusual scale or an uninitialised skeleton fall back to native death.
-            if (!std::isfinite(torsoLength) || torsoLength < 8.f || torsoLength > 512.f)
-                return nullptr;
-
-            std::array<osg::Vec3f, 15> starts;
-            std::array<osg::Vec3f, 15> stops;
-            for (std::size_t i = 0; i < driven.size(); ++i)
-                starts[i] = position(driven[i]);
-            // Torso includes the intermediate spine bones, preserving their captured local offsets.
-            stops[0] = pelvis + (neck - pelvis) * 0.3f;
-            starts[1] = stops[0];
-            stops[1] = neck;
-            osg::Vec3f headAxis = position(driven[2]) - neck;
-            if (headAxis.length2() < 1.f)
-                headAxis = (neck - pelvis) * 0.2f;
-            starts[2] = neck;
-            stops[2] = position(driven[2]) + headAxis * 0.5f;
-            stops[3] = position(driven[4]);
-            stops[4] = position(ends[1]);
-            stops[5] = position(driven[6]);
-            stops[6] = position(ends[2]);
-            stops[7] = position(driven[8]);
-            stops[8] = position(ends[3]);
-            stops[9] = position(driven[10]);
-            stops[10] = position(ends[4]);
-            stops[11] = starts[11] + unit(stops[4] - starts[4]) * (torsoLength * 0.14f);
-            stops[12] = starts[12] + unit(stops[6] - starts[6]) * (torsoLength * 0.14f);
-            stops[13] = starts[13] + forward * (torsoLength * 0.2f);
-            stops[14] = starts[14] + forward * (torsoLength * 0.2f);
-
+            const auto& driven = anatomy.mDriven;
+            const auto& starts = anatomy.mStarts;
+            const auto& stops = anatomy.mStops;
+            const auto pelvis = starts[0];
+            const auto neck = stops[1];
+            torsoLength = anatomy.mTorsoLength;
             legLength = ((stops[7] - starts[7]).length() + (stops[8] - starts[8]).length()
                             + (stops[9] - starts[9]).length() + (stops[10] - starts[10]).length())
                 * 0.5f;
@@ -519,8 +584,6 @@ namespace MWRender
                 5.f, 5000.f);
             constexpr std::array<float, 15> masses{ 10.f, 20.f, 5.f, 3.f, 1.6f, 3.f, 1.6f, 7.f, 3.5f, 7.f, 3.5f, .4f,
                 .4f, .5f, .5f };
-            constexpr std::array<float, 15> radii{ 0.22f, 0.22f, 0.16f, 0.09f, 0.075f, 0.09f, 0.075f, 0.13f, 0.10f,
-                0.13f, 0.10f, .07f, .07f, .09f, .09f };
             bodies.reserve(driven.size());
             for (std::size_t i = 0; i < driven.size(); ++i)
             {
@@ -529,8 +592,7 @@ namespace MWRender
                     return nullptr;
                 Ragdoll::BodyDefinition body;
                 body.mTransform = capsuleTransform(starts[i], stops[i]);
-                body.mRadius
-                    = std::max(1.f, i == 0 ? torsoLength * radii[i] : std::min(torsoLength * radii[i], length * 0.45f));
+                body.mRadius = anatomy.radius(i);
                 body.mLength = std::max(btScalar(0), length - 2.f * body.mRadius);
                 body.mMass = masses[i] * mass / 67.f;
                 BonePose& bone = visitor.mBones[driven[i]];
@@ -735,23 +797,8 @@ namespace MWRender
         impl->mCollisionVertices = std::move(vertices);
         if (humanoid && settings.mNpc)
         {
-            std::size_t closest = 0;
-            float distance = std::numeric_limits<float>::max();
-            const osg::Vec3f contact = impact.mHasWeaponContact ? impact.mWeaponPosition : impact.mPosition;
-            for (std::size_t part = 0; part < bodies.size(); ++part)
-            {
-                // Distance to the capsule axis, not its centre: a head contact
-                // must not be attributed to the centre of a long upper arm.
-                const auto local = bodies[part].mTransform.inverse() * toBullet(contact);
-                const auto y = std::clamp(local.y(), -bodies[part].mLength * .5, bodies[part].mLength * .5);
-                const float d = std::max(0., double((local - btVector3(0, y, 0)).length() - bodies[part].mRadius));
-                if (d < distance)
-                {
-                    distance = d;
-                    closest = part;
-                }
-            }
-            impl->mWounds = Ragdoll::selectWounds(impact, closest, settings.mWoundRoll, settings.mWoundChance);
+            impl->mWounds = Ragdoll::selectWounds(impact, impact.mWeaponHitBody,
+                settings.mWoundRoll, settings.mWoundChance);
             if (impl->mWounds.mBurstHead)
             {
                 const auto head = bodies[2];

@@ -30,17 +30,33 @@ namespace Ragdoll
         }
         if (!hit.mHasWeaponContact)
             return {};
-        if (hit.mWoundWeapon == WoundWeapon::Blunt || (hit.mWoundWeapon == WoundWeapon::Bolt && part == 2))
+        if (part >= 15)
+            return {};
+        if ((hit.mWoundWeapon == WoundWeapon::Blunt && part == 2
+                && (hit.mAttackType == AttackType::Chop || hit.mAttackType == AttackType::Slash))
+            || (hit.mWoundWeapon == WoundWeapon::Bolt && part == 2))
             return { bit(2), true };
         if (hit.mWoundWeapon != WoundWeapon::Blade && hit.mWoundWeapon != WoundWeapon::HeavyBlade)
             return {};
+        // A thrust punctures; it cannot sever or bisect. Unknown animation keys
+        // are equally unsuitable for inventing a cutting plane.
+        if (hit.mAttackType != AttackType::Chop && hit.mAttackType != AttackType::Slash)
+            return {};
+        const bool arm = part == 3 || part == 4 || part == 11 || part == 5 || part == 6 || part == 12;
+        const bool horizontal = hit.mAttackType == AttackType::Slash
+            && std::isfinite(hit.mWeaponDirection.length2()) && hit.mWeaponDirection.length2() > 0.f
+            && std::abs(hit.mWeaponDirection.z()) <= hit.mWeaponDirection.length() * .5f;
+        // A heavy lateral sweep may continue through an arm into the torso.
+        // Head/leg contacts never turn into a remotely located waist cut.
+        if (hit.mWoundWeapon == WoundWeapon::HeavyBlade && horizontal
+            && (part <= 1 || (arm && roll < std::min(chance, 1.f) * .5f)))
+            return { bit(1), false };
         unsigned cut = 0;
         if (part == 2) cut = 2;
         else if (part == 3 || part == 4 || part == 11) cut = 3;
         else if (part == 5 || part == 6 || part == 12) cut = 5;
         else if (part == 7 || part == 8 || part == 13) cut = 7;
         else if (part == 9 || part == 10 || part == 14) cut = 9;
-        else if (hit.mWoundWeapon == WoundWeapon::HeavyBlade && part <= 1) cut = 1;
         return { cut ? bit(cut) : 0, false };
     }
 }

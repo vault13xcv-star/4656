@@ -1,5 +1,6 @@
 #include <apps/openmw/mwrender/ragdoll.hpp>
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
+#include <apps/openmw/mwmechanics/ragdollimpact.hpp>
 #include <btBulletDynamicsCommon.h>
 #include <chrono>
 #include <components/esm3/ragdollstate.hpp>
@@ -8,6 +9,7 @@
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
 #include <components/sceneutil/riggeometry.hpp>
+#include <components/sceneutil/hitlocation.hpp>
 
 #include <osg/FrameStamp>
 #include <osg/Billboard>
@@ -15,8 +17,10 @@
 #include <osg/Geometry>
 #include <osg/MatrixTransform>
 #include <osg/Texture2D>
+#include <osg/ShapeDrawable>
 #include <osgUtil/UpdateVisitor>
 #include <osgUtil/CullVisitor>
+#include <osgUtil/LineSegmentIntersector>
 
 #include <array>
 #include <cmath>
@@ -102,6 +106,131 @@ namespace
             { -1000, 1000, 0 } };
     }
 
+    void livingContactAnatomy()
+    {
+        for (float rotation : { 0.f, 1.4f, 3.14f })
+        {
+            SkeletonFixture fixture;
+            fixture.mWorld->setMatrix(osg::Matrixf::scale(.8f, 1.1f, 1.3f)
+                * osg::Matrixf::rotate(rotation, osg::Vec3f(0, 0, 1)) * osg::Matrixf::translate(300, -200, 70));
+            for (const auto& [first, second, expected] : {
+                     std::tuple("Head", "Head", 2), std::tuple("L UpperArm", "L Forearm", 3),
+                     std::tuple("L Forearm", "L Hand", 4), std::tuple("R UpperArm", "R Forearm", 5),
+                     std::tuple("R Forearm", "R Hand", 6), std::tuple("L Thigh", "L Calf", 7),
+                     std::tuple("L Calf", "L Foot", 8), std::tuple("R Thigh", "R Calf", 9),
+                     std::tuple("R Calf", "R Foot", 10), std::tuple("L Hand", "L Hand", 11),
+                     std::tuple("R Hand", "R Hand", 12), std::tuple("L Foot", "L Foot", 13),
+                     std::tuple("R Foot", "R Foot", 14) })
+            {
+                const auto point = (worldMatrix(*fixture.mBones.at(first)).getTrans()
+                    + worldMatrix(*fixture.mBones.at(second)).getTrans()) * .5f;
+                const int actual = MWRender::RagdollController::findHitBody(*fixture.mSkeleton, point);
+                if (actual != expected)
+                    throw std::runtime_error("Living hit mapped " + std::string(first) + " to " + std::to_string(actual));
+            }
+            require(MWRender::RagdollController::findHitBody(*fixture.mSkeleton, { -10000, 10000, 0 }) == -1,
+                "Far-away contact invented an anatomical hit");
+            Ragdoll::Impact hit;
+            hit.mValid = hit.mHasWeaponContact = true;
+            hit.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+            hit.mAttackType = Ragdoll::AttackType::Chop;
+            hit.mWeaponPosition = worldMatrix(*fixture.mBones.at("Head")).getTrans();
+            hit.mWeaponHitBody = MWRender::RagdollController::findHitBody(*fixture.mSkeleton, hit.mWeaponPosition);
+            // Deferred damage/death may move the entire skeleton away from the
+            // stored world-space contact; the captured anatomical part must win.
+            fixture.mWorld->setMatrix(fixture.mWorld->getMatrix() * osg::Matrixf::translate(700, 0, 0));
+            MWRender::RagdollController::Settings settings;
+            settings.mNpc = true;
+            settings.mWoundRoll = 0;
+            auto corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, hit);
+            require(corpse && corpse->getWounds().mCuts == (1u << 2) && !corpse->getWounds().mBurstHead,
+                "Vertical sword head hit became a waist cut/burst after the pose changed");
+            corpse.reset();
+            hit.mWeaponHitBody = -1;
+            corpse = MWRender::RagdollController::create(
+                *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, hit);
+            require(corpse && !corpse->getWounds().mCuts, "Unverified surface contact guessed a limb");
+        }
+        // Actual OSG ray intersections distinguish a clothed arm in front of a
+        // leg, independent of how close their coarse skeletal capsules are.
+        osg::ref_ptr<osg::Group> root = new osg::Group;
+        for (const auto [depth, body] : { std::pair(3.f, 7), std::pair(0.f, 4) })
+        {
+            osg::ref_ptr<osg::Geode> part = new osg::Geode;
+            part->setUserValue(SceneUtil::HitBodyTag, body);
+            part->addDrawable(new osg::ShapeDrawable(new osg::Box(osg::Vec3f(0, depth, 0), 4, 1, 4)));
+            root->addChild(part);
+        }
+        osg::ref_ptr<osgUtil::LineSegmentIntersector> ray
+            = new osgUtil::LineSegmentIntersector(osg::Vec3f(0, -10, 0), osg::Vec3f(0, 10, 0));
+        osgUtil::IntersectionVisitor visitor(ray);
+        root->accept(visitor);
+        require(ray->containsIntersections() && SceneUtil::getHitBody(ray->getFirstIntersection().nodePath) == 4,
+            "A visible clothed forearm was attributed to the leg behind it");
+        root->removeChild(1);
+        ray->reset();
+        root->accept(visitor);
+        require(ray->containsIntersections() && SceneUtil::getHitBody(ray->getFirstIntersection().nodePath) == 7,
+            "Removing the foreground arm did not expose the actual leg hit");
+        std::cout << "PASS living-pose anatomy, rotated/scaled rigs, deferred head contact and overlapping clothed parts\n";
+    }
+
+    void dotDeathHasNoBlastMomentum()
+    {
+        for (auto element : { Ragdoll::DeathElement::Fire, Ragdoll::DeathElement::Frost,
+                 Ragdoll::DeathElement::Shock, Ragdoll::DeathElement::Poison })
+        {
+            for (bool initial : { true, false })
+            {
+                SkeletonFixture fixture;
+                MWMechanics::RagdollMagicImpact context;
+                context.mHit = std::make_shared<MWMechanics::RagdollHit>();
+                context.mExploded = true;
+                context.mRadius = 10;
+                const auto target = worldMatrix(*fixture.mBones.at("Spine1")).getTrans();
+                context.mOrigin = target - osg::Vec3f(2 * Constants::UnitsPerMeter, 0, 0);
+                const auto impact = MWMechanics::makeRagdollMagicImpact(context, target, 1, element, 50, initial);
+                MWRender::RagdollController::Settings settings;
+                settings.mNpc = true;
+                settings.mWoundRoll = 0;
+                auto corpse = MWRender::RagdollController::create(
+                    *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, impact);
+                require(bool(corpse), "DOT/blast fixture failed to create");
+                ESM::RagdollState state;
+                corpse->writeState(state);
+                osg::Vec3f momentum;
+                for (const auto& body : state.mBodies)
+                    momentum += osg::Vec3f(body.mLinearVelocity[0], body.mLinearVelocity[1], body.mLinearVelocity[2])
+                        * body.mMass;
+                if (!initial)
+                {
+                    // A rigid frozen corpse has a small native tipping impulse.
+                    // Compare to the same elemental death with no contact data,
+                    // rather than confusing that existing fall with a blast.
+                    SkeletonFixture baseline;
+                    Ragdoll::Impact noContact;
+                    noContact.mValid = true;
+                    noContact.mDeathElement = element;
+                    auto reference = MWRender::RagdollController::create(
+                        *baseline.mSkeleton, *baseline.mSkeleton, floorSnapshot, settings, noContact);
+                    require(bool(reference), "DOT baseline fixture failed to create");
+                    ESM::RagdollState expected;
+                    reference->writeState(expected);
+                    osg::Vec3f baselineMomentum;
+                    for (const auto& body : expected.mBodies)
+                        baselineMomentum += osg::Vec3f(body.mLinearVelocity[0], body.mLinearVelocity[1], body.mLinearVelocity[2])
+                            * body.mMass;
+                    require((momentum - baselineMomentum).length() < .01f && state.mElement == int(element) && !state.mCuts,
+                        "DOT death replayed blast momentum or lost its elemental appearance");
+                }
+                else if (element != Ragdoll::DeathElement::Poison)
+                    require(momentum.x() > 1000, "Initial lethal explosion lost its outward impulse");
+            }
+        }
+        std::cout << "PASS actual corpse momentum: initial lethal blast versus delayed elemental DOT death\n";
+    }
+
     class OverwritePose : public SceneUtil::NodeCallback<OverwritePose, osg::MatrixTransform*>
     {
     public:
@@ -146,7 +275,10 @@ namespace
         {
             hit.mHasWeaponContact = true;
             hit.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+            hit.mAttackType = Ragdoll::AttackType::Slash;
+            hit.mWeaponDirection.set(1, 0, 0);
             hit.mWeaponPosition = worldMatrix(*fixture.mBones.at("Spine1")).getTrans();
+            hit.mWeaponHitBody = MWRender::RagdollController::findHitBody(*fixture.mSkeleton, hit.mWeaponPosition);
         }
         else
         {
@@ -721,6 +853,9 @@ namespace
             Ragdoll::Impact impact;
             impact.mValid = impact.mHasWeaponContact = true;
             impact.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+            impact.mAttackType = Ragdoll::AttackType::Chop;
+            impact.mWeaponPosition = worldMatrix(*fixture.mBones.at("Head")).getTrans();
+            impact.mWeaponHitBody = MWRender::RagdollController::findHitBody(*fixture.mSkeleton, impact.mWeaponPosition);
             impact.mDeathElement = Ragdoll::DeathElement::Fire;
             auto corpse = MWRender::RagdollController::create(
                 *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, impact);
@@ -1172,6 +1307,9 @@ int main(int argc, char** argv)
             Ragdoll::Impact hit;
             hit.mValid = hit.mHasWeaponContact = true;
             hit.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+            hit.mAttackType = Ragdoll::AttackType::Chop;
+            hit.mWeaponPosition = worldMatrix(*fixture.mBones.at("Head")).getTrans();
+            hit.mWeaponHitBody = MWRender::RagdollController::findHitBody(*fixture.mSkeleton, hit.mWeaponPosition);
             auto corpse = MWRender::RagdollController::create(
                 *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, hit);
             require(corpse && corpse->getWounds().mBurstHead, "Blunt fatal blow did not burst head");
@@ -1198,6 +1336,8 @@ int main(int argc, char** argv)
             loadMeasurements();
             return 0;
         }
+        livingContactAnatomy();
+        dotDeathHasNoBlastMomentum();
         liveSettingsAndExtendedBudget();
         severedSkin(false);
         severedSkin(true);

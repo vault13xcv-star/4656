@@ -33,6 +33,7 @@
 
 #include <components/sceneutil/cullsafeboundsvisitor.hpp>
 #include <components/sceneutil/depth.hpp>
+#include <components/sceneutil/hitlocation.hpp>
 #include <components/sceneutil/lightmanager.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/sceneutil/shadow.hpp>
@@ -865,6 +866,7 @@ namespace MWRender
                 result.mHitPointWorld = intersection.getWorldIntersectPoint();
                 result.mHitNormalWorld = intersection.getWorldIntersectNormal();
                 result.mRatio = static_cast<float>(intersection.ratio);
+                result.mHitBody = SceneUtil::getHitBody(intersection.nodePath);
             }
         };
 

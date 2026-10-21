@@ -77,6 +77,8 @@ namespace MWRender
             CollisionSnapshot snapshot, const Settings& settings, const Ragdoll::Impact& impact = {});
         static std::unique_ptr<RagdollController> restore(osg::Group& root, SceneUtil::Skeleton& skeleton,
             CollisionSnapshot snapshot, const Settings& settings, const ESM::RagdollState& state);
+        /// Resolve a verified surface contact on the current living pose; -1 if unsupported or too far away.
+        static int findHitBody(osg::Group& root, const osg::Vec3f& contact);
         void writeState(ESM::RagdollState& state) const;
         void setWaterLevel(std::optional<float> level);
         void setArmorMass(float mass);
