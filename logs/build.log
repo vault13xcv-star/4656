@@ -1,0 +1,92 @@
+[0/2] Re-checking globbed directories...
+[1/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourAlloc.cpp.obj
+[2/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourAssert.cpp.obj
+[3/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourCommon.cpp.obj
+[4/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourNavMeshBuilder.cpp.obj
+[5/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourNavMesh.cpp.obj
+[6/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourNavMeshQuery.cpp.obj
+[7/995] Building CXX object _deps\recastnavigation-build\DetourTileCache\CMakeFiles\DetourTileCache.dir\Source\DetourTileCache.cpp.obj
+[8/995] Building CXX object _deps\recastnavigation-build\Detour\CMakeFiles\Detour.dir\Source\DetourNode.cpp.obj
+[9/995] Building CXX object _deps\recastnavigation-build\DetourTileCache\CMakeFiles\DetourTileCache.dir\Source\DetourTileCacheBuilder.cpp.obj
+[10/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\Recast.cpp.obj
+[11/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastAlloc.cpp.obj
+[12/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastAssert.cpp.obj
+[13/995] Linking CXX static library _deps\recastnavigation-build\Detour\Detour.lib
+[14/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastArea.cpp.obj
+[15/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastFilter.cpp.obj
+[16/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastContour.cpp.obj
+[17/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastLayers.cpp.obj
+[18/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastMesh.cpp.obj
+[19/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastRasterization.cpp.obj
+[20/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastMeshDetail.cpp.obj
+[21/995] Building CXX object _deps\recastnavigation-build\Recast\CMakeFiles\Recast.dir\Source\RecastRegion.cpp.obj
+[22/995] C:\Windows\system32\cmd.exe /C "cd /D D:\a\4656\4656\build\components && "C:\Program Files\CMake\bin\cmake.exe" "-DGIT_EXECUTABLE=C:/Program Files/Git/bin/git.exe" -DOpenMW_SOURCE_DIR=D:/a/4656/4656 -DOpenMW_BINARY_DIR=D:/a/4656/4656/build -DVERSION_RESOURCE_FILE_IN=D:/a/4656/4656/files/version.in -DVERSION_RESOURCE_FILE_RELATIVE=resources/version -DVERSION_CPP_FILE_IN=D:/a/4656/4656/components/version/version.cpp.in -DVERSION_CPP_FILE_OUT=D:/a/4656/4656/build/components/version/version.cpp.out -DOPENMW_VERSION_MAJOR=0 -DOPENMW_VERSION_MINOR=51 -DOPENMW_VERSION_RELEASE=0 -DOPENMW_LUA_API_REVISION=129 -DOPENMW_POSTPROCESSING_API_REVISION=5 -DOPENMW_VERSION=0.51.0 -DOPENMW_DOC_BASEURL=https://openmw.readthedocs.io/en/ -DMACROSFILE=D:/a/4656/4656/cmake/OpenMWMacros.cmake -DCMAKE_CONFIGURATION_TYPES= -Dgenerator_is_multi_config_var=0 -P D:/a/4656/4656/components/../cmake/GitVersion.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/4656/4656/build/components/version/version.cpp.out D:/a/4656/4656/build/components/version/version.cpp"
+-- OpenMW version 0.51.0
+[23/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\cmake_pch.cxx.obj
+[24/995] Building CXX object _deps\recastnavigation-build\DebugUtils\CMakeFiles\DebugUtils.dir\Source\DebugDraw.cpp.obj
+[25/995] Building CXX object _deps\recastnavigation-build\DebugUtils\CMakeFiles\DebugUtils.dir\Source\RecastDebugDraw.cpp.obj
+[26/995] Building CXX object _deps\recastnavigation-build\DebugUtils\CMakeFiles\DebugUtils.dir\Source\DetourDebugDraw.cpp.obj
+[27/995] Building CXX object _deps\recastnavigation-build\DebugUtils\CMakeFiles\DebugUtils.dir\Source\RecastDump.cpp.obj
+[28/995] Linking CXX static library _deps\recastnavigation-build\DetourTileCache\DetourTileCache.lib
+[29/995] Linking CXX static library _deps\recastnavigation-build\Recast\Recast.lib
+[30/995] Building CXX object extern\smhasher\CMakeFiles\smhasher.dir\MurmurHash3.cpp.obj
+[31/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\contrib\graphbuilderadapter.cpp.obj
+[32/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\contrib\graphbuilder.cpp.obj
+[33/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\binary.cpp.obj
+[34/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\convert.cpp.obj
+[35/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\depthguard.cpp.obj
+[36/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\directives.cpp.obj
+[37/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\emit.cpp.obj
+[38/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\emitfromevents.cpp.obj
+[39/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\emitter.cpp.obj
+[40/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\emitterstate.cpp.obj
+[41/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\exceptions.cpp.obj
+[42/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\emitterutils.cpp.obj
+[43/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\exp.cpp.obj
+[44/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\memory.cpp.obj
+[45/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\node.cpp.obj
+[46/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\node_data.cpp.obj
+[47/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\nodebuilder.cpp.obj
+[48/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\nodeevents.cpp.obj
+[49/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\null.cpp.obj
+[50/995] Building C object extern\CMakeFiles\sqlite3.dir\fetched\sqlite3\sqlite3.c.obj
+[51/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\parse.cpp.obj
+[52/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\ostream_wrapper.cpp.obj
+[53/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\regex_yaml.cpp.obj
+[54/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\parser.cpp.obj
+[55/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\scanner.cpp.obj
+[56/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\scanscalar.cpp.obj
+[57/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\scantag.cpp.obj
+[58/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\scantoken.cpp.obj
+[59/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\simplekey.cpp.obj
+[60/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\singledocparser.cpp.obj
+[61/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\stream.cpp.obj
+[62/995] Building CXX object extern\osg-ffmpeg-videoplayer\CMakeFiles\osg-ffmpeg-videoplayer.dir\cmake_pch.cxx.obj
+[63/995] Building CXX object _deps\yaml-cpp-build\CMakeFiles\yaml-cpp.dir\src\tag.cpp.obj
+[64/995] Building CXX object extern\oics\CMakeFiles\oics.dir\cmake_pch.cxx.obj
+[65/995] Building CXX object extern\oics\CMakeFiles\local_tinyxml.dir\tinyxml\tinyxml.cpp.obj
+[66/995] Building CXX object extern\oics\CMakeFiles\local_tinyxml.dir\tinyxml\tinyxmlerror.cpp.obj
+[67/995] Building CXX object extern\oics\CMakeFiles\local_tinyxml.dir\tinyxml\tinyxmlparser.cpp.obj
+[68/995] Building CXX object extern\oics\CMakeFiles\local_tinyxml.dir\tinyxml\tinystr.cpp.obj
+[69/995] Linking C static library extern\sqlite3.lib
+[70/995] Linking CXX static library _deps\recastnavigation-build\DebugUtils\DebugUtils.lib
+[71/995] Linking CXX static library extern\smhasher\smhasher.lib
+[72/995] Linking CXX static library _deps\yaml-cpp-build\yaml-cpp.lib
+[73/995] Building CXX object extern\osg-ffmpeg-videoplayer\CMakeFiles\osg-ffmpeg-videoplayer.dir\videoplayer.cpp.obj
+[74/995] Building CXX object extern\osg-ffmpeg-videoplayer\CMakeFiles\osg-ffmpeg-videoplayer.dir\videostate.cpp.obj
+[75/995] Building CXX object extern\osg-ffmpeg-videoplayer\CMakeFiles\osg-ffmpeg-videoplayer.dir\audiodecoder.cpp.obj
+[76/995] Building CXX object extern\oics\CMakeFiles\oics.dir\ICSControl.cpp.obj
+[77/995] Building CXX object extern\oics\CMakeFiles\oics.dir\ICSChannel.cpp.obj
+[78/995] Building CXX object extern\oics\CMakeFiles\oics.dir\ICSInputControlSystem_keyboard.cpp.obj
+[79/995] Building CXX object components\CMakeFiles\components.dir\cmake_pch.cxx.obj
+[80/995] Building CXX object extern\oics\CMakeFiles\oics.dir\ICSInputControlSystem.cpp.obj
+[81/995] Building CXX object extern\oics\CMakeFiles\oics.dir\ICSInputControlSystem_mouse.cpp.obj
+[82/995] Building CXX object extern\oics\CMakeFiles\oics.dir\ICSInputControlSystem_joystick.cpp.obj
+[83/995] Linking CXX static library extern\oics\local_tinyxml.lib
+[84/995] Building CXX object components\CMakeFiles\components.dir\version\version.cpp.obj
+[85/995] Building CXX object components\CMakeFiles\components.dir\misc\osgpluginchecker.cpp.obj
+[86/995] Building CXX object components\CMakeFiles\components.dir\ragdoll\simulation.cpp.obj
+[87/995] Building CXX object components\CMakeFiles\components.dir\ragdoll\items.cpp.obj
+[88/995] Building CXX object components\CMakeFiles\components.dir\lua\luastate.cpp.obj
+[89/995] Building CXX object components\CMakeFiles\components.dir\lua\scriptscontainer.cpp.obj
+[90/995] Building CXX object components\CMakeFiles\components.dir\lua\asyncpackage.cpp.obj
