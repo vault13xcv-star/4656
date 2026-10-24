@@ -12,6 +12,9 @@ namespace Ragdoll
     {
         std::uint32_t mCuts = 0;
         bool mBurstHead = false;
+        bool mLongitudinal = false;
+        bool mCrushed = false;
+        bool any() const { return mCuts || mLongitudinal; }
         bool cuts(std::size_t body) const { return body < 15 && (mCuts & (1u << body)); }
     };
 
@@ -32,6 +35,14 @@ namespace Ragdoll
             return {};
         if (part >= 15)
             return {};
+        const bool swing = hit.mAttackType == AttackType::Chop || hit.mAttackType == AttackType::Slash;
+        if (hit.mTwoHandedHammer && swing && part <= 1)
+            return { bit(1) | bit(2) | bit(3) | bit(5) | bit(7) | bit(9), false, false, true };
+        // Only a descending chop through the centre line can split lengthwise.
+        // The native hit key describes the swing; the direction rejects upward contacts.
+        if (hit.mTwoHandedCutting && hit.mAttackType == AttackType::Chop && (part <= 2)
+            && std::isfinite(hit.mWeaponDirection.length2()) && hit.mWeaponDirection.z() < -.01f)
+            return { 0, false, true, false };
         if ((hit.mWoundWeapon == WoundWeapon::Blunt && part == 2
                 && (hit.mAttackType == AttackType::Chop || hit.mAttackType == AttackType::Slash))
             || (hit.mWoundWeapon == WoundWeapon::Bolt && part == 2))

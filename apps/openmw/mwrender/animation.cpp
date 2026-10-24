@@ -1,4 +1,5 @@
 #include "animation.hpp"
+#include "renderingmanager.hpp"
 #include <components/ragdoll/profiles.hpp>
 
 #include <algorithm>
@@ -1554,6 +1555,14 @@ namespace MWRender
                 config.mWoundRoll = config.mNpc && !savedRagdoll.mPresent
                     ? Misc::Rng::rollClosedProbability(MWBase::Environment::get().getWorld()->getPrng()) : 1.f;
                 config.mBleedDuration = 10.f * settings.mStatusDurationScale.get();
+                config.mBloodAmount = settings.mBloodAmount.get();
+                if (mPtr.isInCell())
+                {
+                    const auto cellId = mPtr.getCell()->getCell()->getId().serializeText();
+                    config.mBloodDeposit = [cellId](const BloodStamp& stamp) {
+                        MWBase::Environment::get().getWorld()->getRenderingManager()->addBloodDecal(cellId, stamp);
+                    };
+                }
                 const int bloodType = config.mNpc ? mPtr.get<ESM::NPC>()->mBase->mBloodType : 0;
                 config.mBloodEffect = [bloodType](const osg::Vec3f& position) {
                     MWBase::World* world = MWBase::Environment::get().getWorld();
@@ -1616,7 +1625,7 @@ namespace MWRender
                 settings.mFireEffectDuration.get() * settings.mStatusDurationScale.get(),
                 settings.mPoisonEffectDuration.get() * settings.mStatusDurationScale.get(),
                 settings.mShockDuration.get() * settings.mStatusDurationScale.get(),
-                10.f * settings.mStatusDurationScale.get());
+                10.f * settings.mStatusDurationScale.get(), settings.mBloodAmount.get());
             updateRagdollParts(mRagdoll.get());
             mRagdoll->setSkinParts(getRagdollSkinParts());
             mRagdoll->setArmorMass(equippedArmorMass());

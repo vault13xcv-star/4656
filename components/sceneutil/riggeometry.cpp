@@ -146,6 +146,78 @@ namespace SceneUtil
         return true;
     }
 
+    osg::ref_ptr<osg::Geometry> RigGeometry::snapshotPose(const osg::NodePath& path) const
+    {
+        if (!mData || !mSourceGeometry) return nullptr;
+        Skeleton* skeleton = nullptr;
+        auto skeletonIt = path.end();
+        for (auto it = path.begin(); it != path.end(); ++it)
+            if (auto* found = dynamic_cast<Skeleton*>(*it)) { skeleton = found; skeletonIt = it; }
+        if (!skeleton) return nullptr;
+        const auto skeletonWorld = osg::computeLocalToWorld(osg::NodePath(path.begin(), skeletonIt + 1));
+        const auto inverseSkeleton = osg::Matrixf::inverse(skeletonWorld);
+        const auto bonePose = [&](const std::string& name) -> osg::Matrixf {
+            const auto* bone = skeleton->getBone(name);
+            if (!bone || !bone->mNode) return osg::Matrixf::identity();
+            const auto paths = bone->mNode->getParentalNodePaths();
+            return paths.empty() ? osg::Matrixf::identity()
+                : osg::Matrixf(osg::computeLocalToWorld(paths.front())) * inverseSkeleton;
+        };
+        std::vector<osg::Matrixf> matrices;
+        for (const auto& bone : mData->mBones)
+        {
+            const auto found = mBonePoseOverride.find(Misc::StringUtils::lowerCase(bone.mName));
+            const auto pose = found == mBonePoseOverride.end() ? bonePose(bone.mName)
+                : mBonePoseAnchor.empty() ? found->second : found->second * bonePose(mBonePoseAnchor);
+            matrices.push_back(bone.mInvBindMatrix * pose);
+        }
+        // Same cancellation used by updateSkinToSkelMatrix, calculated locally.
+        osg::Matrix skinToSkeleton;
+        auto skinRoot = path.end();
+        if (!mData->mRootBone.empty())
+            skinRoot = std::find_if(skeletonIt + 1, path.end(), [&](const auto* node) {
+                return Misc::StringUtils::ciEqual(node->getName(), mData->mRootBone);
+            });
+        if (skinRoot == path.end())
+        {
+            skinRoot = path.size() > 1 ? path.end() - 2 : path.end();
+            if (skinRoot != path.end() && (*skinRoot)->getName() != getName()) ++skinRoot;
+        }
+        else ++skinRoot;
+        for (auto it = skeletonIt + 1; it < skinRoot; ++it)
+            if (const auto* transform = (*it)->asTransform()) transform->computeWorldToLocalMatrix(skinToSkeleton, nullptr);
+        const auto transform = osg::Matrixf(skinToSkeleton) * mData->mTransform;
+        osg::ref_ptr<osg::Geometry> result = new osg::Geometry(*mSourceGeometry, osg::CopyOp::DEEP_COPY_ARRAYS);
+        auto* positions = dynamic_cast<osg::Vec3Array*>(result->getVertexArray());
+        const auto* source = dynamic_cast<const osg::Vec3Array*>(mSourceGeometry->getVertexArray());
+        if (!positions || !source) return nullptr;
+        auto* normals = dynamic_cast<osg::Vec3Array*>(result->getNormalArray());
+        const auto* sourceNormals = dynamic_cast<const osg::Vec3Array*>(mSourceGeometry->getNormalArray());
+        auto* tangents = dynamic_cast<osg::Vec4Array*>(result->getTexCoordArray(7));
+        for (const auto& [influences, vertices] : mData->mInfluences)
+        {
+            osg::Matrixf matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+            for (const auto& [index, weight] : influences)
+                for (int i = 0; i < 16; ++i)
+                    if (i % 4 != 3) matrix.ptr()[i] += matrices.at(index).ptr()[i] * weight;
+            matrix *= transform;
+            for (auto vertex : vertices)
+            {
+                (*positions)[vertex] = (*source)[vertex] * matrix;
+                if (normals && sourceNormals && vertex < normals->size() && vertex < sourceNormals->size())
+                    (*normals)[vertex] = osg::Matrixf::transform3x3((*sourceNormals)[vertex], matrix);
+                if (tangents && mSourceTangents && vertex < tangents->size())
+                {
+                    const auto& src = (*mSourceTangents)[vertex];
+                    (*tangents)[vertex] = osg::Vec4f(osg::Matrixf::transform3x3(osg::Vec3f(src.x(), src.y(), src.z()), matrix), src.w());
+                }
+            }
+        }
+        result->setUseDisplayList(false);
+        result->setUseVertexBufferObjects(true);
+        return result;
+    }
+
     void RigGeometry::cull(osg::NodeVisitor* nv)
     {
         if (!mSkeleton)

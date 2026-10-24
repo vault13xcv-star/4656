@@ -6,6 +6,7 @@
 
 #include <components/ragdoll/impact.hpp>
 #include <components/ragdoll/dismemberment.hpp>
+#include "brutalblood.hpp"
 
 #include <functional>
 #include <memory>
@@ -69,6 +70,8 @@ namespace MWRender
             float mWoundRoll = 1.f;
             float mWoundChance = .3f;
             float mBleedDuration = 10.f;
+            float mBloodAmount = 1.f;
+            std::function<void(const BloodStamp&)> mBloodDeposit;
             std::function<void(const osg::Vec3f&)> mBloodEffect;
         };
 
@@ -90,7 +93,8 @@ namespace MWRender
         void setWaterLevel(std::optional<float> level);
         void setArmorMass(float mass);
         void setRuntimeSettings(int maxActive, float maxSimulationTime, float pinDistance, float fireDuration,
-            float poisonDuration, float shockDuration, float bleedDuration = 10.f);
+            float poisonDuration, float shockDuration, float bleedDuration = 10.f, float bloodAmount = 1.f);
+        void splitPart(osg::Node& part, std::size_t body) const;
 
         ~RagdollController();
 

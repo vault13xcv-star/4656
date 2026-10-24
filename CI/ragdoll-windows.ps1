@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.6.0-preview.5'
+$ragdollVersion = '0.7.0-preview.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -144,7 +144,7 @@ switch ($Phase) {
     Package {
         $testResult = if ($env:RAGDOLL_TEST_RESULT) { $env:RAGDOLL_TEST_RESULT } else { 'not reported' }
         $shortSha = $env:GITHUB_SHA.Substring(0, 12)
-        $packageName = "OpenMW-0.51-RealCombat-Ragdoll-$ragdollVersion-Windows-x64-$shortSha"
+        $packageName = "Brutal-Morrowind-$ragdollVersion-OpenMW-0.51-Windows-x64-$shortSha"
         $install = Join-Path $source "package/$packageName"
         Run 'cmake' @('--install', $build, '--prefix', $install, '--config', 'Release') 'install.log'
         Copy-Runtime $install
@@ -163,10 +163,11 @@ switch ($Phase) {
         if (Test-Path "$source/docs/realcombat-ragdoll.md") {
             Copy-Item "$source/docs/realcombat-ragdoll.md" (Join-Path $install 'RAGDOLL-README.md')
         }
+        Copy-Item "$source/docs/brutal-morrowind.md" (Join-Path $install 'BRUTAL-MORROWIND-README.md')
         Copy-Item "$source/docs/physics-tz-audit.md" (Join-Path $install 'PHYSICS-STATUS.md')
         Copy-Item "$source/docs/dismemberment.md" (Join-Path $install 'dismemberment.md')
         @"
-Experimental humanoid ragdoll $ragdollVersion runtime for OpenMW 0.51.0 / Windows x64.
+Brutal Morrowind $ragdollVersion runtime for OpenMW 0.51.0 / Windows x64.
 Source: https://github.com/$($env:GITHUB_REPOSITORY)/tree/$($env:GITHUB_SHA)
 Commit: $($env:GITHUB_SHA)
 Build: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)
@@ -208,23 +209,23 @@ These automated tests do not constitute an in-game playtest with Morrowind data.
         Run '7z' @('t', $zip) 'package-integrity.log'
         $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $packageName.zip" | Set-Content (Join-Path $dist 'SHA256SUMS') -Encoding ascii
-        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion; testResult = $testResult } |
+        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion; modName = 'Brutal Morrowind'; testResult = $testResult } |
             ConvertTo-Json | Set-Content (Join-Path $dist 'package.json') -Encoding utf8
-        Run 'git' @('archive', '--format=zip', "--output=$dist/OpenMW-Ragdoll-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
+        Run 'git' @('archive', '--format=zip', "--output=$dist/Brutal-Morrowind-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
     }
     Publish {
         $tag = "ragdoll-windows-$ragdollVersion-$($env:GITHUB_SHA.Substring(0, 12))-$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
         $notes = Join-Path $logs 'release-notes.md'
         @"
-Experimental OpenMW 0.51.0 runtime for Windows x64 with humanoid ragdolls $ragdollVersion.
+Brutal Morrowind $ragdollVersion for OpenMW 0.51.0 / Windows x64.
 
-Download the **Windows-x64 ZIP**, extract it fully, and read RAGDOLL-README.md.
+Download the **Windows-x64 ZIP**, extract it fully, and read BRUTAL-MORROWIND-README.md.
 This build reuses your OpenMW user configuration; copyrighted game data is not included.
 The launcher/editor are not bundled. Keep your stable installation and separate test saves.
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Version 0.5 adds independent active budgets and timers, saved physical poses, remaining-time restoration, weight/Strength impulses, creature profiles, buoyancy and longer elemental effects. Read PHYSICS-STATUS.md for unfinished specification items.
+Version 0.7 adds ballistic blood, projected wall/floor stains and growing pools, saved ten-minute stain lifetimes, high-pressure neck fountains, physical intestines, longitudinal two-handed cuts and hammer torso tearing. Existing impact, enchantment and DOT rules are retained.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 
@@ -232,7 +233,7 @@ Corresponding engine sources are attached. Dependency notices are in the runtime
 "@ | Set-Content $notes -Encoding utf8
         $assets = @(Get-ChildItem $dist -Filter '*.zip' -File | ForEach-Object FullName)
         $assets += Join-Path $dist 'SHA256SUMS'
-        Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--prerelease', '--title', "OpenMW 0.51 humanoid ragdoll $ragdollVersion - Windows x64 ($($env:GITHUB_SHA.Substring(0, 12)))", '--notes-file', $notes) + $assets) 'publish.log'
+        Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--prerelease', '--title', "Brutal Morrowind $ragdollVersion - Windows x64 ($($env:GITHUB_SHA.Substring(0, 12)))", '--notes-file', $notes) + $assets) 'publish.log'
         "https://github.com/$($env:GITHUB_REPOSITORY)/releases/tag/$tag" | Set-Content (Join-Path $dist 'release-url.txt') -Encoding ascii
     }
 }

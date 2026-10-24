@@ -37,6 +37,8 @@ namespace MWMechanics
             mApplied.mHasWeaponContact = mWeapon.mHasWeaponContact;
             mApplied.mCrossbow = mWeapon.mCrossbow;
             mApplied.mWoundWeapon = mWeapon.mWoundWeapon;
+            mApplied.mTwoHandedCutting = mWeapon.mTwoHandedCutting;
+            mApplied.mTwoHandedHammer = mWeapon.mTwoHandedHammer;
             mApplied.mAttackType = mWeapon.mAttackType;
             mApplied.mWeaponHitBody = mWeapon.mWeaponHitBody;
             mApplied.mPosition = mWeapon.mPosition;

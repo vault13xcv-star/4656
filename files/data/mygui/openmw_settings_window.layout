@@ -790,7 +790,7 @@
                 </Widget>
                 <Widget type="ScrollView" skin="MW_ScrollView" position="4 74 352 264" align="Stretch" name="PhysicsView">
                     <Property key="CanvasAlign" value="Left Top"/>
-                    <Property key="CanvasSize" value="352 724"/>
+                    <Property key="CanvasSize" value="352 844"/>
                     <Widget type="Widget" position="4 4 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsMeleeLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsMeleeSlider">
@@ -976,6 +976,38 @@
                             <UserString key="SettingLabelWidget" value="PhysicsDismembermentLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollDismembermentValue"/>
                             <UserString key="SettingLabelPercent" value="true"/>
+                        </Widget>
+                    </Widget>
+                    <Widget type="Widget" position="4 724 324 56" align="HStretch Top">
+                        <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsBloodAmountLabel"/>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsBloodAmountSlider">
+                            <Property key="Range" value="301"/>
+                            <Property key="Page" value="10"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingCategory" value="Ragdoll"/>
+                            <UserString key="SettingName" value="blood amount"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingMin" value="0"/>
+                            <UserString key="SettingMax" value="3"/>
+                            <UserString key="SettingLabelWidget" value="PhysicsBloodAmountLabel"/>
+                            <UserString key="SettingLabelCaption" value="RagdollBloodAmountValue"/>
+                            <UserString key="SettingLabelPercent" value="true"/>
+                        </Widget>
+                    </Widget>
+                    <Widget type="Widget" position="4 784 324 56" align="HStretch Top">
+                        <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsBloodLifetimeLabel"/>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsBloodLifetimeSlider">
+                            <Property key="Range" value="1501"/>
+                            <Property key="Page" value="10"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingCategory" value="Ragdoll"/>
+                            <UserString key="SettingName" value="blood lifetime"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingMin" value="300"/>
+                            <UserString key="SettingMax" value="1800"/>
+                            <UserString key="SettingLabelWidget" value="PhysicsBloodLifetimeLabel"/>
+                            <UserString key="SettingLabelCaption" value="RagdollBloodLifetimeValue"/>
+                            <UserString key="SettingLabelPercent" value="false"/>
                         </Widget>
                     </Widget>
                 </Widget>

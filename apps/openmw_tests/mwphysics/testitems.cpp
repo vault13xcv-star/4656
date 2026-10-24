@@ -526,13 +526,18 @@ namespace
                 const auto wound = Ragdoll::selectWounds(hit, hit.mWeaponHitBody, 0, 1);
                 const bool cutting = group == Weapon::Blade || group == Weapon::HeavyBlade;
                 const bool eligible = (cutting || group == Weapon::Blunt) && attack != Attack::Thrust;
-                EXPECT_EQ(wound.mCuts, eligible ? 1u << 2 : 0);
+                const bool longitudinal = hit.mTwoHandedCutting && attack == Attack::Chop;
+                EXPECT_EQ(wound.mLongitudinal, longitudinal);
+                EXPECT_EQ(wound.mCuts, eligible && !longitudinal ? 1u << 2 : 0);
                 EXPECT_EQ(wound.mBurstHead, eligible && group == Weapon::Blunt);
                 EXPECT_FALSE(wound.cuts(1));
                 contact->mWeapon.mWeaponHitBody = 1;
                 contact->applyWeapon();
                 const auto torso = Ragdoll::selectWounds(contact->mApplied, 1, 0, 1);
-                EXPECT_EQ(torso.cuts(1), group == Weapon::HeavyBlade && attack == Attack::Slash);
+                EXPECT_EQ(torso.cuts(1), (group == Weapon::HeavyBlade && attack == Attack::Slash)
+                    || (hit.mTwoHandedHammer && attack != Attack::Thrust));
+                EXPECT_EQ(torso.mLongitudinal, longitudinal);
+                EXPECT_EQ(torso.mCrushed, hit.mTwoHandedHammer && attack != Attack::Thrust);
                 EXPECT_FALSE(torso.mBurstHead);
             }
         }

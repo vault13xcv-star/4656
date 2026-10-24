@@ -38,6 +38,8 @@ namespace ESM
         float mFireDuration = 15, mPoisonDuration = 10, mShockDuration = 10;
         unsigned mCuts = 0;
         bool mBurstHead = false;
+        bool mLongitudinal = false, mCrushed = false;
+        int mGutsStart = -1, mGutsCount = 0;
         float mBleedDuration = 10;
         std::array<float, 3> mPinPoint{}, mAttractionTarget{};
         float mAttractionDistance = 0, mAttractionLeft = 0, mAttractionDuration = 2;

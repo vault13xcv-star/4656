@@ -389,7 +389,8 @@ namespace MWWorld
             + 1 // weather record
             + 1 // levitation/teleport enabled state
             + 1 // camera
-            + 1; // random state.
+            + 1 // random state.
+            + 1; // persistent Brutal Morrowind blood.
     }
 
     size_t World::countSavedGameCells() const
@@ -416,6 +417,7 @@ namespace MWWorld
         mGlobalVariables.write(writer, progress);
         mWeatherManager->write(writer, progress);
         mProjectileManager->write(writer, progress);
+        mRendering->writeBloodState(writer);
 
         writer.startRecord(ESM::REC_ENAB);
         writer.writeHNT("TELE", mTeleportEnabled);
@@ -431,6 +433,9 @@ namespace MWWorld
     {
         switch (type)
         {
+            case ESM::REC_BRBL:
+                mRendering->readBloodState(reader);
+                return;
             case ESM::REC_ACTC:
                 reader.skipRecord();
                 return;

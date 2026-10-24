@@ -13,6 +13,7 @@
 #include <components/esm3/loadscpt.hpp>
 #include <components/esm3/loadweap.hpp>
 #include <components/esm3/objectstate.hpp>
+#include <components/esm3/brutalbloodstate.hpp>
 #include <components/esm3/player.hpp>
 #include <components/esm3/quickkeys.hpp>
 
@@ -305,6 +306,42 @@ namespace ESM
             EXPECT_EQ(result.mRagdoll.mBodies[0].mLinearVelocity, body.mLinearVelocity);
             ASSERT_EQ(result.mRagdoll.mBones.size(), 1);
             EXPECT_EQ(result.mRagdoll.mBones[0].mName, bone.mName);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, brutalBloodShouldPreserveCellGeometryAndRemainingAge)
+        {
+            BrutalBloodState state;
+            BrutalBloodStain stain;
+            stain.mCell = "String:balmora, guild of mages";
+            stain.mAge = 599; stain.mRadius = 3; stain.mPool = true;
+            stain.mNormal = { 0, 0, 1 }; stain.mCenter = { 1, 2, 3 };
+            stain.mTriangles = { { 1, 2, 3 }, { 4, 2, 3 }, { 1, 5, 3 } };
+            state.mStains.push_back(stain);
+            BrutalBloodState result;
+            saveAndLoadRecord(state, CurrentSaveGameFormatVersion, result);
+            ASSERT_EQ(result.mStains.size(), 1);
+            EXPECT_EQ(result.mStains[0].mCell, stain.mCell);
+            EXPECT_EQ(result.mStains[0].mAge, 599);
+            EXPECT_EQ(result.mStains[0].mTriangles, stain.mTriangles);
+            EXPECT_TRUE(result.mStains[0].mPool);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, brutalSplitAndIntestinalBodyIndicesShouldRoundTrip)
+        {
+            ObjectState record;
+            record.blank(); record.mRef.mRefID = generateRandomRefId();
+            auto& state = record.mRagdoll;
+            state.mPresent = true; state.mLongitudinal = true;
+            state.mGutsStart = 18; state.mGutsCount = 36;
+            state.mBodies.resize(54);
+            RagdollBoneState bone; bone.mName = "Bip01 Pelvis"; bone.mBody = 0;
+            state.mBones.push_back(bone);
+            ObjectState result;
+            saveAndLoadRecord(record, CurrentSaveGameFormatVersion, result);
+            EXPECT_TRUE(result.mRagdoll.mLongitudinal);
+            EXPECT_EQ(result.mRagdoll.mGutsStart, 18);
+            EXPECT_EQ(result.mRagdoll.mGutsCount, 36);
+            EXPECT_EQ(result.mRagdoll.mBodies.size(), 54);
         }
 
         TEST_F(Esm3SaveLoadRecordTest, headerShouldNotChange)

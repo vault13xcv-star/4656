@@ -70,6 +70,13 @@
 #include "actorspaths.hpp"
 #include "camera.hpp"
 #include "effectmanager.hpp"
+#include "brutalblood.hpp"
+#include "../mwworld/esmstore.hpp"
+#include <components/esm3/loadgmst.hpp>
+#include <components/fallback/fallback.hpp>
+#include <components/esm3/esmwriter.hpp>
+#include <components/esm3/esmreader.hpp>
+#include <components/settings/categories/ragdoll.hpp>
 #include "fogmanager.hpp"
 #include "groundcover.hpp"
 #include "navmesh.hpp"
@@ -239,6 +246,7 @@ namespace MWRender
         mResourceSystem->getSceneManager()->setIncrementalCompileOperation(mViewer->getIncrementalCompileOperation());
 
         mEffectManager = std::make_unique<EffectManager>(sceneRoot, mResourceSystem);
+        mBloodDecals = std::make_unique<BloodDecals>(*sceneRoot);
 
         const std::string& normalMapPattern = Settings::shaders().mNormalMapPattern;
         const std::string& heightMapPattern = Settings::shaders().mNormalHeightMapPattern;
@@ -531,6 +539,7 @@ namespace MWRender
 
     void RenderingManager::addCell(const MWWorld::CellStore* store)
     {
+        mBloodDecals->setCellActive(store->getCell()->getId().serializeText(), true);
         mPathgrid->addCell(store);
 
         mWater->changeCell(store);
@@ -543,6 +552,9 @@ namespace MWRender
     }
     void RenderingManager::removeCell(const MWWorld::CellStore* store)
     {
+        const auto bloodCell = store->getCell()->getId().serializeText();
+        std::erase_if(mBloodBursts, [&](const auto& burst) { return burst.mCell == bloodCell; });
+        mBloodDecals->setCellActive(store->getCell()->getId().serializeText(), false);
         mPathgrid->removeCell(store);
         mActorsPaths->removeCell(store);
         mObjects->removeCell(store);
@@ -661,6 +673,15 @@ namespace MWRender
         if (!paused)
         {
             mEffectManager->update(dt);
+            mBloodDecals->update(dt, Settings::ragdoll().mBloodLifetime.get());
+            for (auto& burst : mBloodBursts)
+            {
+                burst.mAge += dt;
+                const std::vector<BloodTrail::Source> source = burst.mAge < .35f
+                    ? std::vector<BloodTrail::Source>{ burst.mSource } : std::vector<BloodTrail::Source>{};
+                burst.mTrail->update(dt, source, Settings::ragdoll().mBloodAmount.get(), burst.mAge);
+            }
+            std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > 2.5f; });
             mSky->update(dt);
 
             const MWWorld::Ptr& player = mPlayerAnimation->getPtr();
@@ -1012,12 +1033,61 @@ namespace MWRender
         const osg::Vec3f& worldPosition, float scale, bool isMagicVFX, bool useAmbientLight, std::string_view effectId,
         bool loop)
     {
+        const float configuredBlood = Settings::ragdoll().mBloodAmount.get();
+        const float bloodAmount = std::isfinite(configuredBlood) ? std::clamp(configuredBlood, 0.f, 3.f) : 1.f;
+        if (bloodAmount != 1.f)
+            for (int i = 0; i < 3; ++i)
+            {
+                const auto key = "Blood_Model_" + std::to_string(i);
+                const auto* setting = MWBase::Environment::get().getESMStore()->get<ESM::GameSetting>().search(key);
+                const auto mesh = setting ? std::string_view(setting->mValue.getString()) : Fallback::Map::getString(key);
+                if (!mesh.empty() && model.value() == VFS::Path::Normalized("meshes/" + std::string(mesh)).value())
+                {
+                    if (bloodAmount <= 0) return;
+                    scale *= std::sqrt(bloodAmount);
+                    break;
+                }
+            }
         mEffectManager->addEffect(model, texture, worldPosition, scale, isMagicVFX, useAmbientLight, effectId, loop);
     }
 
     void RenderingManager::removeEffect(std::string_view effectId)
     {
         mEffectManager->removeEffect(effectId);
+    }
+
+    void RenderingManager::addBloodDecal(const std::string& cell, const BloodStamp& stamp)
+    {
+        mBloodDecals->add(cell, stamp);
+    }
+    void RenderingManager::emitBloodHit(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit)
+    {
+        const auto world = MWBase::Environment::get().getWorld();
+        if (!victim.isInCell() || !victim.getClass().isNpc() || victim == world->getPlayerPtr()
+            || !hit.mHasWeaponContact || Settings::ragdoll().mBloodAmount.get() <= 0) return;
+        const auto cell = victim.getCell()->getCell()->getId().serializeText();
+        auto ray = BloodTrail::collisionRaycast(world->getRagdollCollisionTriangles(hit.mWeaponPosition, 256));
+        if (!ray) return;
+        BloodBurst burst;
+        burst.mCell = cell;
+        burst.mSource = { hit.mWeaponPosition, -hit.mWeaponDirection, 1, false };
+        burst.mTrail = std::make_unique<BloodTrail>(*mSceneRoot, std::move(ray),
+            [this, cell](const auto& stamp) { mBloodDecals->add(cell, stamp); });
+        if (mBloodBursts.size() >= 32) mBloodBursts.erase(mBloodBursts.begin());
+        mBloodBursts.push_back(std::move(burst));
+    }
+    void RenderingManager::writeBloodState(ESM::ESMWriter& writer) const
+    {
+        writer.startRecord(ESM::REC_BRBL);
+        mBloodDecals->getSaveRecord().save(writer);
+        writer.endRecord(ESM::REC_BRBL);
+    }
+    void RenderingManager::readBloodState(ESM::ESMReader& reader)
+    {
+        ESM::BrutalBloodState state;
+        state.load(reader);
+        mBloodDecals->update(0, Settings::ragdoll().mBloodLifetime.get());
+        mBloodDecals->loadSaveRecord(state);
     }
 
     void RenderingManager::notifyWorldSpaceChanged()
@@ -1028,6 +1098,8 @@ namespace MWRender
 
     void RenderingManager::clear()
     {
+        mBloodDecals->clear();
+        mBloodBursts.clear();
         mSky->setMoonColour(false);
 
         notifyWorldSpaceChanged();

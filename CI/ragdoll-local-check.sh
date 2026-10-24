@@ -30,6 +30,10 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     components/CMakeFiles/components.dir/esm3/objectstate.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdoll.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdollappearance.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/brutalblood.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/brutalgore.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/renderingmanager.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwstate/statemanagerimp.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/animation.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/npcanimation.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwgui/settingswindow.cpp.o \

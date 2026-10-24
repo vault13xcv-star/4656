@@ -62,6 +62,9 @@ namespace SceneUtil
         void setRootBone(std::string_view name);
 
         osg::ref_ptr<osg::Geometry> getSourceGeometry() const;
+        // Independent CPU snapshot of the current pose, for destructive mesh
+        // cuts. Does not touch the cull thread's double-buffered arrays.
+        osg::ref_ptr<osg::Geometry> snapshotPose(const osg::NodePath& path) const;
         // Per-instance cloth pose; never mutates cached mesh/influence data.
         void setBonePoseOverride(const std::map<std::string, osg::Matrixf>& matrices, std::string anchor = {});
 

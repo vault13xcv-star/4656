@@ -1,4 +1,5 @@
 #include "objectstate.hpp"
+#include "brutalbloodstate.hpp"
 
 #include <algorithm>
 #include <array>
@@ -25,6 +26,46 @@ namespace ESM
         bool indexValue(float value, int minimum, int maximum)
         {
             return value >= minimum && value <= maximum && value == std::floor(value);
+        }
+    }
+
+    void BrutalBloodState::load(ESMReader& reader)
+    {
+        mStains.clear();
+        unsigned version = 0, count = 0;
+        reader.getHNT(version, "BVER"); reader.getHNT(count, "BCNT");
+        if (version != 1 || count > 8192) throw std::runtime_error("Invalid Brutal Morrowind blood header");
+        for (unsigned i = 0; i < count; ++i)
+        {
+            BrutalBloodStain stain;
+            stain.mCell = reader.getHNString("BCEL");
+            float data[9]; readPhysicsFloats(reader, "BDAT", data);
+            unsigned vertices = 0; reader.getHNT(vertices, "BVCT");
+            if (stain.mCell.size() > 4096 || data[0] < 0 || data[0] > 1800 || data[1] <= 0 || data[1] > 256
+                || !indexValue(data[2], 0, 1) || vertices > 192 || vertices % 3)
+                throw std::runtime_error("Invalid saved blood stain");
+            stain.mAge = data[0]; stain.mRadius = data[1]; stain.mPool = data[2] != 0;
+            std::copy_n(data + 3, 3, stain.mCenter.begin()); std::copy_n(data + 6, 3, stain.mNormal.begin());
+            const float normalLength = data[6] * data[6] + data[7] * data[7] + data[8] * data[8];
+            if (std::abs(normalLength - 1.f) > .05f) throw std::runtime_error("Invalid saved blood surface normal");
+            for (unsigned j = 0; j < vertices; ++j)
+            {
+                float vertex[3]; readPhysicsFloats(reader, "BVTX", vertex);
+                stain.mTriangles.push_back({ vertex[0], vertex[1], vertex[2] });
+            }
+            mStains.push_back(std::move(stain));
+        }
+    }
+    void BrutalBloodState::save(ESMWriter& writer) const
+    {
+        writer.writeHNT("BVER", 1u); writer.writeHNT("BCNT", unsigned(mStains.size()));
+        for (const auto& stain : mStains)
+        {
+            writer.writeHNString("BCEL", stain.mCell);
+            const float data[9] = { stain.mAge, stain.mRadius, stain.mPool ? 1.f : 0.f,
+                stain.mCenter[0], stain.mCenter[1], stain.mCenter[2], stain.mNormal[0], stain.mNormal[1], stain.mNormal[2] };
+            writer.writeHNT("BDAT", data); writer.writeHNT("BVCT", unsigned(stain.mTriangles.size()));
+            for (const auto& vertex : stain.mTriangles) writer.writeHNT("BVTX", vertex);
         }
     }
 
@@ -122,6 +163,19 @@ namespace ESM
             mBurstHead = wounds[1] != 0;
             mBleedDuration = wounds[2];
         }
+        if (reader.peekNextSub("RBRU"))
+        {
+            float brutal[4];
+            readPhysicsFloats(reader, "RBRU", brutal);
+            if (!indexValue(brutal[0], 0, 1) || !indexValue(brutal[1], 0, 1)
+                || !indexValue(brutal[2], -1, int(mBodies.size()) - 1) || !indexValue(brutal[3], 0, 36)
+                || (brutal[0] && mBodies.size() < 18) || (brutal[1] && mCuts != 686u)
+                || (brutal[3] != 0 && (brutal[3] != 36 || brutal[2] < 15 || brutal[2] + brutal[3] > mBodies.size()))
+                || (brutal[3] == 0 && brutal[2] != -1))
+                throw std::runtime_error("Invalid Brutal Morrowind wound state");
+            mLongitudinal = brutal[0] != 0; mCrushed = brutal[1] != 0;
+            mGutsStart = int(brutal[2]); mGutsCount = int(brutal[3]);
+        }
     }
 
     void RagdollState::save(ESMWriter& writer) const
@@ -168,6 +222,8 @@ namespace ESM
         }
         const float wounds[3] = { float(mCuts), mBurstHead ? 1.f : 0.f, mBleedDuration };
         writer.writeHNT("RWND", wounds);
+        const float brutal[4] = { mLongitudinal ? 1.f : 0.f, mCrushed ? 1.f : 0.f, float(mGutsStart), float(mGutsCount) };
+        writer.writeHNT("RBRU", brutal);
     }
 
     void ObjectState::load(ESMReader& esm)

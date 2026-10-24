@@ -1,5 +1,6 @@
 #include "ragdoll.hpp"
 #include "ragdollappearance.hpp"
+#include "brutalgore.hpp"
 
 #include <components/esm3/ragdollstate.hpp>
 #include <components/misc/constants.hpp>
@@ -395,6 +396,14 @@ namespace MWRender
         osg::Vec3f mRight;
         osg::Vec3f mForward;
         Ragdoll::Wounds mWounds;
+        int mGutsStart = -1;
+        int mGutsCount = 0;
+        std::vector<osg::ref_ptr<osg::Geode>> mGutNodes;
+        bool mGutsRendered = false;
+        std::unique_ptr<BloodTrail> mBlood;
+        std::vector<Ragdoll::StaticCollider> mBloodColliders;
+        std::map<osg::Node*, std::pair<osg::ref_ptr<osg::Node>, osg::Node::NodeMask>> mSplitParts;
+        std::array<osg::Matrixf, 3> mSplitBindLeft, mSplitBindRight;
         std::map<std::pair<std::size_t, bool>, PartPose> mPartPoses;
         float mSinceBlood = .25f;
         struct WoundVisual
@@ -402,8 +411,145 @@ namespace MWRender
             osg::ref_ptr<osg::MatrixTransform> mNode;
             std::size_t mBody;
             osg::Matrixf mLocal;
+            osg::Node* mSource = nullptr;
         };
         std::vector<WoundVisual> mWoundVisuals;
+
+        void prepareBrutalBodies(std::vector<Ragdoll::BodyDefinition>& bodies,
+            std::vector<Ragdoll::JointDefinition>& joints, std::vector<BonePose>& bones)
+        {
+            if (mWounds.mLongitudinal)
+            {
+                const auto original = bodies;
+                const auto oldJoints = joints;
+                for (unsigned i = 0; i < 3; ++i)
+                {
+                    auto right = original[i];
+                    const auto offset = toBullet(mRight * float(right.mRadius) * .45f);
+                    bodies[i].mTransform.getOrigin() -= offset;
+                    right.mTransform.getOrigin() += offset;
+                    bodies[i].mMass *= .5; right.mMass *= .5;
+                    bodies[i].mRadius *= .52; right.mRadius *= .52;
+                    bodies.push_back(right); // 15 pelvis, 16 torso, 17 head.
+                }
+                for (auto& bone : bones)
+                    if (bone.mBody >= 0 && bone.mBody < 3)
+                        bone.mBoneToBody = bone.mRestWorld * osg::Matrixf::inverse(toOsg(bodies[bone.mBody].mTransform));
+                for (std::size_t i = 0; i < joints.size(); ++i)
+                {
+                    auto& joint = joints[i];
+                    const auto& old = oldJoints[i];
+                    const auto parentWorld = original[old.mParent].mTransform * old.mFrameInParent;
+                    const auto childWorld = original[old.mChild].mTransform * old.mFrameInChild;
+                    if (joint.mChild == 5) joint.mParent = 16;
+                    if (joint.mChild == 9) joint.mParent = 15;
+                    joint.mFrameInParent = bodies[joint.mParent].mTransform.inverse() * parentWorld;
+                    joint.mFrameInChild = bodies[joint.mChild].mTransform.inverse() * childWorld;
+                }
+                for (unsigned i = 0; i < 2; ++i)
+                {
+                    auto joint = oldJoints[i];
+                    const auto parentWorld = original[joint.mParent].mTransform * joint.mFrameInParent;
+                    const auto childWorld = original[joint.mChild].mTransform * joint.mFrameInChild;
+                    joint.mParent += 15; joint.mChild += 15;
+                    joint.mFrameInParent = bodies[joint.mParent].mTransform.inverse() * parentWorld;
+                    joint.mFrameInChild = bodies[joint.mChild].mTransform.inverse() * childWorld;
+                    joints.push_back(joint);
+                }
+            }
+            if (!mWounds.cuts(1) && !mWounds.mLongitudinal) return;
+            mGutsStart = static_cast<int>(bodies.size());
+            mGutsCount = 36;
+            const float scale = std::clamp(mTorsoLength / 30.f, .35f, 3.f);
+            const auto waist = toOsg((bodies[joints[0].mParent].mTransform * joints[0].mFrameInParent).getOrigin());
+            const float mass = std::min(.06f * scale * scale * scale, float(bodies[1].mMass) * .12f / mGutsCount);
+            bodies[1].mMass -= mass * mGutsCount;
+            for (unsigned chain = 0; chain < 2; ++chain)
+            {
+                const auto anchor = waist + mForward * (mPelvisRadius * .95f) + mRight * ((chain ? 2.f : -2.f) * scale);
+                auto previous = anchor;
+                for (unsigned i = 0; i < 18; ++i)
+                {
+                    const float t = (i + 1) * .8f;
+                    const auto next = anchor + mRight * (std::sin(t) * 3.f * scale)
+                        + mForward * ((1.f - std::cos(t)) * 3.f * scale)
+                        - osg::Vec3f(0, 0, (i + 1) * 1.7f * scale);
+                    Ragdoll::BodyDefinition body;
+                    body.mTransform = capsuleTransform(previous, next);
+                    body.mRadius = .68f * scale;
+                    body.mLength = std::max(.1f, (next - previous).length() - float(body.mRadius) * 2);
+                    body.mMass = mass;
+                    Ragdoll::JointDefinition joint;
+                    joint.mParent = i ? bodies.size() - 1 : 1;
+                    joint.mChild = bodies.size();
+                    joint.mUseLocalFrames = true;
+                    const auto frame = hingeFrame(previous, next - previous, mRight);
+                    joint.mFrameInParent = bodies[joint.mParent].mTransform.inverse() * frame;
+                    joint.mFrameInChild = body.mTransform.inverse() * frame;
+                    joint.mAngularLower = btVector3(-1.2, -1.2, -1.2);
+                    joint.mAngularUpper = btVector3(1.2, 1.2, 1.2);
+                    bodies.push_back(body); joints.push_back(joint);
+                    previous = next;
+                }
+            }
+        }
+
+        void prepareSplitBindings()
+        {
+            if (!mWounds.mLongitudinal) return;
+            for (unsigned i = 0; i < 3; ++i)
+            {
+                const auto bone = std::find_if(mBones.begin(), mBones.end(), [i](const auto& b) { return b.mBody == int(i); });
+                if (bone == mBones.end()) continue;
+                mSplitBindLeft[i] = osg::Matrixf::inverse(bone->mBoneToBody) * bone->mRestWorld;
+                mSplitBindRight[i] = mSplitBindLeft[i];
+                mSplitBindRight[i].setTrans(mSplitBindLeft[i].getTrans()
+                    + mRight * float(mDefinitions[i].mRadius / .52 * .9));
+            }
+        }
+
+        bool bloodRay(const osg::Vec3f& from, const osg::Vec3f& to, osg::Vec3f& point, osg::Vec3f& normal)
+        {
+            if (mSimulation)
+            {
+                btVector3 p, n;
+                if (!mSimulation->raycastStatic(toBullet(from), toBullet(to), p, n)) return false;
+                point = toOsg(p); normal = toOsg(n); return true;
+            }
+            if (mBloodColliders.empty()) mBloodColliders = makeCollisionMesh(mCollisionVertices);
+            btCollisionWorld::ClosestRayResultCallback hit(toBullet(from), toBullet(to));
+            for (const auto& collider : mBloodColliders)
+            {
+                btCollisionObject object;
+                object.setCollisionShape(collider.mShape.get()); object.setWorldTransform(collider.mTransform);
+                btTransform a = btTransform::getIdentity(), b = a;
+                a.setOrigin(toBullet(from)); b.setOrigin(toBullet(to));
+                btCollisionWorld::rayTestSingle(a, b, &object, collider.mShape.get(), object.getWorldTransform(), hit);
+            }
+            if (!hit.hasHit()) return false;
+            point = toOsg(hit.m_hitPointWorld); normal = toOsg(hit.m_hitNormalWorld); return true;
+        }
+
+        void updateGuts()
+        {
+            if (mGutsStart < 0 || (!mSimulation && mGutsRendered)) return;
+            const auto inverseRoot = osg::Matrixf::inverse(rootWorldMatrix(*mRoot));
+            for (int chain = 0; chain < mGutsCount / 18; ++chain)
+            {
+                if (chain >= int(mGutNodes.size()))
+                {
+                    osg::ref_ptr<osg::Geode> node = new osg::Geode;
+                    node->setName("Brutal Morrowind physical intestines"); node->setStateSet(createWetGoreState());
+                    mRoot->addChild(node); mGutNodes.push_back(node);
+                }
+                std::vector<osg::Vec3f> centers;
+                for (int i = 0; i < 18; ++i) centers.push_back(mBodyMatrices.at(mGutsStart + chain * 18 + i).getTrans() * inverseRoot);
+                auto mesh = makeIntestineTube(centers, float(mDefinitions[mGutsStart].mRadius) * 1.05f);
+                mGutNodes[chain]->removeDrawables(0, mGutNodes[chain]->getNumDrawables());
+                mGutNodes[chain]->addDrawable(mesh);
+            }
+            mGutsRendered = true;
+        }
 
         void addWoundVisual(osg::Shape* shape, std::size_t body, const osg::Matrixf& local)
         {
@@ -417,6 +563,7 @@ namespace MWRender
 
         void initWounds()
         {
+            prepareSplitBindings();
             for (std::size_t i = 0; i < mJoints.size(); ++i)
             {
                 const auto& joint = mJoints[i];
@@ -444,8 +591,43 @@ namespace MWRender
             const auto inverseRoot = osg::Matrixf::inverse(rootWorldMatrix(*mRoot));
             for (const auto& visual : mWoundVisuals)
                 visual.mNode->setMatrix(visual.mLocal * mBodyMatrices[visual.mBody] * inverseRoot);
+            updateGuts();
+            if (!mBlood && mSettings.mBloodDeposit && mWounds.any()
+                && mElapsed < mSettings.mBleedDuration && mSettings.mBloodAmount > 0)
+                mBlood = std::make_unique<BloodTrail>(*mRoot,
+                    [this](const auto& a, const auto& b, auto& p, auto& n) { return bloodRay(a, b, p, n); }, mSettings.mBloodDeposit);
+            if (mBlood)
+            {
+                std::vector<BloodTrail::Source> sources;
+                if (mElapsed < mSettings.mBleedDuration)
+                {
+                    const float pressure = 1.f - .8f * mElapsed / std::max(.1f, mSettings.mBleedDuration);
+                    for (const auto& joint : mJoints)
+                    {
+                        if (!mWounds.cuts(joint.mChild)) continue;
+                        const auto parent = toOsg(joint.mFrameInParent) * mBodyMatrices[joint.mParent];
+                        sources.push_back({ parent.getTrans(), unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), parent)), pressure, joint.mChild == 2 });
+                        if (!(mWounds.mBurstHead && joint.mChild == 2))
+                        {
+                            const auto child = toOsg(joint.mFrameInChild) * mBodyMatrices[joint.mChild];
+                            sources.push_back({ child.getTrans(), -unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), child)), pressure, false });
+                        }
+                    }
+                    if (mWounds.mLongitudinal)
+                        for (unsigned body : { 1u, 16u })
+                            sources.push_back({ mBodyMatrices[body].getTrans(), body == 1 ? -mRight : mRight, pressure, false });
+                }
+                mBlood->update(duration, sources, mSettings.mBloodAmount, mElapsed);
+            }
+            if (mElapsed >= mSettings.mBleedDuration + 2.f)
+            {
+                mBlood.reset();
+                mBloodColliders.clear();
+                if (!mSimulation) std::vector<osg::Vec3f>().swap(mCollisionVertices);
+            }
             mSinceBlood += std::max(0.f, duration);
-            if (!mSettings.mBloodEffect || mElapsed >= mSettings.mBleedDuration || mSinceBlood < .25f)
+            if (!mSettings.mBloodEffect || mSettings.mBloodAmount <= 0 || mElapsed >= mSettings.mBleedDuration
+                || mSinceBlood < .25f / std::max(.1f, mSettings.mBloodAmount))
                 return;
             mSinceBlood = 0;
             for (const auto& joint : mJoints)
@@ -520,6 +702,9 @@ namespace MWRender
 
         ~Impl()
         {
+            mBlood.reset();
+            for (const auto& node : mGutNodes) mRoot->removeChild(node);
+            for (const auto& [key, value] : mSplitParts) value.first->setNodeMask(value.second);
             for (const auto& visual : mWoundVisuals)
                 mRoot->removeChild(visual.mNode);
             for (const BonePose& bone : mBones)
@@ -580,6 +765,8 @@ namespace MWRender
 
         void freeze()
         {
+            if (mSettings.mBloodDeposit && mWounds.any() && mElapsed < mSettings.mBleedDuration + 2.f)
+                mBloodColliders = makeCollisionMesh(mCollisionVertices);
             // Keep the final matrices and pose overrides, but release physics world and mesh memory.
             mSimulation.reset();
             mFloating = false;
@@ -902,13 +1089,14 @@ namespace MWRender
                 }
             }
         }
+        if (humanoid && settings.mNpc) impl->prepareBrutalBodies(bodies, joints, visitor.mBones);
         Ragdoll::Settings physics;
         physics.mMaxLinearSpeed = std::max(2000.f, settings.mMaxLaunchSpeed * 9.f);
         if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Poison)
             physics.mBodyMode = Ragdoll::BodyMode::Soft;
         else if (impact.mValid && impact.mDeathElement == Ragdoll::DeathElement::Frost)
             physics.mBodyMode = Ragdoll::BodyMode::Rigid;
-        if (impl->mWounds.mCuts)
+        if (impl->mWounds.any())
             physics.mBodyMode = Ragdoll::BodyMode::Articulated;
         impl->mMode = physics.mBodyMode;
         impl->mDefinitions = bodies;
@@ -927,6 +1115,13 @@ namespace MWRender
         for (std::size_t i = 0; i < impl->mDefinitions.size(); ++i)
             impl->mBodyMatrices.push_back(toOsg(impl->mSimulation->getBodyTransform(i)));
         impl->initWounds();
+        if (impl->mWounds.mLongitudinal)
+            for (std::size_t part = 0; part < 18; ++part)
+            {
+                const bool rightHalf = part >= 15 || part == 5 || part == 6 || part == 9 || part == 10 || part == 12 || part == 14;
+                impl->mSimulation->applyImpulse(part, toBullet((rightHalf ? right : -right)
+                    * (80.f * float(impl->mDefinitions[part].mMass))), impl->mDefinitions[part].mTransform.getOrigin());
+            }
         for (std::size_t i = 0; i < impl->mJoints.size(); ++i)
         {
             const auto& joint = impl->mJoints[i];
@@ -1079,6 +1274,10 @@ namespace MWRender
         state.mShockDuration = impl.mSettings.mShockDuration;
         state.mCuts = impl.mWounds.mCuts;
         state.mBurstHead = impl.mWounds.mBurstHead;
+        state.mLongitudinal = impl.mWounds.mLongitudinal;
+        state.mCrushed = impl.mWounds.mCrushed;
+        state.mGutsStart = impl.mGutsStart;
+        state.mGutsCount = impl.mGutsCount;
         state.mBleedDuration = impl.mSettings.mBleedDuration;
         state.mPinnedBody = impl.mPinned ? static_cast<int>(impl.mPinBody) : -1;
         state.mPinPoint = { impl.mPinPoint.x(), impl.mPinPoint.y(), impl.mPinPoint.z() };
@@ -1171,7 +1370,9 @@ namespace MWRender
         impl->mSettings.mPoisonEffectDuration = saved.mPoisonDuration;
         impl->mSettings.mShockDuration = saved.mShockDuration;
         impl->mSettings.mBleedDuration = saved.mBleedDuration;
-        impl->mWounds = { saved.mCuts, saved.mBurstHead };
+        impl->mWounds = { saved.mCuts, saved.mBurstHead, saved.mLongitudinal, saved.mCrushed };
+        impl->mGutsStart = saved.mGutsStart;
+        impl->mGutsCount = saved.mGutsCount;
         impl->mElapsed = saved.mElapsed;
         impl->mMass = saved.mMass;
         impl->mTorsoLength = saved.mTorsoLength;
@@ -1254,6 +1455,9 @@ namespace MWRender
             impl->mSettings.mMaxSimulationTime = saved.mTimeLeft;
             impl->acquireBudget(impl);
         }
+        if (!impl->mSimulation && settings.mBloodDeposit && impl->mWounds.any()
+            && impl->mElapsed < impl->mSettings.mBleedDuration)
+            impl->mCollisionVertices = impl->mSnapshot(impl->mBodyMatrices.front().getTrans(), settings.mCollisionRadius);
         impl->mPinned = saved.mPinnedBody >= 0;
         if (impl->mPinned)
         {
@@ -1280,7 +1484,7 @@ namespace MWRender
     }
 
     void RagdollController::setRuntimeSettings(int maxActive, float maxSimulationTime, float pinDistance,
-        float fireDuration, float poisonDuration, float shockDuration, float bleedDuration)
+        float fireDuration, float poisonDuration, float shockDuration, float bleedDuration, float bloodAmount)
     {
         auto& impl = *mImpl;
         if (impl.mSettings.mMaxActive != maxActive)
@@ -1300,7 +1504,11 @@ namespace MWRender
         impl.mSettings.mFireEffectDuration = fireDuration;
         impl.mSettings.mPoisonEffectDuration = poisonDuration;
         impl.mSettings.mShockDuration = shockDuration;
+        if (impl.mSettings.mBleedDuration != bleedDuration && !impl.mSimulation && impl.mSettings.mBloodDeposit
+            && impl.mWounds.any() && impl.mElapsed < bleedDuration && impl.mBloodColliders.empty())
+            impl.mCollisionVertices = impl.mSnapshot(impl.mBodyMatrices.front().getTrans(), impl.mSettings.mCollisionRadius);
         impl.mSettings.mBleedDuration = bleedDuration;
+        impl.mSettings.mBloodAmount = bloodAmount;
         impl.mAppearance->setEffectDurations(fireDuration, poisonDuration, shockDuration);
     }
 
@@ -1373,7 +1581,7 @@ namespace MWRender
                     mImpl->mBodyMatrices[i] = toOsg(mImpl->mSimulation->getBodyTransform(i));
                 if (mImpl->mSimulationAge >= mImpl->mSettings.mMaxSimulationTime)
                 {
-                    if (mImpl->mSimulation->isBelowWaterSurface() && !mImpl->mPinned && !mImpl->mWounds.mCuts)
+                    if (mImpl->mSimulation->isBelowWaterSurface() && !mImpl->mPinned && !mImpl->mWounds.any())
                     {
                         if (!mImpl->mFloating)
                         {
@@ -1416,7 +1624,50 @@ namespace MWRender
 
     void RagdollController::setSkinParts(std::vector<osg::ref_ptr<osg::Node>> skinParts)
     {
+        for (auto it = mImpl->mSplitParts.begin(); it != mImpl->mSplitParts.end();)
+        {
+            if (std::find(skinParts.begin(), skinParts.end(), it->second.first) != skinParts.end()) { ++it; continue; }
+            const auto* source = it->first;
+            auto& visuals = mImpl->mWoundVisuals;
+            visuals.erase(std::remove_if(visuals.begin(), visuals.end(), [&](const auto& v) {
+                if (v.mSource != source) return false;
+                mImpl->mRoot->removeChild(v.mNode); return true;
+            }), visuals.end());
+            it->second.first->setNodeMask(it->second.second);
+            it = mImpl->mSplitParts.erase(it);
+        }
         mImpl->mSkinParts = std::move(skinParts);
+        for (const auto& visual : mImpl->mWoundVisuals)
+            if (visual.mSource) mImpl->mSkinParts.push_back(visual.mNode);
+    }
+
+    void RagdollController::splitPart(osg::Node& part, std::size_t body) const
+    {
+        auto& impl = *mImpl;
+        if (!impl.mWounds.mLongitudinal || body >= 3 || impl.mDefinitions.size() < 18) return;
+        if (impl.mSplitParts.contains(&part)) { part.setNodeMask(0); return; }
+        const auto& leftBind = impl.mSplitBindLeft[body];
+        const auto& rightBind = impl.mSplitBindRight[body];
+        const auto pose = osg::Matrixf::inverse(leftBind) * impl.mBodyMatrices[body];
+        const auto plane = (leftBind.getTrans() + rightBind.getTrans()) * .5f;
+        auto halves = splitGoreMesh(part, plane * pose,
+            unit(osg::Matrixf::transform3x3(impl.mRight, pose)));
+        if (!halves[0]->getNumChildren() && !halves[1]->getNumChildren()) return;
+        impl.mSplitParts.emplace(&part, std::make_pair(osg::ref_ptr<osg::Node>(&part), part.getNodeMask()));
+        part.setNodeMask(0);
+        for (unsigned side = 0; side < 2; ++side)
+        {
+            if (!halves[side]->getNumChildren()) continue;
+            osg::ref_ptr<osg::MatrixTransform> node = new osg::MatrixTransform;
+            node->setName("Brutal Morrowind longitudinal half");
+            node->addChild(halves[side]);
+            const auto local = side ? osg::Matrixf::inverse(impl.mBodyMatrices[body]) * leftBind * osg::Matrixf::inverse(rightBind)
+                : osg::Matrixf::inverse(impl.mBodyMatrices[body]);
+            const auto owner = side ? body + 15 : body;
+            node->setMatrix(local * impl.mBodyMatrices[owner] * osg::Matrixf::inverse(rootWorldMatrix(*impl.mRoot)));
+            impl.mRoot->addChild(node);
+            impl.mWoundVisuals.push_back({ node, owner, local, &part });
+        }
     }
     float RagdollController::getAppearanceBlend() const
     {
@@ -1446,7 +1697,7 @@ namespace MWRender
     const RagdollController::PartPose& RagdollController::getPartPose(std::size_t body, bool whole) const
     {
         static const PartPose empty;
-        if (!mImpl->mWounds.mCuts || body >= mImpl->mDefinitions.size())
+        if (!mImpl->mWounds.any() || body >= mImpl->mDefinitions.size())
             return empty;
         const auto key = std::make_pair(body, whole);
         if (const auto found = mImpl->mPartPoses.find(key); found != mImpl->mPartPoses.end())
@@ -1460,9 +1711,11 @@ namespace MWRender
         // The anatomy is parent-first. Each cut starts a separate connected
         // component, retaining elbow, knee, wrist and ankle articulation.
         std::vector<std::size_t> components(mImpl->mDefinitions.size(), 0);
+        for (std::size_t i = 0; i < components.size(); ++i) components[i] = i;
+        const auto component = [&](std::size_t i) { while (components[i] != i) i = components[i]; return i; };
         for (const auto& joint : mImpl->mJoints)
-            components[joint.mChild] = mImpl->mWounds.cuts(joint.mChild)
-                ? joint.mChild : components[joint.mParent];
+            if (!mImpl->mWounds.cuts(joint.mChild)) components[component(joint.mChild)] = component(joint.mParent);
+        for (std::size_t i = 0; i < components.size(); ++i) components[i] = component(i);
         result.mAnchor = anchor->mNode->getName();
         const auto restAnchor = osg::Matrixf::inverse(anchor->mRestWorld);
         std::map<const osg::Node*, std::size_t> boneBodies;

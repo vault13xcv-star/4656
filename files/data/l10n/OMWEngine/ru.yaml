@@ -238,7 +238,7 @@ RepairTool: "Инструмент"
 
 # Native corpse and loose-item physics settings
 RagdollPhysics: "Physics"
-RagdollPhysicsDescription: "50–300% of defaults. Changes apply when you resume; impulses affect new hits. Status duration controls bleeding, flames, smoke and sparks. Dismemberment: 0–100%, default 30%. Coatings last until the cell unloads."
+RagdollPhysicsDescription: "Brutal Morrowind physics and gore. Blood amount: 0–300%. Stains: 5–30 minutes, default 10. Dismemberment: 0–100%, default 30%."
 RagdollReset: "Reset physics to defaults"
 RagdollMeleeValue: "Melee impulse ({percent, number, :: group-off}%)"
 RagdollCrossbowValue: "Crossbow impulse ({percent, number, :: group-off}%)"
@@ -253,3 +253,6 @@ RagdollPinValue: "Crossbow pinning distance ({value, number, ::.00} m)"
 RagdollStatusTimeValue: "Status effect duration ({percent, number, :: group-off}%)"
 
 RagdollDismembermentValue: "Dismemberment chance ({percent, number, :: group-off}%)"
+
+RagdollBloodAmountValue: "Blood amount ({percent, number, :: group-off}%)"
+RagdollBloodLifetimeValue: "Blood stain lifetime ({value, number, :: precision-integer group-off} s)"

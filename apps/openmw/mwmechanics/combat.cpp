@@ -137,6 +137,9 @@ namespace MWMechanics
         const auto* ammoData = !projectile.isEmpty() && projectile.getType() == ESM::Weapon::sRecordId
             ? &projectile.get<ESM::Weapon>()->mBase->mData : nullptr;
         const int type = ammoData ? ammoData->mType : weaponData ? weaponData->mType : static_cast<int>(ESM::Weapon::HandToHand);
+        impact.mTwoHandedCutting = projectile.isEmpty()
+            && (type == ESM::Weapon::LongBladeTwoHand || type == ESM::Weapon::AxeTwoHand);
+        impact.mTwoHandedHammer = projectile.isEmpty() && type == ESM::Weapon::BluntTwoClose;
         impact.mAttackType = !projectile.isEmpty() ? Ragdoll::AttackType::Projectile
             : attackType == ESM::Weapon::AT_Chop ? Ragdoll::AttackType::Chop
             : attackType == ESM::Weapon::AT_Slash ? Ragdoll::AttackType::Slash

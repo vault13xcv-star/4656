@@ -734,7 +734,7 @@ namespace MWRender
         if (!ragdoll && !mRagdollPartsChanged)
             return;
         const auto wounds = ragdoll ? ragdoll->getWounds() : Ragdoll::Wounds{};
-        mRagdollPartsChanged = wounds.mCuts != 0;
+        mRagdollPartsChanged = wounds.any();
         // Restore precisely the masks we changed, including after resurrection.
         for (const auto& [node, mask] : mRagdollHeadMasks)
             node->setNodeMask(mask);
@@ -781,12 +781,16 @@ namespace MWRender
             const auto& pose = ragdoll ? ragdoll->getPartPose(robe ? 1 : bodyFor(part), robe) : emptyPose;
             ClothPose cloth(pose);
             if (mObjectParts[part])
+            {
                 mObjectParts[part]->getNode()->accept(cloth);
+                if (ragdoll && wounds.mLongitudinal && !robe && bodyFor(part) < 3)
+                    ragdoll->splitPart(*mObjectParts[part]->getNode(), bodyFor(part));
+            }
             const unsigned cut = cutFor(part);
             // Robes reserve (hide) the underlying body. Expose severed skin
             // without cutting, duplicating, or unequipping the robe itself.
-            const bool severed = cut && ((wounds.mCuts & (1u << cut))
-                || ((wounds.mCuts & (1u << 1)) && (cut == 7 || cut == 9)));
+            const bool severed = wounds.mLongitudinal || (cut && ((wounds.mCuts & (1u << cut))
+                || ((wounds.mCuts & (1u << 1)) && (cut == 7 || cut == 9))));
             if (robe && severed && bare[part])
             {
                 if (!mExposedRagdollParts[part])
@@ -804,6 +808,8 @@ namespace MWRender
                 const auto& skinPose = ragdoll->getPartPose(bodyFor(part));
                 ClothPose skin(skinPose);
                 mExposedRagdollParts[part]->getNode()->accept(skin);
+                if (wounds.mLongitudinal && bodyFor(part) < 3)
+                    ragdoll->splitPart(*mExposedRagdollParts[part]->getNode(), bodyFor(part));
             }
         }
     }

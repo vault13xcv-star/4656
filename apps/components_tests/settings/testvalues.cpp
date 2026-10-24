@@ -198,6 +198,12 @@ namespace Settings
             EXPECT_EQ(physics.mMaxActiveItems.get(), 100);
             EXPECT_FLOAT_EQ(physics.mDismembermentChance.get(), .3f);
             EXPECT_EQ(Manager::getFloat("bow impulse scale", "Ragdoll"), 1.f);
+            physics.mBloodAmount.set(0); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 0);
+            physics.mBloodAmount.set(3); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 3);
+            physics.mBloodAmount.reset(); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 1);
+            physics.mBloodLifetime.set(300); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 300);
+            physics.mBloodLifetime.set(1800); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 1800);
+            physics.mBloodLifetime.reset(); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 600);
         }
         TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToHalfAndTripleItsActualDefault)
         {
@@ -238,7 +244,7 @@ namespace Settings
                     // probabilities such as 0.3 do not have exact binary doubles.
                     const float minimum = std::stof(metadata["SettingMin"]);
                     const float maximum = std::stof(metadata["SettingMax"]);
-                    EXPECT_FLOAT_EQ(minimum, name == "dismemberment chance" ? 0.f : static_cast<float>(base * .5));
+                    EXPECT_FLOAT_EQ(minimum, name == "dismemberment chance" || name == "blood amount" ? 0.f : static_cast<float>(base * .5));
                     EXPECT_FLOAT_EQ(maximum, name == "dismemberment chance" ? 1.f : static_cast<float>(base * 3));
                     if (integer)
                     {
@@ -274,7 +280,7 @@ namespace Settings
             EXPECT_EQ(seen, (std::set<std::string>{ "melee impulse scale", "crossbow impulse scale",
                 "bow impulse scale", "thrown impulse scale", "magic distance scale", "max simulation time",
                 "item simulation time", "max active", "max active items", "pin max distance",
-                "status duration scale", "dismemberment chance" }));
+                "status duration scale", "dismemberment chance", "blood amount", "blood lifetime" }));
         }
     }
 }

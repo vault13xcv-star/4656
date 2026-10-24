@@ -51,8 +51,11 @@ if(RAGDOLL_TEST_RENDERING)
         items.cpp
         ../../apps/openmw/mwrender/ragdoll.cpp
         ../../apps/openmw/mwrender/ragdollappearance.cpp
+        ../../apps/openmw/mwrender/brutalgore.cpp
+        ../../apps/openmw/mwrender/brutalblood.cpp
         ../sceneutil/skeleton.cpp
         ../sceneutil/riggeometry.cpp
+        ../sceneutil/morphgeometry.cpp
         ../debug/debuglog.cpp
         ../files/conversion.cpp)
     target_compile_features(ragdoll-render-tests PRIVATE cxx_std_20)
@@ -72,11 +75,14 @@ if(RAGDOLL_TEST_RENDERING)
     if(RAGDOLL_TEST_GL)
         find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
         find_package(OpenSceneGraph 3.6.5 REQUIRED COMPONENTS osg osgUtil osgViewer osgGA)
-        add_executable(ragdoll-gl-tests tests/appearance_gl.cpp ../../apps/openmw/mwrender/ragdollappearance.cpp)
+        add_executable(ragdoll-gl-tests tests/appearance_gl.cpp ../../apps/openmw/mwrender/ragdollappearance.cpp
+            ../../apps/openmw/mwrender/brutalblood.cpp)
         target_compile_features(ragdoll-gl-tests PRIVATE cxx_std_20)
         target_include_directories(ragdoll-gl-tests PRIVATE ../..)
         target_include_directories(ragdoll-gl-tests SYSTEM PRIVATE ${OPENSCENEGRAPH_INCLUDE_DIRS})
-        target_link_libraries(ragdoll-gl-tests PRIVATE ${OPENSCENEGRAPH_LIBRARIES} OpenGL::GL OpenGL::EGL)
+        target_include_directories(ragdoll-gl-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS})
+        target_compile_definitions(ragdoll-gl-tests PRIVATE BT_USE_DOUBLE_PRECISION)
+        target_link_libraries(ragdoll-gl-tests PRIVATE ${OPENSCENEGRAPH_LIBRARIES} ${BULLET_LIBRARIES} OpenGL::GL OpenGL::EGL)
         add_test(NAME ragdoll-gl-normal COMMAND ragdoll-gl-tests)
         add_test(NAME ragdoll-gl-reversed COMMAND ragdoll-gl-tests reversed)
         add_test(NAME ragdoll-gl-poison COMMAND ragdoll-gl-tests normal poison)
@@ -85,5 +91,7 @@ if(RAGDOLL_TEST_RENDERING)
         add_test(NAME ragdoll-gl-shock-reversed COMMAND ragdoll-gl-tests reversed shock)
         add_test(NAME ragdoll-gl-wounds COMMAND ragdoll-gl-tests normal wounds)
         add_test(NAME ragdoll-gl-wounds-reversed COMMAND ragdoll-gl-tests reversed wounds)
+        add_test(NAME brutal-gl-blood COMMAND ragdoll-gl-tests normal blood)
+        add_test(NAME brutal-gl-blood-reversed COMMAND ragdoll-gl-tests reversed blood)
     endif()
 endif()

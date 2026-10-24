@@ -1,5 +1,7 @@
 #include <apps/openmw/mwrender/ragdoll.hpp>
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
+#include <apps/openmw/mwrender/brutalgore.hpp>
+#include <apps/openmw/mwrender/brutalblood.hpp>
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
 #include <btBulletDynamicsCommon.h>
 #include <chrono>
@@ -9,6 +11,7 @@
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
 #include <components/sceneutil/riggeometry.hpp>
+#include <components/sceneutil/morphgeometry.hpp>
 #include <components/sceneutil/hitlocation.hpp>
 
 #include <osg/FrameStamp>
@@ -104,6 +107,258 @@ namespace
     {
         return { { -1000, -1000, 0 }, { 1000, -1000, 0 }, { 1000, 1000, 0 }, { -1000, -1000, 0 }, { 1000, 1000, 0 },
             { -1000, 1000, 0 } };
+    }
+
+    void brutalBloodAndPersistence()
+    {
+        const auto ray = [](const osg::Vec3f& a, const osg::Vec3f& b, osg::Vec3f& p, osg::Vec3f& n) {
+            float best = 2;
+            if (a.z() >= 0 && b.z() <= 0 && a.z() != b.z()) { best = a.z() / (a.z() - b.z()); n = { 0, 0, 1 }; }
+            if ((a.x() - 35) * (b.x() - 35) <= 0 && a.x() != b.x())
+            {
+                const float t = (35 - a.x()) / (b.x() - a.x());
+                if (t >= 0 && t <= 1 && t < best) { best = t; n = { -1, 0, 0 }; }
+            }
+            if (best > 1) return false;
+            p = a + (b - a) * best; return true;
+        };
+        std::vector<MWRender::BloodStamp> stamps;
+        const auto actualRay = MWRender::BloodTrail::collisionRaycast(floorSnapshot({}, 100));
+        osg::Vec3f realPoint, realNormal;
+        require(actualRay && actualRay({ 0, 0, 5 }, { 0, 0, -5 }, realPoint, realNormal)
+            && std::abs(realPoint.z()) < .001f && realNormal.z() > .9f, "Blood collision BVH missed a real floor");
+        osg::ref_ptr<osg::Group> root = new osg::Group;
+        MWRender::BloodTrail spray(*root, ray, [&](const auto& stamp) { stamps.push_back(stamp); });
+        const std::vector<MWRender::BloodTrail::Source> sources{ { { 0, 0, 20 }, { 1, 0, 1 }, 1, true },
+            { { -20, 0, 10 }, { 0, 0, -1 }, 1, false } };
+        for (int frame = 0; frame < 240; ++frame) spray.update(1.f / 60, frame < 120 ? sources : std::vector<MWRender::BloodTrail::Source>{}, 1, frame / 60.f);
+        require(!stamps.empty(), "Ballistic blood never reached a surface");
+        bool wall = false, floor = false;
+        for (const auto& stamp : stamps)
+        {
+            wall |= stamp.mNormal.x() < -.5f; floor |= stamp.mNormal.z() > .5f;
+            for (const auto& v : stamp.mTriangles)
+                require(std::abs((v - stamp.mCenter) * stamp.mNormal - .06f) < .01f, "Blood projected through a surface/corner");
+        }
+        require(wall && floor, "Blood did not stain both wall and floor");
+        std::size_t low = 0, high = 0;
+        for (float amount : { 0.f, .5f, 3.f })
+        {
+            MWRender::BloodTrail trial(*root, ray, {});
+            for (int frame = 0; frame < 60; ++frame) trial.update(1.f / 60, sources, amount, frame / 60.f);
+            if (amount == 0) require(trial.emittedCount() == 0, "Blood slider zero still emitted blood");
+            else if (amount == .5f) low = trial.emittedCount(); else high = trial.emittedCount();
+        }
+        require(high >= low * 5 && low > 0, "Blood amount slider did not change actual emission");
+        std::array<float, 2> peak{};
+        for (int neck = 0; neck < 2; ++neck)
+        {
+            MWRender::BloodTrail fountain(*root, [&](const auto& a, const auto& b, auto&, auto&) {
+                peak[neck] = std::max({ peak[neck], a.z(), b.z() }); return false;
+            }, {});
+            const std::vector<MWRender::BloodTrail::Source> up{ { { 0, 0, 20 }, { 0, 0, 1 }, 1, neck != 0 } };
+            for (int frame = 0; frame < 120; ++frame) fountain.update(1.f / 60, up, 1, frame / 60.f);
+        }
+        require(peak[1] > peak[0] + 35, "Severed neck lacks a physically higher-pressure fountain");
+        MWRender::BloodDecals decals(*root);
+        decals.setCellActive("interior:a", true);
+        decals.add("interior:a", stamps.front());
+        decals.update(599, 600);
+        require(decals.size() == 1, "Blood vanished before ten minutes");
+        const auto record = decals.getSaveRecord();
+        {
+            auto overlapping = record;
+            overlapping.mStains.front().mPool = true;
+            overlapping.mStains.push_back(overlapping.mStains.front());
+            overlapping.mStains.back().mAge = 500;
+            MWRender::BloodDecals restored(*root);
+            restored.loadSaveRecord(overlapping);
+            require(restored.size() == 2 && restored.saveState()[0].mAge == 599 && restored.saveState()[1].mAge == 500,
+                "Restoring overlapping pools merged them or renewed the ten-minute timer");
+        }
+        decals.clear(); decals.setCellActive("interior:a", true); decals.loadSaveRecord(record);
+        require(decals.size() == 1 && std::abs(decals.saveState().front().mAge - 599) < .01f, "Blood save/load renewed or lost its age");
+        decals.setCellActive("interior:a", false);
+        decals.setCellActive("interior:b", true);
+        decals.update(.5f, 600);
+        for (unsigned i = 0; i < root->getNumChildren(); ++i)
+            if (root->getChild(i)->getName() == "Brutal Morrowind blood stains")
+                require(root->getChild(i)->getNodeMask() == 0, "Blood leaked between overlapping interior coordinates");
+        decals.update(.5f, 600);
+        require(decals.size() == 0, "Blood persisted past its configured lifetime");
+        std::cout << "PASS ballistic neck spray, wall/floor decals, amount 0/50/300%, ten-minute lifetime, cell isolation and saved age\n";
+    }
+
+    void brutalMeshClipAndPose()
+    {
+        SkeletonFixture fixture;
+        auto* bone = fixture.mSkeleton->getBone("Bip01 Spine2");
+        fixture.mSkeleton->updateBoneMatrices(1);
+        const auto bind = bone->mMatrixInSkeletonSpace;
+        osg::ref_ptr<osg::Geometry> source = new osg::Geometry;
+        source->setName("Brutal cut fixture");
+        osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array;
+        osg::ref_ptr<osg::Vec2Array> uv = new osg::Vec2Array;
+        for (const auto& p : { osg::Vec3f(-12, 0, -12), osg::Vec3f(12, 0, -12), osg::Vec3f(12, 0, 12), osg::Vec3f(-12, 0, 12) })
+        {
+            vertices->push_back(p * bind); uv->push_back({ (p.x() + 12) / 24.f, (p.z() + 12) / 24.f });
+        }
+        source->setVertexArray(vertices); source->setTexCoordArray(0, uv);
+        source->addPrimitiveSet(new osg::DrawArrays(GL_QUADS, 0, 4));
+        osg::ref_ptr<SceneUtil::RigGeometry> rig = new SceneUtil::RigGeometry;
+        rig->setSourceGeometry(source);
+        rig->setBoneInfo({ { "Bip01 Spine2", {}, osg::Matrixf::inverse(bind) } });
+        rig->setInfluences({ { { 0, 1 } }, { { 0, 1 } }, { { 0, 1 } }, { { 0, 1 } } });
+        fixture.mSkeleton->addChild(rig);
+        auto* chest = fixture.mBones.at("Spine2").get();
+        chest->setMatrix(chest->getMatrix() * osg::Matrixf::translate(4, 0, 3));
+        const auto world = fixture.mWorld->getMatrix();
+        const auto center = osg::Vec3f(4, 0, 3) + bind.getTrans();
+        const auto normal = osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), world);
+        const auto halves = MWRender::splitGoreMesh(*rig, center * world, normal);
+        struct Inspect : osg::NodeVisitor
+        {
+            std::vector<osg::ref_ptr<osg::Geometry>> meshes;
+            Inspect() : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN) {}
+            void apply(osg::Geometry& g) override { if (g.getName() == "Brutal cut fixture") meshes.push_back(&g); }
+        };
+        for (unsigned side = 0; side < 2; ++side)
+        {
+            Inspect inspect; halves[side]->accept(inspect);
+            require(!inspect.meshes.empty(), "Longitudinal slice produced no actual mesh");
+            bool seam = false;
+            for (const auto& mesh : inspect.meshes)
+            {
+                const auto* p = dynamic_cast<const osg::Vec3Array*>(mesh->getVertexArray());
+                const auto* t = dynamic_cast<const osg::Vec2Array*>(mesh->getTexCoordArray(0));
+                require(p && t && p->size() == t->size(), "Clipping discarded clothing UVs");
+                for (unsigned i = 0; i < p->size(); ++i)
+                {
+                    const auto local = (*p)[i] * osg::Matrixf::inverse(world);
+                    require(side ? local.x() >= 3.999f : local.x() <= 4.001f, "Slice retained triangles on the wrong side");
+                    if (std::abs(local.x() - 4) < .001f) { seam = true; require(std::abs((*t)[i].x() - .5f) < .001f, "Cut stretched the texture at the seam"); }
+                }
+            }
+            require(seam, "Cut did not interpolate real triangles at the plane");
+        }
+        require(std::abs(vertices->front().x() + 12) < .001f && uv->front().x() == 0, "Cut mutated a cached/shared NPC mesh");
+        osg::ref_ptr<SceneUtil::MorphGeometry> morph = new SceneUtil::MorphGeometry;
+        morph->setSourceGeometry(source);
+        morph->addMorphTarget(vertices);
+        osg::ref_ptr<osg::Vec3Array> offsets = new osg::Vec3Array;
+        offsets->assign(4, osg::Vec3f(2, 0, 0));
+        morph->addMorphTarget(offsets, .5f);
+        fixture.mSkeleton->addChild(morph);
+        const auto faceHalves = MWRender::splitGoreMesh(*morph, (bind.getTrans() + osg::Vec3f(1, 0, 0)) * world, normal);
+        for (const auto& half : faceHalves)
+        {
+            Inspect inspect; half->accept(inspect);
+            require(!inspect.meshes.empty(), "Animated NPC head morphs were not sliced");
+            bool seam = false;
+            for (const auto& mesh : inspect.meshes)
+            {
+                const auto* p = static_cast<const osg::Vec3Array*>(mesh->getVertexArray());
+                const auto* t = static_cast<const osg::Vec2Array*>(mesh->getTexCoordArray(0));
+                for (unsigned i = 0; i < p->size(); ++i)
+                    if (std::abs(((*p)[i] * osg::Matrixf::inverse(world)).x() - 1) < .001f)
+                    {
+                        seam = true;
+                        require(std::abs((*t)[i].x() - .5f) < .001f, "Head split ignored the current facial morph");
+                    }
+            }
+            require(seam, "Head morph split did not reach the central seam");
+        }
+        std::cout << "PASS posed skinned mesh clipping, rotated/scaled NPC, actual triangle halves, seam UVs and immutable source\n";
+    }
+
+    void brutalPhysicalWounds()
+    {
+        for (int kind : { 0, 1, 2 })
+        {
+            const bool longitudinal = kind == 1, crushing = kind == 0;
+            SkeletonFixture fixture;
+            MWRender::RagdollController::Settings config;
+            config.mNpc = true; config.mWoundRoll = 0; config.mWoundChance = 1; config.mMaxSimulationTime = 3;
+            int deposits = 0;
+            config.mBloodAmount = .5f;
+            config.mBloodDeposit = [&](const auto&) { ++deposits; };
+            Ragdoll::Impact hit;
+            hit.mValid = hit.mHasWeaponContact = true;
+            hit.mAttackType = kind == 2 ? Ragdoll::AttackType::Slash : Ragdoll::AttackType::Chop;
+            hit.mWoundWeapon = crushing ? Ragdoll::WoundWeapon::Blunt : Ragdoll::WoundWeapon::HeavyBlade;
+            hit.mTwoHandedCutting = longitudinal; hit.mTwoHandedHammer = crushing;
+            hit.mWeaponHitBody = longitudinal ? 2 : 1; hit.mWeaponDirection.set(0, 1, kind == 2 ? 0.f : -.45f);
+            auto corpse = MWRender::RagdollController::create(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, hit);
+            require(bool(corpse), "Brutal wound failed to create real Bullet bodies");
+            osg::ref_ptr<osg::Geode> torso = new osg::Geode;
+            if (longitudinal)
+            {
+                osg::ref_ptr<osg::Geometry> mesh = new osg::Geometry;
+                const osg::Vec3f v[] = { { -14, 0, -14 }, { 14, 0, -14 }, { 14, 0, 14 }, { -14, 0, 14 } };
+                mesh->setVertexArray(new osg::Vec3Array(4, v)); mesh->addPrimitiveSet(new osg::DrawArrays(GL_QUADS, 0, 4));
+                torso->addDrawable(mesh); fixture.mBones.at("Spine2")->addChild(torso);
+                corpse->splitPart(*torso, 1); corpse->setSkinParts({ torso });
+                require(torso->getNodeMask() == 0, "Original whole torso overlays the longitudinal halves");
+            }
+            ESM::RagdollState saved;
+            corpse->writeState(saved);
+            require(saved.mLongitudinal == longitudinal && saved.mCrushed == crushing, "Brutal wound type lost");
+            require(saved.mGutsCount == 36 && saved.mGutsStart == (longitudinal ? 18 : 15), "Physical intestines missing");
+            require(saved.mBodies.size() == (longitudinal ? 54 : 51), "Intestines are visual-only instead of rigid bodies");
+            if (longitudinal)
+            {
+                bool arm = false, leg = false;
+                for (const auto& j : saved.mJoints) { arm |= j.mChild == 5 && j.mParent == 16; leg |= j.mChild == 9 && j.mParent == 15; }
+                require(arm && leg, "Right limbs remain linked to the left longitudinal half");
+            }
+            else require(saved.mCuts == (crushing ? 686u : 2u), "Hammer tearing/horizontal waist separation selected incorrect parts");
+            for (int frame = 0; frame < 150; ++frame) corpse->update(1.f / 60);
+            corpse->writeState(saved);
+            if (longitudinal)
+            {
+                std::vector<osg::Matrixf> transforms;
+                for (unsigned i = 0; i < fixture.mSkeleton->getNumChildren(); ++i)
+                    if (auto* node = dynamic_cast<osg::MatrixTransform*>(fixture.mSkeleton->getChild(i));
+                        node && node->getName() == "Brutal Morrowind longitudinal half") transforms.push_back(node->getMatrix());
+                require(transforms.size() == 2 && !near(transforms[0], transforms[1]), "Visible halves do not follow independent physics");
+                corpse->setSkinParts({});
+                require(torso->getNodeMask() != 0, "Looting/removing a split armour part retained its hidden original");
+            }
+            for (const auto& body : saved.mBodies)
+                for (float v : body.mTransform) require(std::isfinite(v), "Gore physics diverged");
+            for (int chain = 0; chain < 2; ++chain)
+                for (int i = 1; i < 18; ++i)
+                {
+                    const auto& a = saved.mBodies[saved.mGutsStart + chain * 18 + i - 1].mTransform;
+                    const auto& b = saved.mBodies[saved.mGutsStart + chain * 18 + i].mTransform;
+                    require((osg::Vec3f(a[0], a[1], a[2]) - osg::Vec3f(b[0], b[1], b[2])).length() < 14,
+                        "Intestinal joints stretched into disconnected segments");
+                }
+            require(deposits > 0, "Ragdoll bleeding never deposited blood on the actual collision mesh");
+            for (int frame = 0; frame < 60; ++frame) corpse->update(1.f / 60);
+            require(!corpse->isSimulating(), "Gore physics exceeded the configured corpse lifetime");
+            const int frozenDeposits = deposits;
+            for (int frame = 0; frame < 30; ++frame) corpse->update(1.f / 60);
+            require(deposits > frozenDeposits, "Freezing the corpse stopped blood from reaching world surfaces");
+            corpse->writeState(saved);
+            corpse.reset();
+            corpse = MWRender::RagdollController::restore(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, saved);
+            require(corpse && corpse->getWounds().mLongitudinal == longitudinal, "Brutal wound failed to restore");
+            if (longitudinal)
+            {
+                corpse->splitPart(*torso, 1); corpse->setSkinParts({ torso });
+                require(torso->getNodeMask() == 0, "Loaded longitudinal corpse kept a whole torso");
+                for (unsigned i = 0; i < fixture.mSkeleton->getNumChildren(); ++i)
+                    if (fixture.mSkeleton->getChild(i)->getName() == "Brutal Morrowind longitudinal half")
+                        require(fixture.mSkeleton->getChild(i)->getBound().radius() < 80, "Loaded cut mesh stretched across its halves");
+            }
+            const int beforeReloadedBleed = deposits;
+            for (int frame = 0; frame < 60; ++frame) corpse->update(1.f / 60);
+            require(deposits > beforeReloadedBleed, "Loading a frozen corpse stopped its remaining surface bleeding");
+            corpse.reset();
+            require(fixture.mSkeleton->getNumChildren() == 1, "Brutal gore nodes leaked on cleanup");
+        }
+        std::cout << "PASS real longitudinal halves, right-side articulated limbs, hammer tearing, 36 intestinal segments and pose restoration\n";
     }
 
     void oneHandedBladeWithoutVisibleMeshIntersection()
@@ -1392,6 +1647,9 @@ int main(int argc, char** argv)
             return 0;
         }
         oneHandedBladeWithoutVisibleMeshIntersection();
+        brutalBloodAndPersistence();
+        brutalMeshClipAndPose();
+        brutalPhysicalWounds();
         livingContactAnatomy();
         dotDeathHasNoBlastMomentum();
         liveSettingsAndExtendedBudget();

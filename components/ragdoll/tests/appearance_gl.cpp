@@ -2,6 +2,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
+#include <apps/openmw/mwrender/brutalblood.hpp>
 #include <array>
 #include <components/sceneutil/depth.hpp>
 #include <iostream>
@@ -79,6 +80,51 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->addDrawable(wall); root->addChild(geode);
         viewer.setSceneData(root); viewer.realize();
+        if (effect == "blood")
+        {
+            const auto read = [&] {
+                viewer.frame(); glFinish(); std::vector<unsigned char> pixels(width * height * 3);
+                glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+                check(glGetError() == GL_NO_ERROR, "OpenGL blood rendering error"); return pixels;
+            };
+            const auto baseline = read();
+            MWRender::BloodDecals blood(*root);
+            osg::ref_ptr<osg::Geode> flesh = new osg::Geode;
+            flesh->setStateSet(MWRender::createWetGoreState());
+            for (float x : { -30.f, 30.f })
+            {
+                osg::ref_ptr<osg::ShapeDrawable> tissue = new osg::ShapeDrawable(new osg::Sphere({ x, 0, 68 }, 8));
+                tissue->setColor({ .4f, .02f, .03f, 1 }); flesh->addDrawable(tissue);
+            }
+            root->addChild(flesh);
+            blood.setCellActive("test", true);
+            for (float x : { -30.f, 30.f })
+            {
+                MWRender::BloodStamp stamp;
+                stamp.mCenter = { x, 0, 40 }; stamp.mNormal = { 0, -1, 0 }; stamp.mRadius = 15;
+                stamp.mTriangles = { { x - 15, 0, 25 }, { x + 15, 0, 25 }, { x + 15, 0, 55 },
+                    { x - 15, 0, 25 }, { x + 15, 0, 55 }, { x - 15, 0, 55 } };
+                blood.add("test", stamp);
+            }
+            blood.update(.1f, 600);
+            const auto stained = read();
+            int visible = 0, occluded = 0;
+            for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x)
+            {
+                const int i = (y * width + x) * 3;
+                if (stained[i] != baseline[i] || stained[i + 1] != baseline[i + 1] || stained[i + 2] != baseline[i + 2])
+                {
+                    if (x < width / 2) { check(stained[i] > stained[i + 1] + 10, "Blood/flesh lost its material under an inherited shader"); ++visible; }
+                    else ++occluded;
+                }
+            }
+            check(visible > 500, "Blood decals invisible under native projection/alpha state");
+            check(occluded == 0, "Blood decals visible through an opaque wall");
+            root->removeChild(flesh);
+            blood.update(600, 600); check(read() == baseline, "Expired blood left a visible overlay");
+            std::cout << "PASS actual GL blood decals, native projection, inherited alpha/shader, opaque occlusion and expiry\n";
+            return 0;
+        }
         if (effect == "wounds")
         {
             const auto read = [&] {

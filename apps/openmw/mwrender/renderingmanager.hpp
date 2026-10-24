@@ -4,6 +4,8 @@
 #include "objects.hpp"
 #include "renderinginterface.hpp"
 #include "rendermode.hpp"
+#include "brutalblood.hpp"
+#include <components/ragdoll/impact.hpp>
 
 #include <components/settings/settings.hpp>
 #include <components/vfs/pathutil.hpp>
@@ -42,6 +44,8 @@ namespace osgViewer
 
 namespace ESM
 {
+    class ESMReader;
+    class ESMWriter;
     struct Cell;
     struct FormId;
     using RefNum = FormId;
@@ -91,6 +95,8 @@ namespace MWRender
     class IntersectionVisitorWithIgnoreList;
 
     class EffectManager;
+    class BloodDecals;
+    struct BloodStamp;
     class ScreenshotManager;
     class FogManager;
     class SkyManager;
@@ -201,6 +207,10 @@ namespace MWRender
             bool loop = false);
 
         void removeEffect(std::string_view effectId);
+        void addBloodDecal(const std::string& cell, const BloodStamp& stamp);
+        void emitBloodHit(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit);
+        void writeBloodState(ESM::ESMWriter& writer) const;
+        void readBloodState(ESM::ESMReader& reader);
 
         /// Clear all savegame-specific data
         void clear();
@@ -340,6 +350,15 @@ namespace MWRender
         std::unique_ptr<FogManager> mFog;
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
+        std::unique_ptr<BloodDecals> mBloodDecals;
+        struct BloodBurst
+        {
+            std::string mCell;
+            std::unique_ptr<BloodTrail> mTrail;
+            BloodTrail::Source mSource;
+            float mAge = 0;
+        };
+        std::vector<BloodBurst> mBloodBursts;
         std::unique_ptr<SceneUtil::ShadowManager> mShadowManager;
         osg::ref_ptr<PostProcessor> mPostProcessor;
         osg::ref_ptr<NpcAnimation> mPlayerAnimation;

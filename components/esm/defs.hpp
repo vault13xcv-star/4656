@@ -144,6 +144,7 @@ namespace ESM
 
         // format 21 - Random state in saved games.
         REC_RAND = esm3Recname("RAND"), // Random state.
+        REC_BRBL = esm3Recname("BRBL"), // Brutal Morrowind persistent blood stains.
 
         REC_ATTR = esm3Recname("ATTR"), // Attribute
 

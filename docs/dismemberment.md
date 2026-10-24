@@ -1,4 +1,10 @@
-# Real Combat Ragdoll 0.6.0-preview.5
+# Brutal Morrowind 0.7.0-preview.1
+
+New blood, physical intestines, longitudinal cuts and hammer torso tearing are
+documented in [brutal-morrowind.md](brutal-morrowind.md). This continues preview.5;
+the previous directional/elemental rules below remain except that a descending
+two-handed sword/axe chop into head/torso now selects a longitudinal cut, and a
+two-handed hammer torso swing can tear the body apart.
 
 Wounds now retain the native chop/slash/thrust hit key and the anatomical part
 captured on the living NPC before weapon damage, on-strike magic and deferred
@@ -17,7 +23,9 @@ Unsupported skeletons still fall back to the native death animation.
 | Long blade, chop or slash into head/arm/leg | Sever the struck extremity |
 | Two-handed long blade or axe, horizontal slash into torso | Waist separation |
 | Two-handed long blade or axe, horizontal slash into arm | Sever that arm or continue through the torso (equal shares of the wound chance) |
-| Heavy cutting weapon, vertical chop into head/limb | Sever that extremity; no waist separation |
+| Two-handed long blade / two-handed axe, descending chop into head/torso | Longitudinal separation |
+| Other cutting chops into head/limb | Sever that extremity; no waist separation |
+| Two-handed hammer, chop/slash into torso | Tear torso and extremities apart |
 | Thrust, spear, short blade or unarmed | No physical severing or head burst |
 | Blunt chop/slash into head | Head burst; other hit locations do not burst the head |
 | Crossbow bolt into head | Head burst; other hit locations do not burst the head |

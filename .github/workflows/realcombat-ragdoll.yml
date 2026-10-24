@@ -1,4 +1,4 @@
-name: Real Combat ragdoll - Windows x64
+name: Brutal Morrowind - Windows x64
 
 on:
   push:
@@ -84,7 +84,7 @@ jobs:
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: OpenMW-RealCombat-Ragdoll-Windows-x64-${{ github.sha }}
+          name: Brutal-Morrowind-Windows-x64-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30

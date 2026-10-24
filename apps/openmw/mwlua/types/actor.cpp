@@ -17,6 +17,7 @@
 #include "apps/openmw/mwworld/class.hpp"
 #include "apps/openmw/mwworld/inventorystore.hpp"
 #include "apps/openmw/mwworld/worldmodel.hpp"
+#include "apps/openmw/mwrender/renderingmanager.hpp"
 
 #include "../localscripts.hpp"
 #include "../luamanagerimp.hpp"
@@ -494,6 +495,9 @@ namespace MWLua
                         && (stats.getHealth().getCurrent() < before || stats.isRagdollDeathHit(hit)))
                     {
                         hit->applyWeapon();
+                        if (!wasDead)
+                            if (auto* rendering = MWBase::Environment::get().getWorld()->getRenderingManager())
+                                rendering->emitBloodHit(target, hit->mApplied);
                         if (!wasDead && stats.isDead())
                             stats.recordRagdollDeath(hit);
                     }

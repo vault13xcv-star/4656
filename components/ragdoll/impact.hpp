@@ -41,6 +41,8 @@ namespace Ragdoll
         float mMagicImpulseScale = 1.f;
         bool mCrossbow = false;
         WoundWeapon mWoundWeapon = WoundWeapon::None;
+        bool mTwoHandedCutting = false;
+        bool mTwoHandedHammer = false;
         AttackType mAttackType = AttackType::Unknown;
         // Captured on the living skeleton before damage/enchantments. An unknown
         // contact must not be guessed again from the later death pose.
