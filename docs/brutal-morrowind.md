@@ -1,4 +1,4 @@
-# Brutal Morrowind 0.7.0-preview.1
+# Brutal Morrowind 0.7.0-preview.2
 
 A modified OpenMW 0.51.0 Windows x64 runtime. This continues the working
 Real Combat Ragdoll 0.6.0-preview.5 engine, retaining its physics controls,
@@ -8,6 +8,24 @@ Extract the complete Windows ZIP into a new directory and run `openmw.exe`.
 Morrowind data and the usual OpenMW configuration are required. The launcher and
 editor are not included. Keep a separate copy of saves: this version adds saved
 Brutal Morrowind wounds and blood records, which older engine builds cannot read.
+
+## Fix for stalls after several dismemberments
+
+Preview.2 fixes the rapidly increasing cost of accumulated gore. A full blood
+cache now evicts its oldest entry without shifting the other 8191 records. Blood
+uses persistent chunks of at most 128 stains; a new splat only updates affected
+chunks, and drying/fading uses a shader clock without rebuilding the entire cache
+ten times a second. Droplets and intestinal tubes retain their geometry/VBOs
+across frames. Intestinal triangles share ring vertices instead of duplicating
+them. Gore materials share their shader programs.
+
+Legacy blood sprites rotate between wounds with at most two NIF particle systems
+per pulse, rather than spawning another system at every end of every severed
+joint. Ballistic blood still comes from every wound. Pool growth is sampled at
+most four times per second per wound; at most eight droplet impacts per trail per
+update project a splat perimeter. These bounds prevent a slow frame from
+amplifying the next frame's blood work. Blood quantity, stain lifetime, existing
+physical wounds, inventories and saved blood remain supported.
 
 ## Blood
 
@@ -34,7 +52,7 @@ paused, continue in other locations and are saved with the stain geometry and
 cell ID. Returning to an unexpired cell restores its stains; interiors at the
 same coordinates do not share them. Loading a save preserves remaining time.
 
-Blood is batched per cell. A global limit of 8192 stains evicts the oldest in
+Blood is batched in small chunks per cell. A global limit of 8192 stains evicts the oldest in
 extreme battles; nearby pools merge. Short hit sprays are limited to 32, and
 each bleeding corpse has at most 192 live droplets. These limits prevent
 unbounded scene/physics growth. Stains are attached to the location, not to moving
@@ -85,6 +103,15 @@ tests cover blood/flesh under native normal/reversed-Z projection, inherited NPC
 shaders/alpha testing, opaque wall occlusion and expiration. Windows CI also
 builds the full runtime, runs component/native integration tests, starts the
 installed executable with `--version`, and checks ZIP integrity.
+
+The stall regression exercises ten concurrent waist/longitudinal/hammer deaths
+at maximum blood, stable intestinal buffers, bounded legacy sprite spawning and
+cleanup. It also fills and overflows all 8192 stain slots, verifies that idle
+aging does not reupload geometry, restores a full saved cache and expires it.
+Both GL depth modes draw a full cache with eight simultaneous blood trails.
+In the same debug CPU-only ten-hammer-death benchmark, the tenth second fell from
+129 ms/frame to approximately 25 ms/frame. This measures physics/effect updates,
+not game FPS, and does not predict a particular Windows machine's performance.
 
 These checks do not replace an in-game playtest with your Morrowind data.
 Standard humanoid NPC body-part meshes are supported; custom whole-body meshes

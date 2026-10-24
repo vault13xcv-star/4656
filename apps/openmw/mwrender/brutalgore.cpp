@@ -205,8 +205,26 @@ namespace MWRender
 
     osg::ref_ptr<osg::Geometry> makeIntestineTube(const std::vector<osg::Vec3f>& centers, float radius)
     {
-        std::vector<Vertex> vertices;
-        if (centers.size() < 2) return makeGeometry(vertices);
+        osg::ref_ptr<osg::Geometry> mesh = new osg::Geometry;
+        mesh->setUseDisplayList(false); mesh->setUseVertexBufferObjects(true);
+        mesh->setDataVariance(osg::Object::DYNAMIC);
+        mesh->setVertexArray(new osg::Vec3Array);
+        mesh->setNormalArray(new osg::Vec3Array, osg::Array::BIND_PER_VERTEX);
+        osg::ref_ptr<osg::Vec4Array> color = new osg::Vec4Array;
+        color->push_back({ .62f, .24f, .27f, 1 });
+        mesh->setColorArray(color, osg::Array::BIND_OVERALL);
+        mesh->setTexCoordArray(0, new osg::Vec2Array);
+        mesh->addPrimitiveSet(new osg::DrawElementsUInt(GL_TRIANGLES));
+        updateIntestineTube(*mesh, centers, radius);
+        return mesh;
+    }
+
+    void updateIntestineTube(osg::Geometry& mesh, const std::vector<osg::Vec3f>& centers, float radius)
+    {
+        auto* positions = static_cast<osg::Vec3Array*>(mesh.getVertexArray());
+        auto* normals = static_cast<osg::Vec3Array*>(mesh.getNormalArray());
+        auto* uv = static_cast<osg::Vec2Array*>(mesh.getTexCoordArray(0));
+        auto* indices = static_cast<osg::DrawElementsUInt*>(mesh.getPrimitiveSet(0));
         std::vector<osg::Vec3f> curve;
         // Catmull-Rom centreline rounds the capsule joints instead of drawing a
         // necklace of cylinders. A transported frame avoids twisting at bends.
@@ -219,8 +237,9 @@ namespace MWRender
                 curve.push_back((b * 2.f + (c - a) * t + (a * 2.f - b * 5.f + c * 4.f - d) * t2
                     + (-a + b * 3.f - c * 3.f + d) * t3) * .5f);
             }
-        curve.push_back(centers.back());
-        std::vector<std::array<Vertex, 9>> rings;
+        if (!centers.empty()) curve.push_back(centers.back());
+        const bool topologyChanged = positions->size() != curve.size() * 9;
+        positions->clear(); normals->clear(); uv->clear();
         osg::Vec3f side(1, 0, 0);
         float length = 0;
         for (std::size_t i = 0; i < curve.size(); ++i)
@@ -229,22 +248,28 @@ namespace MWRender
             side = unit(side - tangent * (side * tangent), unit(tangent ^ osg::Vec3f(0, 1, 0), { 1, 0, 0 }));
             const auto up = unit(tangent ^ side);
             if (i) length += (curve[i] - curve[i - 1]).length();
-            std::array<Vertex, 9> ring;
-            for (unsigned j = 0; j < ring.size(); ++j)
+            for (unsigned j = 0; j < 9; ++j)
             {
                 const float angle = j * 6.2831853f / 8.f;
                 const auto n = side * std::cos(angle) + up * std::sin(angle);
                 const float r = radius * (1.f + .055f * std::sin(length * 2.8f));
-                ring[j].p = curve[i] + n * r; ring[j].n = n;
-                ring[j].color = { .62f, .24f, .27f, 1 };
-                ring[j].uv[0] = { length * .025f, j / 8.f, 0, 0 };
+                positions->push_back(curve[i] + n * r); normals->push_back(n);
+                uv->push_back({ length * .025f, j / 8.f });
             }
-            rings.push_back(ring);
         }
-        for (std::size_t i = 0; i + 1 < rings.size(); ++i)
-            for (unsigned j = 0; j < 8; ++j)
-                vertices.insert(vertices.end(), { rings[i][j], rings[i + 1][j], rings[i + 1][j + 1],
-                    rings[i][j], rings[i + 1][j + 1], rings[i][j + 1] });
-        return makeGeometry(vertices);
+        if (topologyChanged)
+        {
+            indices->clear();
+            for (unsigned i = 0; i + 1 < curve.size(); ++i)
+                for (unsigned j = 0; j < 8; ++j)
+                {
+                    const unsigned quad[] = { i * 9 + j, (i + 1) * 9 + j, (i + 1) * 9 + j + 1,
+                        i * 9 + j, (i + 1) * 9 + j + 1, i * 9 + j + 1 };
+                    indices->insert(indices->end(), std::begin(quad), std::end(quad));
+                }
+            indices->dirty();
+        }
+        positions->dirty(); normals->dirty(); uv->dirty();
+        mesh.dirtyBound();
     }
 }

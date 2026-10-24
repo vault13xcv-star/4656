@@ -131,7 +131,12 @@ namespace
         MWRender::BloodTrail spray(*root, ray, [&](const auto& stamp) { stamps.push_back(stamp); });
         const std::vector<MWRender::BloodTrail::Source> sources{ { { 0, 0, 20 }, { 1, 0, 1 }, 1, true },
             { { -20, 0, 10 }, { 0, 0, -1 }, 1, false } };
+        auto* dropletMesh = root->getChild(0)->asGroup()->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+        osg::ref_ptr<osg::Array> dropletVertices = dropletMesh->getVertexArray();
+        osg::ref_ptr<osg::PrimitiveSet> dropletTriangles = dropletMesh->getPrimitiveSet(0);
         for (int frame = 0; frame < 240; ++frame) spray.update(1.f / 60, frame < 120 ? sources : std::vector<MWRender::BloodTrail::Source>{}, 1, frame / 60.f);
+        require(dropletMesh->getVertexArray() == dropletVertices && dropletMesh->getPrimitiveSet(0) == dropletTriangles,
+            "Ballistic droplets replaced their arrays/primitive every frame");
         require(!stamps.empty(), "Ballistic blood never reached a surface");
         bool wall = false, floor = false;
         for (const auto& stamp : stamps)
@@ -837,6 +842,157 @@ namespace
             *creature.mSkeleton, *creature.mSkeleton, floorSnapshot, settings, saved);
         require(bool(restored), "non-humanoid pose failed to restore");
         std::cout << "PASS generic creature anatomy, mass, rigid frost and saved pose\n";
+    }
+
+    void bloodCacheCapacityAndBuffers()
+    {
+        osg::ref_ptr<osg::Group> scene = new osg::Group;
+        MWRender::BloodDecals decals(*scene);
+        decals.setCellActive("arena", true);
+        MWRender::BloodStamp stamp;
+        stamp.mNormal.set(0, 0, 1);
+        for (int i = 0; i < 10240; ++i)
+        {
+            stamp.mCenter.set(float(i), 0, 0);
+            stamp.mTriangles = { stamp.mCenter, stamp.mCenter + osg::Vec3f(1, 0, 0),
+                stamp.mCenter + osg::Vec3f(0, 1, 0) };
+            decals.add("arena", stamp);
+        }
+        decals.update(.1f, 600);
+        require(decals.size() == 8192 && decals.saveState().front().mStamp.mCenter.x() == 2048,
+            "Full blood cache did not evict exactly the oldest stain");
+        require(scene->getNumChildren() <= 65, "Blood cache produced an unbounded number of drawables");
+        struct Buffer
+        {
+            osg::ref_ptr<osg::Geometry> mMesh;
+            osg::ref_ptr<osg::Array> mVertices;
+            unsigned mModified;
+        };
+        std::vector<Buffer> buffers;
+        for (unsigned i = 0; i < scene->getNumChildren(); ++i)
+        {
+            auto* mesh = scene->getChild(i)->asGeode()->getDrawable(0)->asGeometry();
+            buffers.push_back({ mesh, mesh->getVertexArray(), mesh->getVertexArray()->getModifiedCount() });
+        }
+        for (int frame = 0; frame < 120; ++frame) decals.update(.1f, 600);
+        for (const auto& buffer : buffers)
+            require(buffer.mMesh->getVertexArray() == buffer.mVertices
+                && buffer.mVertices->getModifiedCount() == buffer.mModified,
+                "Aging blood reallocated/reuploaded all stain vertices");
+        decals.add("arena", stamp);
+        decals.update(.1f, 600);
+        unsigned changed = 0;
+        for (const auto& buffer : buffers)
+        {
+            require(buffer.mMesh->getVertexArray() == buffer.mVertices, "Blood batch replaced its persistent VBO array");
+            changed += buffer.mVertices->getModifiedCount() != buffer.mModified;
+        }
+        require(changed <= 2, "One new stain rebuilt unrelated blood chunks");
+        const auto saved = decals.saveState();
+        decals.setCellActive("arena", false);
+        decals.restoreState(saved);
+        require(decals.size() == 8192 && scene->getNumChildren() <= 65, "Full blood save/load grew the render graph");
+        for (unsigned i = 0; i < scene->getNumChildren(); ++i)
+            require(scene->getChild(i)->getNodeMask() == 0, "Restored blood became visible in an inactive cell");
+        decals.update(600, 600);
+        require(decals.size() == 0 && scene->getNumChildren() == 0, "Expired full blood cache leaked render chunks");
+        std::cout << "PASS full 8192-stain rollover, stable VBOs while aging, local chunk updates, save/load and cleanup\n";
+    }
+
+    void goreLoadMeasurements(bool benchmark)
+    {
+        osg::ref_ptr<osg::Group> scene = new osg::Group;
+        MWRender::BloodDecals decals(*scene);
+        decals.setCellActive("arena", true);
+        std::vector<std::unique_ptr<SkeletonFixture>> fixtures;
+        std::vector<std::unique_ptr<MWRender::RagdollController>> corpses;
+        struct Tube
+        {
+            osg::ref_ptr<osg::Geode> mNode;
+            osg::ref_ptr<osg::Geometry> mMesh;
+            osg::ref_ptr<osg::Array> mVertices;
+            osg::ref_ptr<osg::PrimitiveSet> mIndices;
+        };
+        std::map<const osg::Geode*, Tube> tubes;
+        unsigned sprites = 0;
+        double total = 0, maximum = 0;
+        for (int frame = 0; frame < 900; ++frame)
+        {
+            const auto start = std::chrono::steady_clock::now();
+            if (frame < 600 && frame % 60 == 0)
+            {
+                auto fixture = std::make_unique<SkeletonFixture>();
+                fixture->mWorld->setMatrix(osg::Matrixf::translate(float(fixtures.size()) * 80 - 360, 0, 0));
+                scene->addChild(fixture->mWorld);
+                MWRender::RagdollController::Settings config;
+                config.mNpc = true; config.mWoundRoll = 0; config.mWoundChance = 1;
+                config.mBloodAmount = 3;
+                config.mBloodDeposit = [&](const auto& stamp) { decals.add("arena", stamp); };
+                config.mBloodEffect = [&](const auto&) { ++sprites; };
+                Ragdoll::Impact hit;
+                hit.mValid = hit.mHasWeaponContact = true;
+                hit.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+                hit.mAttackType = Ragdoll::AttackType::Chop;
+                hit.mTwoHandedHammer = true; hit.mWeaponHitBody = 1;
+                if (!benchmark && fixtures.size() % 3 != 0)
+                {
+                    hit.mWoundWeapon = Ragdoll::WoundWeapon::HeavyBlade;
+                    hit.mTwoHandedHammer = false;
+                    hit.mTwoHandedCutting = true;
+                    hit.mWeaponHitBody = fixtures.size() % 3 == 1 ? 2 : 1;
+                    hit.mAttackType = fixtures.size() % 3 == 1 ? Ragdoll::AttackType::Chop : Ragdoll::AttackType::Slash;
+                    hit.mWeaponDirection.set(0, 1, hit.mAttackType == Ragdoll::AttackType::Chop ? -.45f : 0.f);
+                }
+                corpses.push_back(MWRender::RagdollController::create(
+                    *fixture->mSkeleton, *fixture->mSkeleton, floorSnapshot, config, hit));
+                require(bool(corpses.back()), "Concurrent gore corpse creation failed");
+                fixtures.push_back(std::move(fixture));
+            }
+            const unsigned before = sprites;
+            for (auto& corpse : corpses) corpse->update(1.f / 60);
+            require(sprites - before <= corpses.size() * 2, "Severing more limbs multiplied whole NIF particle systems");
+            decals.update(1.f / 60, 600);
+            require(decals.size() <= 8192, "Concurrent wounds exceeded the blood memory limit");
+            for (auto& fixture : fixtures)
+                for (unsigned i = 0; i < fixture->mSkeleton->getNumChildren(); ++i)
+                {
+                    auto* node = fixture->mSkeleton->getChild(i)->asGeode();
+                    if (!node || node->getName() != "Brutal Morrowind physical intestines") continue;
+                    auto* mesh = node->getDrawable(0)->asGeometry();
+                    const auto [it, inserted] = tubes.try_emplace(node, Tube{ node, mesh,
+                        mesh->getVertexArray(), mesh->getPrimitiveSet(0) });
+                    require(inserted || (it->second.mMesh == mesh && it->second.mVertices == mesh->getVertexArray()
+                        && it->second.mIndices == mesh->getPrimitiveSet(0)), "Intestines reallocated their render buffers each frame");
+                    require(mesh->getVertexArray()->getNumElements() == 468, "Intestine rings are not shared by adjacent triangles");
+                }
+            const auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            total += ms; maximum = std::max(maximum, ms);
+            if (frame % 60 == 59)
+            {
+                if (benchmark)
+                    std::cout << "GORE frame=" << frame + 1 << " corpses=" << corpses.size()
+                              << " stains=" << decals.size() << " mean_ms=" << total / 60 << " max_ms=" << maximum << std::endl;
+                total = maximum = 0;
+            }
+        }
+        require(tubes.size() == 20, "Concurrent waist/longitudinal/hammer deaths lost their physical intestines");
+        for (auto& corpse : corpses)
+        {
+            corpse->update(20);
+            require(!corpse->isSimulating(), "Crowded gore bypassed the corpse simulation deadline");
+            ESM::RagdollState state; corpse->writeState(state);
+            for (const auto& body : state.mBodies)
+                for (float value : body.mTransform) require(std::isfinite(value), "Concurrent gore physics became nonfinite");
+        }
+        corpses.clear(); tubes.clear();
+        for (auto& fixture : fixtures)
+        {
+            require(fixture->mSkeleton->getNumChildren() == 1, "Crowded gore leaked blood/tube/wound nodes after deletion");
+            scene->removeChild(fixture->mWorld);
+        }
+        decals.update(600, 600);
+        require(scene->getNumChildren() == 0, "Blood chunks survived expiry after the crowd was removed");
+        std::cout << "PASS ten concurrent dismembered corpses, maximum blood, persistent intestinal meshes, bounded sprites and cleanup\n";
     }
 
     void loadMeasurements()
@@ -1604,6 +1760,11 @@ int main(int argc, char** argv)
 {
     try
     {
+        if (argc > 1 && std::string(argv[1]) == "--gore-benchmark")
+        {
+            goreLoadMeasurements(true);
+            return 0;
+        }
         {
             SkeletonFixture fixture;
             MWRender::RagdollController::Settings config;
@@ -1650,6 +1811,8 @@ int main(int argc, char** argv)
         brutalBloodAndPersistence();
         brutalMeshClipAndPose();
         brutalPhysicalWounds();
+        bloodCacheCapacityAndBuffers();
+        goreLoadMeasurements(false);
         livingContactAnatomy();
         dotDeathHasNoBlastMomentum();
         liveSettingsAndExtendedBudget();

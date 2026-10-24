@@ -4,8 +4,10 @@
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
 #include <array>
+#include <cmath>
 #include <components/sceneutil/depth.hpp>
 #include <iostream>
+#include <memory>
 #include <osg/AlphaFunc>
 #include <osg/Geode>
 #include <osg/Geometry>
@@ -121,8 +123,57 @@ int main(int argc, char** argv)
             check(visible > 500, "Blood decals invisible under native projection/alpha state");
             check(occluded == 0, "Blood decals visible through an opaque wall");
             root->removeChild(flesh);
+            const auto wet = read();
+            auto* stainMesh = root->getChild(root->getNumChildren() - 1)->asGeode()->getDrawable(0)->asGeometry();
+            osg::ref_ptr<osg::Array> stableVertices = stainMesh->getVertexArray();
+            const auto modified = stableVertices->getModifiedCount();
+            blood.update(90, 600);
+            const auto dry = read();
+            unsigned wetRed = 0, dryRed = 0;
+            for (std::size_t i = 0; i < wet.size(); i += 3) { wetRed += wet[i]; dryRed += dry[i]; }
+            check(dryRed < wetRed, "Blood no longer dries when aging is performed by the shader");
+            check(stainMesh->getVertexArray() == stableVertices && stableVertices->getModifiedCount() == modified,
+                "Aging uploaded another copy of the blood vertex buffer");
             blood.update(600, 600); check(read() == baseline, "Expired blood left a visible overlay");
+
+            // Exercise an actual full GPU cache while eight wounds continue to
+            // bleed. This crosses the eviction threshold repeatedly, rather
+            // than checking only the first splat on a single corpse.
+            MWRender::BloodStamp stamp;
+            stamp.mNormal = { 0, -1, 0 }; stamp.mRadius = .4f;
+            for (int i = 0; i < 9216; ++i)
+            {
+                const float x = -64.f + i % 128, z = float((i / 128) % 64);
+                stamp.mCenter = { x, 0, z };
+                stamp.mTriangles.clear();
+                for (int edge = 0; edge < 16; ++edge)
+                {
+                    const float a = edge * 6.2831853f / 16, b = (edge + 1) * 6.2831853f / 16;
+                    stamp.mTriangles.insert(stamp.mTriangles.end(), { stamp.mCenter,
+                        stamp.mCenter + osg::Vec3f(std::cos(a) * .4f, 0, std::sin(a) * .4f),
+                        stamp.mCenter + osg::Vec3f(std::cos(b) * .4f, 0, std::sin(b) * .4f) });
+                }
+                blood.add("test", stamp);
+            }
+            const auto ray = MWRender::BloodTrail::collisionRaycast({ { -1000, -1000, 0 }, { 1000, -1000, 0 },
+                { 1000, 1000, 0 }, { -1000, -1000, 0 }, { 1000, 1000, 0 }, { -1000, 1000, 0 } });
+            std::vector<std::unique_ptr<MWRender::BloodTrail>> trails;
+            for (int i = 0; i < 8; ++i)
+                trails.push_back(std::make_unique<MWRender::BloodTrail>(*root, ray,
+                    [&](const auto& splat) { blood.add("test", splat); }));
+            for (int frame = 0; frame < 180; ++frame)
+            {
+                for (int i = 0; i < 8; ++i)
+                    trails[i]->update(.1f, { { { float(i * 10 - 40), 0, 30 }, { 0, 0, -1 }, 1, true } }, 3, frame * .1f);
+                blood.update(.1f, 600);
+                check(blood.size() == 8192 && root->getNumChildren() <= 74, "Full GPU blood cache grew without bound");
+                viewer.frame();
+                check(glGetError() == GL_NO_ERROR, "Full blood cache caused an OpenGL error");
+            }
+            glFinish(); trails.clear(); blood.clear();
+            check(read() == baseline && root->getNumChildren() == 1, "Crowded blood leaked GPU/scene nodes after cleanup");
             std::cout << "PASS actual GL blood decals, native projection, inherited alpha/shader, opaque occlusion and expiry\n";
+            std::cout << "PASS full 8192-stain GPU cache rollover with eight simultaneous maximum-pressure blood trails\n";
             return 0;
         }
         if (effect == "wounds")

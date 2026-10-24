@@ -5,7 +5,10 @@
 #include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/MatrixTransform>
+#include <osg/Uniform>
 #include <components/esm3/brutalbloodstate.hpp>
+#include <cstdint>
+#include <deque>
 #include <functional>
 #include <map>
 #include <string>
@@ -46,17 +49,30 @@ namespace MWRender
         std::size_t size() const;
 
     private:
-        struct Batch
+        struct Chunk
         {
             osg::ref_ptr<osg::Geode> mNode;
-            bool mActive = false;
+            osg::ref_ptr<osg::Geometry> mGeometry;
             bool mDirty = true;
         };
+        struct Batch
+        {
+            std::map<std::uint64_t, Chunk> mChunks;
+            bool mActive = false;
+        };
+        struct Stain : BloodStainState
+        {
+            std::uint64_t mSequence;
+        };
         osg::ref_ptr<osg::Group> mParent;
-        std::vector<BloodStainState> mStains;
+        std::deque<Stain> mStains;
         std::map<std::string, Batch> mBatches;
+        osg::ref_ptr<osg::Uniform> mTimeUniform, mLifetimeUniform;
+        std::uint64_t mNextSequence = 0;
+        double mTime = 0;
         float mSinceBatch = 1;
         float mLifetime = 600;
+        void dirty(const Stain& stain);
         void rebuild();
     };
 
@@ -86,7 +102,7 @@ namespace MWRender
         Raycast mRaycast;
         Deposit mDeposit;
         std::vector<Drop> mDrops;
-        std::vector<float> mRemainders;
+        std::vector<float> mRemainders, mPoolTimes;
         std::size_t mEmitted = 0;
         unsigned mRandom = 0x91a37u;
         float random();

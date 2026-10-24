@@ -12,5 +12,6 @@ namespace MWRender
     std::array<osg::ref_ptr<osg::Group>, 2> splitGoreMesh(osg::Node& part,
         const osg::Vec3f& planePoint, const osg::Vec3f& planeNormal);
     osg::ref_ptr<osg::Geometry> makeIntestineTube(const std::vector<osg::Vec3f>& centers, float radius);
+    void updateIntestineTube(osg::Geometry& mesh, const std::vector<osg::Vec3f>& centers, float radius);
 }
 #endif

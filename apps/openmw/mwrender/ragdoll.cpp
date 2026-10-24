@@ -406,6 +406,7 @@ namespace MWRender
         std::array<osg::Matrixf, 3> mSplitBindLeft, mSplitBindRight;
         std::map<std::pair<std::size_t, bool>, PartPose> mPartPoses;
         float mSinceBlood = .25f;
+        std::size_t mNextBloodSprite = 0;
         struct WoundVisual
         {
             osg::ref_ptr<osg::MatrixTransform> mNode;
@@ -544,9 +545,12 @@ namespace MWRender
                 }
                 std::vector<osg::Vec3f> centers;
                 for (int i = 0; i < 18; ++i) centers.push_back(mBodyMatrices.at(mGutsStart + chain * 18 + i).getTrans() * inverseRoot);
-                auto mesh = makeIntestineTube(centers, float(mDefinitions[mGutsStart].mRadius) * 1.05f);
-                mGutNodes[chain]->removeDrawables(0, mGutNodes[chain]->getNumDrawables());
-                mGutNodes[chain]->addDrawable(mesh);
+                const float radius = float(mDefinitions[mGutsStart].mRadius) * 1.05f;
+                auto& node = *mGutNodes[chain];
+                if (!node.getNumDrawables())
+                    node.addDrawable(makeIntestineTube(centers, radius));
+                else
+                    updateIntestineTube(*node.getDrawable(0)->asGeometry(), centers, radius);
             }
             mGutsRendered = true;
         }
@@ -630,14 +634,20 @@ namespace MWRender
                 || mSinceBlood < .25f / std::max(.1f, mSettings.mBloodAmount))
                 return;
             mSinceBlood = 0;
+            std::vector<osg::Vec3f> spritePositions;
             for (const auto& joint : mJoints)
             {
                 if (!mWounds.cuts(joint.mChild))
                     continue;
-                mSettings.mBloodEffect((toOsg(joint.mFrameInParent) * mBodyMatrices[joint.mParent]).getTrans());
+                spritePositions.push_back((toOsg(joint.mFrameInParent) * mBodyMatrices[joint.mParent]).getTrans());
                 if (!(mWounds.mBurstHead && joint.mChild == 2))
-                    mSettings.mBloodEffect((toOsg(joint.mFrameInChild) * mBodyMatrices[joint.mChild]).getTrans());
+                    spritePositions.push_back((toOsg(joint.mFrameInChild) * mBodyMatrices[joint.mChild]).getTrans());
             }
+            // The ballistic trail already covers every wound. Rotate at most
+            // two legacy NIF particle systems per pulse instead of duplicating
+            // a whole system at both ends of every severed joint every pulse.
+            for (std::size_t i = 0; i < std::min<std::size_t>(2, spritePositions.size()); ++i)
+                mSettings.mBloodEffect(spritePositions[mNextBloodSprite++ % spritePositions.size()]);
         }
 
         void updateAppearance()
