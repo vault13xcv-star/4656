@@ -6,9 +6,18 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40134983207",
   "resultsBranch": "build-results/ragdoll-f66cccb6db10dd98fb4df23c957db392e7bcebca-40134983207-1",
-  "stage": "package",
-  "result": "running",
-  "updatedUtc": "2026-10-24T22:01:42.0291845Z",
+  "stage": "completed",
+  "result": "success",
+  "updatedUtc": "2026-10-24T22:02:03.2499352Z",
   "releaseUrl": null,
-  "package": null
+  "package": {
+    "file": "Brutal-Morrowind-0.7.0-preview.1-OpenMW-0.51-Windows-x64-f66cccb6db10.zip",
+    "sha256": "dbecb996b12a2938cdb52161017af2b67ae3527d1ebb5ba128954ebaaf30dcd5",
+    "bytes": 45619735,
+    "sourceCommit": "f66cccb6db10dd98fb4df23c957db392e7bcebca",
+    "ragdollVersion": "0.7.0-preview.1",
+    "modName": "Brutal Morrowind",
+    "testResult": "success",
+    "gitDownload": "https://github.com/vault13xcv-star/4656/raw/refs/heads/build-results/ragdoll-f66cccb6db10dd98fb4df23c957db392e7bcebca-40134983207-1/Brutal-Morrowind-0.7.0-preview.1-OpenMW-0.51-Windows-x64-f66cccb6db10.zip"
+  }
 }
