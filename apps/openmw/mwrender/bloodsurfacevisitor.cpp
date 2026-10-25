@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 
 namespace MWRender
 {
@@ -51,6 +52,9 @@ namespace MWRender
         class Collector final : public osgUtil::IntersectionVisitor
         {
         public:
+            static constexpr unsigned ObjectMask = ~(Mask_UpdateVisitor | Mask_Actor | Mask_Player | Mask_FirstPerson
+                | Mask_Sky | Mask_Water | Mask_SimpleWater | Mask_Debug | Mask_RenderToTexture
+                | Mask_PreCompile | Mask_ParticleSystem | Mask_Groundcover);
             Collector(const osg::Vec3f& center, float radius,
                 const std::function<bool(const osg::Node&)>& filter)
                 : mCenter(center), mRadius(radius), mFilter(filter)
@@ -61,9 +65,7 @@ namespace MWRender
                 setIntersector(new osgUtil::PolytopeIntersector(bounds));
                 // Effect-masked NIF children can be real visible carpets. They
                 // are distinguished below from standalone particle/effect roots.
-                setTraversalMask(~(Mask_UpdateVisitor | Mask_Actor | Mask_Player | Mask_FirstPerson
-                    | Mask_Sky | Mask_Water | Mask_SimpleWater | Mask_Debug | Mask_RenderToTexture
-                    | Mask_PreCompile | Mask_ParticleSystem | Mask_Groundcover));
+                setTraversalMask(Mask_Scene | Mask_Terrain | Mask_Static | Mask_Effect);
                 setReferenceEyePoint(center);
                 setReferenceEyePointCoordinateFrame(osgUtil::Intersector::MODEL);
                 setLODSelectionMode(USE_HIGHEST_LEVEL_OF_DETAIL);
@@ -71,10 +73,51 @@ namespace MWRender
                 mRetained.reserve(4096);
             }
 
+            void collect(osg::Node& root)
+            {
+                // Object trees are inserted before the terrain root in the
+                // game. Sorting meshes after traversal cannot help if the
+                // node budget was exhausted before that root was even visited.
+                // Capture land in its own bounded pass, then world objects.
+                try { root.accept(*this); }
+                catch (const SnapshotFull&) {}
+                // A budget exception can leave the intersection/model stacks
+                // inside the interrupted branch. The second pass must start
+                // with a fresh visitor rather than inherit those transforms.
+                Collector objects(mCenter, mRadius, mFilter);
+                objects.mTerrainPass = false;
+                objects.setTraversalMask(ObjectMask & ~Mask_Terrain);
+                if (const auto* frame = getFrameStamp()) objects.setFrameStamp(new osg::FrameStamp(*frame));
+                objects.setTraversalNumber(getTraversalNumber());
+                try { root.accept(objects); }
+                catch (const SnapshotFull&) {}
+                mMeshes.insert(mMeshes.end(), std::make_move_iterator(objects.mMeshes.begin()),
+                    std::make_move_iterator(objects.mMeshes.end()));
+            }
+
             bool allowed(const osg::Node& node)
             {
-                if (++mNodes > MaxNodes) throw SnapshotFull{};
                 if (mFilter && !mFilter(node)) return false;
+                // Do not spend the nearby-receiver budget on every distant
+                // reference in a loaded exterior cell. Its sphere is expressed
+                // in the parent frame, matching the visitor's current matrix.
+                const auto& bound = node.getBound();
+                if (node.isCullingActive() && bound.valid())
+                {
+                    osg::Vec3d center(bound.center());
+                    double radius = bound.radius();
+                    if (const auto* matrix = getModelMatrix())
+                    {
+                        center = center * *matrix;
+                        double scale2 = 0;
+                        for (unsigned row = 0; row < 3; ++row)
+                            for (unsigned col = 0; col < 3; ++col) scale2 += (*matrix)(row, col) * (*matrix)(row, col);
+                        radius *= std::sqrt(scale2); // conservative even for sheared models
+                    }
+                    for (unsigned axis = 0; axis < 3; ++axis)
+                        if (std::abs(center[axis] - mCenter[axis]) > radius + mRadius) return false;
+                }
+                if (++mNodes > MaxNodes) throw SnapshotFull{};
                 const auto mask = node.getNodeMask();
                 if (mask != ~0u && (mask & Mask_Effect)
                     && !(mask & (Mask_Object | Mask_Static | Mask_Scene | Mask_Terrain)))
@@ -124,6 +167,18 @@ namespace MWRender
             void apply(osg::Drawable& drawable) override
             {
                 if (!allowed(drawable)) return;
+                bool terrain = false;
+                const bool terrainRoot = std::any_of(getNodePath().begin(), getNodePath().end(), [](const osg::Node* node) {
+                    return node->getNodeMask() == Mask_Terrain;
+                });
+                for (auto it = getNodePath().rbegin(); it != getNodePath().rend(); ++it)
+                {
+                    const auto mask = (*it)->getNodeMask();
+                    if (mask == ~0u) continue;
+                    if (mask & (Mask_Static | Mask_Object)) break;
+                    if (mask & Mask_Terrain) { terrain = true; break; }
+                }
+                if (mTerrainPass != terrainRoot) return;
                 const auto* mesh = drawable.asGeometry();
                 if (!mesh) return;
                 const auto* positions = dynamic_cast<const osg::Vec3Array*>(mesh->getVertexArray());
@@ -138,7 +193,6 @@ namespace MWRender
                 // decoration can have a huge bounding box containing the
                 // corpse even though all of its first triangles are remote.
                 // Reserve the early scan for actual land receivers.
-                const bool terrain = drawable.getNodeMask() == Mask_Terrain;
                 mMeshes.push_back({ mesh, world, distanceToBounds(bounds, mCenter), terrain });
             }
 
@@ -237,6 +291,7 @@ namespace MWRender
             float mRadius;
             const std::function<bool(const osg::Node&)>& mFilter;
             std::size_t mNodes = 0, mScanned = 0, mMeshScanned = 0, mMeshScanLimit = MaxTrianglesPerMesh;
+            bool mTerrainPass = true;
         };
 
         void Triangles::operator()(unsigned a, unsigned b, unsigned c)
@@ -262,8 +317,7 @@ namespace MWRender
             collector.setFrameStamp(new osg::FrameStamp(*frameStamp));
             collector.setTraversalNumber(frameStamp->getFrameNumber());
         }
-        try { root.accept(collector); }
-        catch (const SnapshotFull&) { /* Preserve the bounded prefix, never retry an unbounded traversal. */ }
+        collector.collect(root);
         return collector.finish();
     }
 }

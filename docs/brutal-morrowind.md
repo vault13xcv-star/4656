@@ -1,8 +1,31 @@
-# Brutal Morrowind 0.7.0-preview.7
+# Brutal Morrowind 0.7.0-preview.8
 
 This blood update starts from the exact stable preview.2 source revision
 `a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
 experimental changes from other branches. Combat calculations are unchanged.
+
+## Exterior receiver traversal fix after preview.7
+
+Blood sprites could remain visible while the ground receiver query returned no
+land triangles. Object roots are inserted before terrain in the game graph;
+the snapshot's node limit could be spent before terrain was visited. Sorting
+the already collected meshes afterwards did not repair that missing data.
+
+Land and paged static receivers now have a dedicated bounded traversal before
+the general object tree. Distant references are rejected against the query
+before spending the nearby-node budget. Paged pavement below a terrain root
+and unpaged floors/bridges remain receivers above the underlying land. The
+existing triangle, particle and two-layer limits are retained. A rate-limited
+log warning records exterior receiver-query failures and their world positions.
+
+The regression reproduces zero captured ground vertices in preview.7 with
+18,000 preceding distant references. Additional native EGL checks cover the
+default TerrainGrid and distant QuadTreeWorld, using their actual chunk buffers
+and draw/cull path, both depth modes and the original floor PNGs. They run the
+whole receiver -> droplet -> decal -> framebuffer path and require visible
+decal pixels after all flying particles have expired. The normal/reversed native
+GL checks are registered when BRUTAL_TEST_NATIVE_GL is enabled. These synthetic
+scenes are not a playtest with a user's Morrowind installation.
 
 ## Corrections after preview.6
 

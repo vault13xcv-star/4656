@@ -715,6 +715,9 @@ if (BUILD_NIFTEST)
 endif()
 
 if (BUILD_COMPONENTS_TESTS)
+    if (BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        enable_testing()
+    endif()
     add_subdirectory(apps/components_tests)
 endif()
 

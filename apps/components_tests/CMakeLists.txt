@@ -125,7 +125,8 @@ if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         sceneutil/bloodshaders_gl.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalblood.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodcoverage.cpp
-        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp)
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp)
     target_compile_features(blood-native-gl-tests PRIVATE cxx_std_20)
     set_target_properties(blood-native-gl-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
     target_compile_definitions(blood-native-gl-tests PRIVATE BT_USE_DOUBLE_PRECISION
@@ -133,6 +134,10 @@ if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(blood-native-gl-tests PRIVATE ${CMAKE_SOURCE_DIR})
     target_include_directories(blood-native-gl-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS})
     target_link_libraries(blood-native-gl-tests PRIVATE components OpenGL::GL OpenGL::EGL)
+    add_test(NAME brutal-native-blood-normal COMMAND blood-native-gl-tests)
+    add_test(NAME brutal-native-blood-reversed COMMAND blood-native-gl-tests reversed)
+    add_test(NAME brutal-native-exterior-normal COMMAND blood-native-gl-tests normal exterior)
+    add_test(NAME brutal-native-exterior-reversed COMMAND blood-native-gl-tests reversed exterior)
 endif()
 
 if (WIN32)

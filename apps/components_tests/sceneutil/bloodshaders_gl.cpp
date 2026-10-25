@@ -2,6 +2,7 @@
 // LightManager callbacks and cascaded depth-comparison textures.
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
+#include "bloodterrainfixture.hpp"
 
 #include <apps/openmw/mwrender/brutalblood.hpp>
 #include <apps/openmw/mwrender/brutalbloodlighting.hpp>
@@ -17,6 +18,7 @@
 #include <osg/Texture2D>
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
+#include <osgDB/ReadFile>
 
 #include <array>
 #include <cmath>
@@ -104,6 +106,123 @@ namespace
         }
         return nullptr;
     }
+
+    void drawNativeExteriorBlood(osgViewer::Viewer& viewer, bool reversed)
+    {
+        for (const bool distant : { false, true })
+        {
+            BloodTest::ExteriorBloodScene terrain(-4, -3, .2f, .1f, distant);
+            const auto center = terrain.mStorage.center();
+            osg::ref_ptr<SceneUtil::LightManager> scene = new SceneUtil::LightManager(SceneUtil::LightSettings{});
+            scene->setNodeMask(MWRender::Mask_Scene);
+            scene->addChild(terrain.mRoot);
+            MWRender::installNativeBloodLighting(*scene, false, true, 0, false);
+            auto* state = scene->getOrCreateStateSet();
+            osg::ref_ptr<osg::LightModel> ambient = new osg::LightModel;
+            ambient->setAmbientIntensity({ 1, 1, 1, 1 });
+            state->setAttributeAndModes(ambient, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            state->setAttributeAndModes(new SceneUtil::AutoDepth, osg::StateAttribute::ON);
+            osg::ref_ptr<osg::Group> objects = new osg::Group;
+            osg::ref_ptr<osg::Geode> decoration = new osg::Geode;
+            osg::ref_ptr<osg::Geometry> triangle = new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> positions = new osg::Vec3Array;
+            positions->push_back({ -20, -20, 0 }); positions->push_back({ 20, -20, 0 }); positions->push_back({ 0, 20, 40 });
+            triangle->setVertexArray(positions); triangle->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, 3));
+            decoration->addDrawable(triangle);
+            for (unsigned i = 0; i < 18000; ++i)
+            {
+                const double side = i % 2 ? 1 : -1;
+                osg::ref_ptr<osg::MatrixTransform> object = new osg::MatrixTransform;
+                object->setNodeMask(MWRender::Mask_Object);
+                object->setMatrix(osg::Matrixd::translate(osg::Vec3d(center)
+                    + osg::Vec3d(side * (3000 + i % 100), side * (3000 + i / 100), 0)));
+                object->addChild(decoration); objects->addChild(object);
+            }
+            terrain.mRoot->insertChild(0, objects);
+            const auto surface = terrain.surface();
+            require(bool(surface), "Native exterior terrain disappeared from the blood receiver query behind the object tree");
+
+            // The fixture uses real native chunks, their original vertex/index
+            // buffers and draw/cull implementation. Only their material is a
+            // neutral grey so blood pixels can be measured unambiguously.
+            osg::ref_ptr<osg::StateSet> pass = new osg::StateSet;
+            pass->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+            pass->setAttributeAndModes(new SceneUtil::AutoDepth, osg::StateAttribute::ON);
+            osg::ref_ptr<osg::Program> groundProgram = new osg::Program;
+            groundProgram->addShader(new osg::Shader(osg::Shader::VERTEX,
+                "#version 120\nuniform mat4 projectionMatrix;void main(){gl_Position=projectionMatrix*gl_ModelViewMatrix*gl_Vertex;}"));
+            groundProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT,
+                "#version 120\nvoid main(){gl_FragColor=vec4(.3,.3,.3,1.0);}"));
+            pass->setAttributeAndModes(groundProgram, osg::StateAttribute::ON);
+            struct GroundPass : osg::NodeVisitor
+            {
+                osg::StateSet* mPass;
+                osg::Vec3f mEye;
+                GroundPass(osg::StateSet* pass, const osg::Vec3f& eye)
+                    : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN), mPass(pass), mEye(eye)
+                {
+                    setVisitorType(INTERSECTION_VISITOR);
+                    setTraversalMask(MWRender::Mask_Terrain | MWRender::Mask_Scene);
+                    setUserValue("brutalBloodReceiverRadius", 900.f);
+                }
+                osg::Vec3 getEyePoint() const override { return mEye; }
+                void apply(osg::Drawable& drawable) override
+                {
+                    if (auto* land = dynamic_cast<Terrain::TerrainDrawable*>(&drawable))
+                    {
+                        land->setPasses({ mPass });
+                        land->createClusterCullingCallback();
+                    }
+                }
+            } groundPass(pass, center);
+            terrain.mRoot->accept(groundPass);
+
+            MWRender::BloodDecals blood(*scene);
+            std::vector<osg::ref_ptr<osg::Image>> floor;
+            for (const char* name : { "floor06.png", "floor07.png" })
+            {
+                auto image = osgDB::readRefImageFile((std::filesystem::path(OPENMW_PROJECT_SOURCE_DIR)
+                    / "files/data/textures/brutal/blood" / name).string());
+                require(bool(image), "Original floor blood artwork failed to load in the exterior rendering test");
+                floor.push_back(image);
+            }
+            blood.setTextures(floor, {});
+            blood.setCellActive("Esm3ExteriorCell:-3:-2", true);
+            MWRender::BloodTrail fountain(*scene, surface.mRaycast,
+                [&](const auto& stamp) { blood.add("Esm3ExteriorCell:-3:-2", stamp); }, surface.mProjector, true);
+            for (unsigned frame = 0; frame < 120; ++frame)
+            {
+                blood.update(1.f / 60, 1200);
+                fountain.update(1.f / 60, { { center + osg::Vec3f(0, 0, 28), { 0, 0, -1 }, 1, true } }, 1, frame / 60.f);
+            }
+            for (unsigned frame = 0; frame < 210; ++frame)
+            {
+                blood.update(1.f / 60, 1200);
+                fountain.update(1.f / 60, {}, 1, 2 + frame / 60.f);
+            }
+            require(fountain.particleCount() == 0, "Exterior decal visibility test still contained flying sprites");
+            require(blood.size() > 0, "Native terrain ray hits did not create any saved blood stains");
+            auto* camera = viewer.getCamera();
+            camera->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+            camera->setViewMatrixAsLookAt(osg::Vec3d(center) + osg::Vec3d(0, -180, 130), osg::Vec3d(center), { 0, 0, 1 });
+            camera->setProjectionMatrixAsPerspective(60, double(Width) / Height, 1, 81920);
+            auto projection = camera->getProjectionMatrix();
+            if (reversed) for (int row = 0; row < 4; ++row) projection(row, 2) = -projection(row, 2);
+            state->addUniform(new osg::Uniform("projectionMatrix", osg::Matrixf(projection)));
+            viewer.setSceneData(scene);
+            viewer.frame(); viewer.frame(); glFinish();
+            std::vector<unsigned char> pixels(Width * Height * 3);
+            glReadPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+            require(glGetError() == GL_NO_ERROR, "Native exterior blood framebuffer read failed");
+            unsigned red = 0;
+            for (std::size_t i = 0; i < pixels.size(); i += 3)
+                red += pixels[i] > pixels[i + 1] + 6 && pixels[i] > pixels[i + 2] + 6;
+            require(red > 20, "Exterior blood existed in CPU memory but no original floor decal pixels reached the native terrain framebuffer");
+            std::cout << "PASS native " << (distant ? "quadtree" : "default grid") << " terrain + 18000 objects -> ray -> fountain -> "
+                      << blood.size() << " decals -> " << red << " blood pixels\n";
+            viewer.setSceneData(nullptr);
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -188,6 +307,12 @@ int main(int argc, char** argv)
         auto* program = bloodProgram(*root);
         require(program && program->getNumShaders() == 4, "Native factory did not replace blood's fallback shadow libraries");
         viewer.setSceneData(root); viewer.realize();
+
+        if (argc > 2 && std::string(argv[2]) == "exterior")
+        {
+            drawNativeExteriorBlood(viewer, reversed);
+            return 0;
+        }
 
         const auto sample = [&] {
             viewer.frame(); glFinish();

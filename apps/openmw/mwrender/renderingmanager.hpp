@@ -366,6 +366,7 @@ namespace MWRender
         };
         std::deque<BloodSurfaceSnapshot> mBloodSurfaceSnapshots;
         double mBloodSurfaceTime = 0;
+        double mBloodSurfaceWarningTime = -10;
         unsigned mBloodSurfaceFrame = ~0u;
         unsigned mBloodSurfacesBuilt = 0;
         struct BloodBurst

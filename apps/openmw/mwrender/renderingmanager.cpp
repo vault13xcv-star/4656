@@ -1239,8 +1239,21 @@ namespace MWRender
         };
         const auto captureCenter = reusable == mBloodSurfaceSnapshots.end() ? center : reusable->mCenter;
         const float captureRadius = reusable == mBloodSurfaceSnapshots.end() ? radius + 128.f : reusable->mRadius;
-        auto surface = BloodTrail::visualSurface(collectBloodSurfaceTriangles(
-            *mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp()));
+        auto triangles = collectBloodSurfaceTriangles(
+            *mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp());
+        auto surface = BloodTrail::visualSurface(triangles);
+        if (cell->isExterior() && mBloodSurfaceTime - mBloodSurfaceWarningTime >= 10)
+        {
+            osg::Vec3f ground, normal;
+            if (!surface || !surface.mRaycast(center + osg::Vec3f(0, 0, 8),
+                    center - osg::Vec3f(0, 0, captureRadius), ground, normal))
+            {
+                mBloodSurfaceWarningTime = mBloodSurfaceTime;
+                Log(Debug::Warning) << "Brutal Morrowind: exterior blood ground probe missed; cell="
+                    << cell->getCell()->getId().serializeText() << " position=" << center.x() << ',' << center.y() << ',' << center.z()
+                    << " radius=" << captureRadius << " receiver triangles=" << triangles.size() / 3;
+            }
+        }
         if (!surface) return {};
         if (reusable != mBloodSurfaceSnapshots.end())
         {

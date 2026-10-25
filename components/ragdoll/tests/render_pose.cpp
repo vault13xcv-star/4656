@@ -743,6 +743,102 @@ namespace
             "Uneven outdoor terrain retained substantially less blood than an interior");
     }
 
+    void bloodTerrainAfterDistantObjects()
+    {
+        const auto exercise = [](unsigned references) {
+            const osg::Vec3f center(-24576, -16384, 512);
+            osg::ref_ptr<osg::Group> scene = new osg::Group;
+            osg::ref_ptr<osg::Group> objects = new osg::Group;
+            scene->addChild(objects);
+            osg::ref_ptr<osg::Geometry> mesh = new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array;
+            vertices->push_back({ -20, -20, 0 }); vertices->push_back({ 20, -20, 0 }); vertices->push_back({ 0, 20, 40 });
+            mesh->setVertexArray(vertices); mesh->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, 3));
+            osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+            geode->addDrawable(mesh);
+            // The runtime inserts object roots before terrain. Even objects that
+            // intersection culling rejects used to spend the receiver node budget.
+            for (unsigned i = 0; i < references; ++i)
+            {
+                osg::ref_ptr<osg::MatrixTransform> reference = new osg::MatrixTransform;
+                reference->setNodeMask(MWRender::Mask_Object);
+                const double side = i % 2 ? 1 : -1;
+                reference->setMatrix(osg::Matrixd::translate(osg::Vec3d(center)
+                    + osg::Vec3d(side * (3000 + i % 100), side * (3000 + i / 100), 0)));
+                reference->addChild(geode); objects->addChild(reference);
+            }
+            osg::ref_ptr<osg::Geode> land = new osg::Geode;
+            land->setNodeMask(MWRender::Mask_Terrain);
+            osg::ref_ptr<osg::Geometry> ground = new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> positions = new osg::Vec3Array;
+            for (const auto& vertex : floorSnapshot({}, 1000)) positions->push_back(center + vertex);
+            ground->setVertexArray(positions); ground->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, positions->size()));
+            land->addDrawable(ground);
+            osg::ref_ptr<osg::Group> terrainRoot = new osg::Group;
+            terrainRoot->setNodeMask(MWRender::Mask_Terrain);
+            terrainRoot->addChild(land); scene->addChild(terrainRoot);
+            // With distant terrain enabled, native object paging lives below this
+            // same terrain root. A separate land pass must not discard pavement.
+            osg::ref_ptr<osg::Geode> paving = new osg::Geode;
+            paving->setNodeMask(MWRender::Mask_Static);
+            osg::ref_ptr<osg::Geometry> pavement = new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> pavementVertices = new osg::Vec3Array;
+            for (const auto& vertex : floorSnapshot({}, 1000))
+                pavementVertices->push_back(center + vertex + osg::Vec3f(0, 0, 24));
+            pavement->setVertexArray(pavementVertices);
+            pavement->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, pavementVertices->size()));
+            paving->addDrawable(pavement); terrainRoot->addChild(paving);
+            osg::ref_ptr<osg::Group> pagedModel = new osg::Group;
+            pagedModel->setNodeMask(MWRender::Mask_Static);
+            osg::ref_ptr<osg::Geode> nonCollidingPaving = new osg::Geode;
+            nonCollidingPaving->setNodeMask(MWRender::Mask_Effect);
+            osg::ref_ptr<osg::Geometry> visualPavement = new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> visualVertices = new osg::Vec3Array;
+            for (const auto& vertex : *pavementVertices) visualVertices->push_back(vertex + osg::Vec3f(0, 0, 2));
+            visualPavement->setVertexArray(visualVertices);
+            visualPavement->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, visualVertices->size()));
+            nonCollidingPaving->addDrawable(visualPavement);
+            pagedModel->addChild(nonCollidingPaving); terrainRoot->addChild(pagedModel);
+            osg::ref_ptr<osg::Geode> bridge = new osg::Geode;
+            bridge->setNodeMask(MWRender::Mask_Object);
+            osg::ref_ptr<osg::Geometry> bridgeMesh = new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> bridgeVertices = new osg::Vec3Array;
+            for (const auto& vertex : floorSnapshot({}, 1000))
+                bridgeVertices->push_back(center + vertex * .1f + osg::Vec3f(0, 0, 32));
+            bridgeMesh->setVertexArray(bridgeVertices);
+            bridgeMesh->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, bridgeVertices->size()));
+            bridge->addDrawable(bridgeMesh); objects->addChild(bridge);
+            const auto triangles = MWRender::collectBloodSurfaceTriangles(*scene, center + osg::Vec3f(0, 0, 40), 896);
+            std::cout << "TERRAIN references=" << references << " captured_vertices=" << triangles.size() << std::endl;
+            const auto surface = MWRender::BloodTrail::visualSurface(triangles);
+            require(bool(surface), "Distant exterior objects exhausted the node budget before the terrain was reached");
+            osg::Vec3f point, normal;
+            require(surface.mRaycast(center + osg::Vec3f(0, 0, 80), center - osg::Vec3f(0, 0, 40), point, normal),
+                "Blood ray missed terrain placed after the exterior object tree");
+            require(std::abs(point.z() - center.z() - 32) < .01f,
+                "Distant references hid a nearby unpaged bridge above the terrain");
+            const auto edge = center + osg::Vec3f(250, 0, 0);
+            require(surface.mRaycast(edge + osg::Vec3f(0, 0, 80), edge - osg::Vec3f(0, 0, 40), point, normal)
+                && std::abs(point.z() - center.z() - 26) < .01f,
+                "Prioritizing terrain hid the paged pavement above it from blood raycasts");
+            MWRender::BloodDecals decals(*scene);
+            const std::string cell = "Esm3ExteriorCell:-3:-2";
+            decals.setCellActive(cell, true);
+            MWRender::BloodTrail fountain(*scene, surface.mRaycast,
+                [&](const auto& stamp) { decals.add(cell, stamp); }, surface.mProjector, true);
+            for (unsigned frame = 0; frame < 120; ++frame)
+            {
+                decals.update(1.f / 60, 1200);
+                fountain.update(1.f / 60, { { center + osg::Vec3f(0, 0, 60), { 0, 0, -1 }, 1, true } }, 1, frame / 60.f);
+            }
+            require(fountain.emittedCount() > 0 && decals.size() > 0,
+                "Visible exterior blood sprites still failed to leave any terrain decals");
+        };
+        exercise(0);
+        exercise(18000);
+        std::cout << "PASS exterior terrain after 18000 distant object references, real ray/projector, sprite fountain and deposits\n";
+    }
+
     void bloodVisibleMeshReceiversAndProjection()
     {
         const auto quad = [](std::vector<osg::Vec3f>& triangles, const osg::Vec3f& a,
@@ -2695,6 +2791,11 @@ int main(int argc, char** argv)
     try
     {
         std::cout << std::unitbuf;
+        if (argc > 1 && std::string(argv[1]) == "--terrain-regression")
+        {
+            bloodTerrainAfterDistantObjects();
+            return 0;
+        }
         if (argc > 1 && std::string(argv[1]) == "--blood-regression")
         {
             bloodCrowdedUnevenGround();
@@ -2754,6 +2855,7 @@ int main(int argc, char** argv)
         bloodLaunchRangeAndVisibleWounds();
         bloodGroundPoolParity();
         bloodCrowdedUnevenGround();
+        bloodTerrainAfterDistantObjects();
         bloodVisibleMeshReceiversAndProjection();
         bloodTexturesAndVisualIdentity();
         organicCreatureBloodAndDeathTrigger();
