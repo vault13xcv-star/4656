@@ -1,0 +1,16 @@
+Internal ctest changing into directory: D:/a/4656/4656/build-ragdoll-tests
+Test project D:/a/4656/4656/build-ragdoll-tests
+    Start 1: ragdoll-physics
+1/5 Test #1: ragdoll-physics ..................   Passed    1.07 sec
+    Start 2: item-physics
+2/5 Test #2: item-physics .....................   Passed    0.08 sec
+    Start 3: ragdoll-rendering
+3/5 Test #3: ragdoll-rendering ................   Passed   13.95 sec
+    Start 4: ragdoll-impact
+4/5 Test #4: ragdoll-impact ...................   Passed    0.07 sec
+    Start 5: physical-combat
+5/5 Test #5: physical-combat ..................   Passed    0.08 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =  15.27 sec
