@@ -34,16 +34,21 @@ namespace ESM
         mStains.clear();
         unsigned version = 0, count = 0;
         reader.getHNT(version, "BVER"); reader.getHNT(count, "BCNT");
-        if (version != 1 || count > 8192) throw std::runtime_error("Invalid Brutal Morrowind blood header");
+        if ((version != 1 && version != 2) || count > MaxStains)
+            throw std::runtime_error("Invalid Brutal Morrowind blood header");
+        std::size_t totalVertices = 0;
         for (unsigned i = 0; i < count; ++i)
         {
             BrutalBloodStain stain;
             stain.mCell = reader.getHNString("BCEL");
             float data[9]; readPhysicsFloats(reader, "BDAT", data);
+            if (version >= 2) reader.getHNT(stain.mVisualSeed, "BSED");
             unsigned vertices = 0; reader.getHNT(vertices, "BVCT");
             if (stain.mCell.size() > 4096 || data[0] < 0 || data[0] > 1800 || data[1] <= 0 || data[1] > 256
-                || !indexValue(data[2], 0, 1) || vertices > 192 || vertices % 3)
+                || !indexValue(data[2], 0, 1) || !vertices || vertices > MaxVerticesPerStain || vertices % 3
+                || totalVertices + vertices > MaxVertices)
                 throw std::runtime_error("Invalid saved blood stain");
+            totalVertices += vertices;
             stain.mAge = data[0]; stain.mRadius = data[1]; stain.mPool = data[2] != 0;
             std::copy_n(data + 3, 3, stain.mCenter.begin()); std::copy_n(data + 6, 3, stain.mNormal.begin());
             const float normalLength = data[6] * data[6] + data[7] * data[7] + data[8] * data[8];
@@ -58,13 +63,23 @@ namespace ESM
     }
     void BrutalBloodState::save(ESMWriter& writer) const
     {
-        writer.writeHNT("BVER", 1u); writer.writeHNT("BCNT", unsigned(mStains.size()));
+        if (mStains.size() > MaxStains) throw std::runtime_error("Blood save exceeds stain budget");
+        std::size_t totalVertices = 0;
+        for (const auto& stain : mStains)
+        {
+            totalVertices += stain.mTriangles.size();
+            if (stain.mTriangles.empty() || stain.mTriangles.size() > MaxVerticesPerStain
+                || stain.mTriangles.size() % 3 || totalVertices > MaxVertices)
+                throw std::runtime_error("Blood save exceeds geometry budget");
+        }
+        writer.writeHNT("BVER", 2u); writer.writeHNT("BCNT", unsigned(mStains.size()));
         for (const auto& stain : mStains)
         {
             writer.writeHNString("BCEL", stain.mCell);
             const float data[9] = { stain.mAge, stain.mRadius, stain.mPool ? 1.f : 0.f,
                 stain.mCenter[0], stain.mCenter[1], stain.mCenter[2], stain.mNormal[0], stain.mNormal[1], stain.mNormal[2] };
-            writer.writeHNT("BDAT", data); writer.writeHNT("BVCT", unsigned(stain.mTriangles.size()));
+            writer.writeHNT("BDAT", data); writer.writeHNT("BSED", stain.mVisualSeed);
+            writer.writeHNT("BVCT", unsigned(stain.mTriangles.size()));
             for (const auto& vertex : stain.mTriangles) writer.writeHNT("BVTX", vertex);
         }
     }

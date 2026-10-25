@@ -1,4 +1,44 @@
-# Brutal Morrowind 0.7.0-preview.2
+# Brutal Morrowind 0.7.0-preview.3
+
+This blood update starts from the exact stable preview.2 source revision
+`a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
+experimental changes from other branches. Combat calculations are unchanged.
+
+## New blood decals and creature bleeding
+
+Six user-provided PNGs from `splatterss.zip` replace the procedural surface
+splats: four `wall` images and two `floor` images. The original RGBA files are
+bundled unchanged. A shared bounded texture atlas preserves their transparency
+and aspect ratios without allocating a drawable or shader per stain.
+
+Upward surfaces choose floor artwork; walls choose wall artwork. A wall's
+vertical texture axis follows world-up projected onto the surface, so drips
+never rotate randomly or turn upside down. Floor artwork uses only its original
+orientation or a 180-degree turn. Both groups may mirror horizontally; variants
+and modest size variation are random. The visual seed is saved with each stain,
+so loading a save does not reshuffle the artwork.
+
+Blood amount now defaults to 200% (twice preview.2); stain lifetime defaults to
+1200 seconds (20 minutes). Explicit existing user settings retain their values;
+the two sliders are under Esc > Settings > Physics. Raising the lifetime does
+not remove the bounded cache or particle budgets.
+
+Organic creatures now bleed from physical health hits and emit a short fountain
+on a new death, including creatures with no supported ragdoll profile. Loading
+an already dead creature does not replay the fountain. Mechanical, spectral and
+skeletal families are excluded from both ballistic and legacy sprite blood.
+TES3 has no universal no-blood flag: identification uses canonical creature IDs,
+their original IDs and mesh paths, not localized display names. Unusually named
+custom models may require extending this classification.
+
+The cache holds up to 32768 stains while retaining preview.2's aggregate geometry
+budget of 1572864 vertices. New stamps use at most 24 vertices, dirty batches
+are rebuilt in one cache pass, and pool merging examines a bounded recent window.
+Hit/death sprays, droplets and intestinal physics retain explicit work budgets.
+
+Preview.2 blood saves can be loaded. New blood records use version 2 to preserve
+texture choices and the larger cache; preview.2 cannot read these new records.
+Keep the preview.2 installation and a separate copy of its saves.
 
 A modified OpenMW 0.51.0 Windows x64 runtime. This continues the working
 Real Combat Ragdoll 0.6.0-preview.5 engine, retaining its physics controls,
@@ -41,8 +81,8 @@ Esc > Settings > Physics adds two English controls:
 
 | Control | Minimum | Default | Maximum |
 | --- | ---: | ---: | ---: |
-| Blood amount | 0% (off) | 100% | 300% |
-| Blood stain lifetime | 300 s | 600 s (10 minutes) | 1800 s |
+| Blood amount | 0% (off) | 200% | 300% |
+| Blood stain lifetime | 300 s | 1200 s (20 minutes) | 1800 s |
 
 The amount changes actual droplet emission and splat/pool size. Native blood
 sprite size follows the same amount control. Stain lifetime is independent of
@@ -52,7 +92,8 @@ paused, continue in other locations and are saved with the stain geometry and
 cell ID. Returning to an unexpired cell restores its stains; interiors at the
 same coordinates do not share them. Loading a save preserves remaining time.
 
-Blood is batched in small chunks per cell. A global limit of 8192 stains evicts the oldest in
+Blood is batched in small chunks per cell. A global limit of 32768 stains (also
+bounded by the aggregate geometry budget) evicts the oldest in
 extreme battles; nearby pools merge. Short hit sprays are limited to 32, and
 each bleeding corpse has at most 192 live droplets. These limits prevent
 unbounded scene/physics growth. Stains are attached to the location, not to moving

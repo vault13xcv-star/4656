@@ -314,6 +314,7 @@ namespace ESM
             BrutalBloodStain stain;
             stain.mCell = "String:balmora, guild of mages";
             stain.mAge = 599; stain.mRadius = 3; stain.mPool = true;
+            stain.mVisualSeed = 0xfedcba98u;
             stain.mNormal = { 0, 0, 1 }; stain.mCenter = { 1, 2, 3 };
             stain.mTriangles = { { 1, 2, 3 }, { 4, 2, 3 }, { 1, 5, 3 } };
             state.mStains.push_back(stain);
@@ -323,7 +324,53 @@ namespace ESM
             EXPECT_EQ(result.mStains[0].mCell, stain.mCell);
             EXPECT_EQ(result.mStains[0].mAge, 599);
             EXPECT_EQ(result.mStains[0].mTriangles, stain.mTriangles);
+            EXPECT_EQ(result.mStains[0].mVisualSeed, stain.mVisualSeed);
             EXPECT_TRUE(result.mStains[0].mPool);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, brutalBloodShouldLoadPreview2WithoutTextureMetadata)
+        {
+            struct Preview2Blood
+            {
+                void save(ESMWriter& writer) const
+                {
+                    writer.writeHNT("BVER", 1u); writer.writeHNT("BCNT", 1u);
+                    writer.writeHNString("BCEL", "String:old-interior");
+                    const float data[] = { 599, 3, 0, 1, 2, 3, 0, 0, 1 };
+                    writer.writeHNT("BDAT", data); writer.writeHNT("BVCT", 3u);
+                    for (const std::array<float, 3> v : { std::array<float, 3>{1,2,3}, {4,2,3}, {1,5,3} })
+                        writer.writeHNT("BVTX", v);
+                }
+            } legacy;
+            ESMReader reader;
+            reader.open(makeEsmStream(legacy, CurrentSaveGameFormatVersion), "preview2");
+            ASSERT_EQ(reader.getRecName().toInt(), fakeRecordId);
+            reader.getRecHeader();
+            BrutalBloodState result;
+            EXPECT_NO_THROW(result.load(reader));
+            ASSERT_EQ(result.mStains.size(), 1);
+            EXPECT_EQ(result.mStains[0].mAge, 599);
+            EXPECT_EQ(result.mStains[0].mVisualSeed, 0u);
+            EXPECT_EQ(result.mStains[0].mTriangles.size(), 3);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, brutalBloodShouldRejectOversizedHeaderBeforeAllocatingStains)
+        {
+            struct InvalidBloodHeader
+            {
+                void save(ESMWriter& writer) const
+                {
+                    writer.writeHNT("BVER", 2u);
+                    writer.writeHNT("BCNT", unsigned(BrutalBloodState::MaxStains + 1));
+                }
+            } invalid;
+            ESMReader reader;
+            reader.open(makeEsmStream(invalid, CurrentSaveGameFormatVersion), "invalid-blood");
+            ASSERT_EQ(reader.getRecName().toInt(), fakeRecordId);
+            reader.getRecHeader();
+            BrutalBloodState result;
+            EXPECT_THROW(result.load(reader), std::runtime_error);
+            EXPECT_TRUE(result.mStains.empty());
         }
 
         TEST_F(Esm3SaveLoadRecordTest, brutalSplitAndIntestinalBodyIndicesShouldRoundTrip)

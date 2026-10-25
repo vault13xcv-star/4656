@@ -209,6 +209,7 @@ namespace MWRender
         void removeEffect(std::string_view effectId);
         void addBloodDecal(const std::string& cell, const BloodStamp& stamp);
         void emitBloodHit(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit);
+        void emitCreatureDeathBlood(const MWWorld::Ptr& victim);
         void writeBloodState(ESM::ESMWriter& writer) const;
         void readBloodState(ESM::ESMReader& reader);
 
@@ -356,6 +357,13 @@ namespace MWRender
             std::string mCell;
             std::unique_ptr<BloodTrail> mTrail;
             BloodTrail::Source mSource;
+            MWWorld::Ptr mVictim;
+            std::shared_ptr<BloodTrail::Raycast> mRaycast;
+            std::shared_ptr<std::string> mDepositCell;
+            osg::Vec3f mSnapshotCenter;
+            float mBodyHeight = 0;
+            float mEmissionDuration = .35f;
+            float mSinceSnapshot = 0;
             float mAge = 0;
         };
         std::vector<BloodBurst> mBloodBursts;

@@ -40,6 +40,12 @@ set(BUILTIN_DATA_FILES
     textures/omw_xbox_button_rb.dds
     textures/omw_xbox_button_rt.dds
     textures/omw/water_nm.png
+    textures/brutal/blood/floor06.png
+    textures/brutal/blood/floor07.png
+    textures/brutal/blood/wall01.png
+    textures/brutal/blood/wall02.png
+    textures/brutal/blood/wall03.png
+    textures/brutal/blood/wall04.png
 
     fonts/DejaVuFontLicense.txt
     fonts/DejaVuLGCSansMono.ttf

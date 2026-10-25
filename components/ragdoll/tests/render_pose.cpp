@@ -7,6 +7,7 @@
 #include <chrono>
 #include <components/esm3/ragdollstate.hpp>
 #include <components/ragdoll/items.hpp>
+#include <components/ragdoll/blood.hpp>
 #include <components/misc/strings/lower.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
@@ -18,17 +19,20 @@
 #include <osg/Billboard>
 #include <osg/Geode>
 #include <osg/Geometry>
+#include <osg/Image>
 #include <osg/MatrixTransform>
 #include <osg/Texture2D>
 #include <osg/ShapeDrawable>
 #include <osgUtil/UpdateVisitor>
 #include <osgUtil/CullVisitor>
 #include <osgUtil/LineSegmentIntersector>
+#include <osgDB/ReadFile>
 
 #include <array>
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <utility>
 #include <tuple>
@@ -192,6 +196,162 @@ namespace
         decals.update(.5f, 600);
         require(decals.size() == 0, "Blood persisted past its configured lifetime");
         std::cout << "PASS ballistic neck spray, wall/floor decals, amount 0/50/300%, ten-minute lifetime, cell isolation and saved age\n";
+    }
+
+    osg::ref_ptr<osg::Image> bloodMarkerImage(osg::Image::Origin origin)
+    {
+        osg::ref_ptr<osg::Image> image = new osg::Image;
+        image->allocateImage(16, 16, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+        image->setOrigin(origin);
+        for (int y = 0; y < 16; ++y)
+            for (int x = 0; x < 16; ++x)
+            {
+                const bool top = origin == osg::Image::TOP_LEFT ? y < 8 : y >= 8;
+                const auto color = top ? (x < 8 ? osg::Vec4f(1, 0, 0, 1) : osg::Vec4f(0, 1, 0, 1))
+                    : (x < 8 ? osg::Vec4f(0, 0, 1, 1) : osg::Vec4f(1, 1, 0, 1));
+                image->setColor(x < 2 || x > 13 || y < 2 || y > 13 ? osg::Vec4f() : color, x, y);
+            }
+        return image;
+    }
+
+    MWRender::BloodStamp bloodQuad(bool floor, float x, std::uint32_t seed)
+    {
+        MWRender::BloodStamp stamp;
+        stamp.mCenter = { x, 0, 0 }; stamp.mRadius = 10; stamp.mVisualSeed = seed;
+        stamp.mNormal = floor ? osg::Vec3f(0, 0, 1) : osg::Vec3f(0, -1, 0);
+        const osg::Vec3f right(10, 0, 0), up = floor ? osg::Vec3f(0, 10, 0) : osg::Vec3f(0, 0, 10);
+        stamp.mTriangles = { stamp.mCenter - right - up, stamp.mCenter + right - up,
+            stamp.mCenter + right + up, stamp.mCenter - right - up,
+            stamp.mCenter + right + up, stamp.mCenter - right + up };
+        return stamp;
+    }
+
+    void bloodTexturesAndVisualIdentity()
+    {
+        std::vector<osg::ref_ptr<osg::Image>> floors, walls;
+        for (const char* name : { "floor06.png", "floor07.png", "wall01.png", "wall02.png", "wall03.png", "wall04.png" })
+        {
+            const auto image = osgDB::readRefImageFile(std::string(RAGDOLL_TEST_ASSET_DIR) + "/" + name);
+            require(image && image->getPixelFormat() == GL_RGBA, "Packaged blood PNG failed to load with RGBA transparency");
+            bool transparent = false, visible = false;
+            for (int y = 0; y < image->t(); y += 7)
+                for (int x = 0; x < image->s(); x += 7)
+                {
+                    const float alpha = image->getColor(x, y).a();
+                    transparent |= alpha < .01f; visible |= alpha > .5f;
+                }
+            require(transparent && visible, "Blood image lost its alpha silhouette");
+            if (image->getOrigin() == osg::Image::BOTTOM_LEFT) image->flipVertical();
+            image->setOrigin(osg::Image::TOP_LEFT);
+            (name[0] == 'f' ? floors : walls).push_back(image);
+        }
+        osg::ref_ptr<osg::Group> actual = new osg::Group;
+        MWRender::BloodDecals actualDecals(*actual);
+        actualDecals.setTextures(floors, walls);
+        actualDecals.setCellActive("actual", true);
+        actualDecals.add("actual", bloodQuad(true, 0, 8));
+        actualDecals.add("actual", bloodQuad(false, 30, 8));
+        actualDecals.update(.1f, 1200);
+        auto* actualTexture = dynamic_cast<osg::Texture2D*>(actual->getChild(0)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+        require(actualTexture && actualTexture->getImage() && actualTexture->getImage()->s() <= 2048
+            && actualTexture->getImage()->t() <= 2048, "Blood atlas lost its bounded shared texture");
+
+        osg::ref_ptr<osg::Group> scene = new osg::Group;
+        MWRender::BloodDecals decals(*scene);
+        const auto bottom = bloodMarkerImage(osg::Image::BOTTOM_LEFT), top = bloodMarkerImage(osg::Image::TOP_LEFT);
+        decals.setTextures({ bottom, bottom }, { top, bottom });
+        decals.setCellActive("marker", true);
+        for (unsigned seed : { 8u, 9u, 10u, 11u, 4u }) decals.add("marker", bloodQuad(false, float(seed) * 30, seed));
+        for (unsigned seed : { 8u, 9u, 10u, 11u }) decals.add("marker", bloodQuad(true, float(seed) * 30, seed));
+        decals.update(.1f, 1200);
+        auto* mesh = scene->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+        auto* uv = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(0));
+        auto* info = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(1));
+        auto* texture = dynamic_cast<osg::Texture2D*>(scene->getChild(0)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+        require(uv && info && texture && uv->size() == 54 && info->size() == uv->size(), "Textured blood vertex attributes are incomplete");
+        const auto* atlas = texture->getImage();
+        const auto sample = [&](int patch, float u, float v) {
+            const auto index = patch * 6;
+            const auto coordinate = (*uv)[index] + ((*uv)[index + 1] - (*uv)[index]) * u
+                + ((*uv)[index + 5] - (*uv)[index]) * v;
+            return atlas->getColor(int(coordinate.x() * atlas->s()), int(coordinate.y() * atlas->t()));
+        };
+        const std::array expected{ osg::Vec4f(1,0,0,1), osg::Vec4f(0,1,0,1), osg::Vec4f(1,0,0,1),
+            osg::Vec4f(0,1,0,1), osg::Vec4f(1,0,0,1), osg::Vec4f(1,0,0,1), osg::Vec4f(0,1,0,1),
+            osg::Vec4f(1,1,0,1), osg::Vec4f(0,0,1,1) };
+        for (int patch = 0; patch < 9; ++patch)
+        {
+            require((sample(patch, .25f, .75f) - expected[patch]).length() < .05f,
+                "Wall orientation/origin, horizontal mirror or floor 180-degree rotation is incorrect");
+            require(sample(patch, .01f, .01f).a() < .01f, "Transparent blood corners became solid rectangles");
+            require((*info)[patch * 6].y() > .5f, "Atlas patch bypassed texture sampling");
+        }
+        for (int patch = 0; patch < 5; ++patch)
+            require((*uv)[patch * 6 + 5].y() > (*uv)[patch * 6].y(), "Wall drips were rotated away from world gravity");
+        require((*uv)[0].x() > .49f && (*uv)[4 * 6].x() > .74f && (*uv)[5 * 6].x() < .26f,
+            "Wall/floor variants were selected from the wrong atlas bank");
+        const std::vector<osg::Vec2f> geometryBefore(uv->begin(), uv->end());
+        const auto saved = decals.getSaveRecord();
+        decals.loadSaveRecord(saved);
+        auto* restored = scene->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+        const auto* after = static_cast<const osg::Vec2Array*>(restored->getTexCoordArray(0));
+        require(geometryBefore.size() == after->size() && std::equal(geometryBefore.begin(), geometryBefore.end(), after->begin()),
+            "Loading a save rerolled stain variant/orientation/size");
+        require(decals.getSaveRecord().mStains[0].mVisualSeed == 8u, "Saved decal identity was lost");
+        std::set<std::uint32_t> identities;
+        for (int i = 0; i < 32; ++i)
+        {
+            auto stamp = bloodQuad(i % 2 == 0, i * 30.f, 0);
+            decals.add("marker", stamp);
+        }
+        for (const auto& state : decals.saveState()) identities.insert(state.mStamp.mVisualSeed);
+        require(identities.size() > 20 && !identities.contains(0), "Automatic stain variants repeat a single random identity");
+        std::cout << "PASS original RGBA PNGs, atlas banks, wall gravity, image origins, floor 180, mirrors and saved visual identity\n";
+    }
+
+    void organicCreatureBloodAndDeathTrigger()
+    {
+        for (const char* model : { "c\\guar.nif", "c\\nix_hound.nif", "c\\mudcrab.nif", "c\\clannfear.nif",
+                 "c\\rat.nif", "c\\bonewalker.nif", "c\\draugr.nif", "c\\ghostly_guar.nif" })
+            require(Ragdoll::creatureHasBlood("generated001", "custom_actor", model), "Organic creature lost its blood");
+        for (const char* model : { "c\\steam_centurion.nif", "c\\spherecenturion.nif", "c\\dwarven_spider.nif",
+                 "c\\skeleton.nif", "c\\bonelord.nif", "c\\ancestor_ghost.nif", "c\\wraith.nif",
+                 "c\\atronach_frost.nif", "c\\fabricant.nif" })
+            require(!Ragdoll::creatureHasBlood("generated001", "custom_actor", model), "Bloodless model emitted organic blood");
+        require(!Ragdoll::creatureHasBlood("generated001", "skeleton_0001", "custom\\actor.nif"),
+            "Generated bloodless record ignored its original record ID");
+        require(!Ragdoll::creatureHasBlood("Dwemer_Spider03", "", "custom\\actor.nif"), "Case or numeric suffix bypassed blood exclusion");
+        Ragdoll::DeathBloodTrigger trigger;
+        require(!trigger.update(true) && !trigger.update(true), "Loading an existing corpse started a new fountain");
+        require(!trigger.update(false) && trigger.update(true) && !trigger.update(true), "A new death did not emit exactly one fountain");
+        require(!trigger.update(false) && trigger.update(true) && !trigger.update(true), "Resurrection did not rearm death blood");
+        std::cout << "PASS organic creatures, bloodless models/original IDs, loaded corpses and once-per-life fountains\n";
+    }
+
+    void bloodGeometryBudget()
+    {
+        osg::ref_ptr<osg::Group> scene = new osg::Group;
+        MWRender::BloodDecals decals(*scene);
+        decals.setCellActive("arena", true);
+        MWRender::BloodStamp stamp;
+        stamp.mNormal = { 0, 0, 1 };
+        constexpr std::size_t verticesPerStain = ESM::BrutalBloodState::MaxVerticesPerStain;
+        const std::size_t fitting = MWRender::BloodDecals::MaxVertices / verticesPerStain;
+        for (std::size_t i = 0; i < fitting + 256; ++i)
+        {
+            stamp.mCenter = { float(i), 0, 0 };
+            stamp.mTriangles.clear();
+            for (std::size_t j = 0; j < verticesPerStain / 3; ++j)
+                stamp.mTriangles.insert(stamp.mTriangles.end(), { stamp.mCenter,
+                    stamp.mCenter + osg::Vec3f(1, 0, 0), stamp.mCenter + osg::Vec3f(0, 1, 0) });
+            decals.add("arena", stamp);
+        }
+        decals.update(.1f, 1200);
+        require(decals.size() == fitting && decals.saveState().front().mStamp.mCenter.x() == 256,
+            "The extended retention cache exceeded the baseline geometry memory budget");
+        decals.clear();
+        require(scene->getNumChildren() == 0, "Geometry-budget eviction left render nodes alive");
+        std::cout << "PASS doubled-blood retention and bounded maximum-detail geometry allocation\n";
     }
 
     void brutalMeshClipAndPose()
@@ -851,17 +1011,23 @@ namespace
         decals.setCellActive("arena", true);
         MWRender::BloodStamp stamp;
         stamp.mNormal.set(0, 0, 1);
-        for (int i = 0; i < 10240; ++i)
+        for (int i = 0; i < int(MWRender::BloodDecals::MaxStains + 2048); ++i)
         {
             stamp.mCenter.set(float(i), 0, 0);
-            stamp.mTriangles = { stamp.mCenter, stamp.mCenter + osg::Vec3f(1, 0, 0),
-                stamp.mCenter + osg::Vec3f(0, 1, 0) };
+            stamp.mTriangles.clear();
+            for (int edge = 0; edge < 8; ++edge)
+            {
+                const float a = edge * 6.2831853f / 8, b = (edge + 1) * 6.2831853f / 8;
+                stamp.mTriangles.insert(stamp.mTriangles.end(), { stamp.mCenter,
+                    stamp.mCenter + osg::Vec3f(std::cos(a), std::sin(a), 0),
+                    stamp.mCenter + osg::Vec3f(std::cos(b), std::sin(b), 0) });
+            }
             decals.add("arena", stamp);
         }
         decals.update(.1f, 600);
-        require(decals.size() == 8192 && decals.saveState().front().mStamp.mCenter.x() == 2048,
+        require(decals.size() == MWRender::BloodDecals::MaxStains && decals.saveState().front().mStamp.mCenter.x() == 2048,
             "Full blood cache did not evict exactly the oldest stain");
-        require(scene->getNumChildren() <= 65, "Blood cache produced an unbounded number of drawables");
+        require(scene->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1, "Blood cache produced an unbounded number of drawables");
         struct Buffer
         {
             osg::ref_ptr<osg::Geometry> mMesh;
@@ -891,12 +1057,12 @@ namespace
         const auto saved = decals.saveState();
         decals.setCellActive("arena", false);
         decals.restoreState(saved);
-        require(decals.size() == 8192 && scene->getNumChildren() <= 65, "Full blood save/load grew the render graph");
+        require(decals.size() == MWRender::BloodDecals::MaxStains && scene->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1, "Full blood save/load grew the render graph");
         for (unsigned i = 0; i < scene->getNumChildren(); ++i)
             require(scene->getChild(i)->getNodeMask() == 0, "Restored blood became visible in an inactive cell");
         decals.update(600, 600);
         require(decals.size() == 0 && scene->getNumChildren() == 0, "Expired full blood cache leaked render chunks");
-        std::cout << "PASS full 8192-stain rollover, stable VBOs while aging, local chunk updates, save/load and cleanup\n";
+        std::cout << "PASS full bounded stain-cache rollover, stable VBOs while aging, local chunk updates, save/load and cleanup\n";
     }
 
     void goreLoadMeasurements(bool benchmark)
@@ -952,7 +1118,7 @@ namespace
             for (auto& corpse : corpses) corpse->update(1.f / 60);
             require(sprites - before <= corpses.size() * 2, "Severing more limbs multiplied whole NIF particle systems");
             decals.update(1.f / 60, 600);
-            require(decals.size() <= 8192, "Concurrent wounds exceeded the blood memory limit");
+            require(decals.size() <= MWRender::BloodDecals::MaxStains, "Concurrent wounds exceeded the blood memory limit");
             for (auto& fixture : fixtures)
                 for (unsigned i = 0; i < fixture->mSkeleton->getNumChildren(); ++i)
                 {
@@ -1809,6 +1975,9 @@ int main(int argc, char** argv)
         }
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
+        bloodTexturesAndVisualIdentity();
+        organicCreatureBloodAndDeathTrigger();
+        bloodGeometryBudget();
         brutalMeshClipAndPose();
         brutalPhysicalWounds();
         bloodCacheCapacityAndBuffers();

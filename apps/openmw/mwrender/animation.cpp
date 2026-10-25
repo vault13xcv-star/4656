@@ -1472,6 +1472,10 @@ namespace MWRender
     void Animation::updateRagdoll(float duration)
     {
         const auto& settings = Settings::ragdoll();
+        if (!mPtr.isEmpty() && mPtr.getType() == ESM::Creature::sRecordId
+            && mCreatureDeathBlood.update(mPtr.getClass().getCreatureStats(mPtr).isDead()))
+            if (auto* rendering = MWBase::Environment::get().getWorld()->getRenderingManager())
+                rendering->emitCreatureDeathBlood(mPtr);
         const bool eligible = settings.mEnabled && mSkeleton && !mRequiresBoneMap && !mPtr.isEmpty()
             && (mPtr.getClass().isNpc() || mPtr.getType() == ESM::Creature::sRecordId)
             && mPtr != MWBase::Environment::get().getWorld()->getPlayerPtr();
@@ -1579,6 +1583,11 @@ namespace MWRender
                 if (mPtr.getType() == ESM::Creature::sRecordId)
                 {
                     const auto& record = *mPtr.get<ESM::Creature>()->mBase;
+                    if (!Ragdoll::creatureHasBlood(record.mId.toString(), record.mOriginal.toString(), record.mModel))
+                    {
+                        config.mBloodDeposit = {};
+                        config.mBloodEffect = {};
+                    }
                     const auto profile
                         = Ragdoll::creatureProfile(record.mId.toString() + ":" + record.mOriginal.toString(),
                             record.mModel, settings.mCreatureProfiles.get());
@@ -1746,6 +1755,7 @@ namespace MWRender
         mRagdollObservedAlive = false;
         mRagdollAttempted = false;
         mRagdollPendingTime = 0.f;
+        mCreatureDeathBlood = {};
         osg::ref_ptr<osg::StateSet> previousStateset;
         if (mObjectRoot)
         {

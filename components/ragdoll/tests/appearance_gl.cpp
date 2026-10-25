@@ -4,6 +4,7 @@
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <components/sceneutil/depth.hpp>
 #include <iostream>
@@ -12,11 +13,13 @@
 #include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/Group>
+#include <osg/Image>
 #include <osg/Program>
 #include <osg/ShapeDrawable>
 #include <osg/Shader>
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
+#include <osgDB/ReadFile>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -82,6 +85,88 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->addDrawable(wall); root->addChild(geode);
         viewer.setSceneData(root); viewer.realize();
+        if (effect == "blood-atlas")
+        {
+            const auto read = [&] {
+                viewer.frame(); glFinish(); std::vector<unsigned char> pixels(width * height * 3);
+                glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+                check(glGetError() == GL_NO_ERROR, "OpenGL textured blood error"); return pixels;
+            };
+            const auto pixel = [&](const auto& pixels, const osg::Vec3f& point) {
+                const auto window = point * camera->getViewMatrix() * camera->getProjectionMatrix()
+                    * camera->getViewport()->computeWindowMatrix();
+                const int x = std::clamp(int(window.x()), 0, width - 1), y = std::clamp(int(window.y()), 0, height - 1);
+                const int offset = (y * width + x) * 3;
+                return osg::Vec3f(pixels[offset], pixels[offset + 1], pixels[offset + 2]);
+            };
+            const auto stamp = [](bool floor, float x, std::uint32_t seed) {
+                MWRender::BloodStamp s;
+                s.mCenter = floor ? osg::Vec3f(x, 20, 0) : osg::Vec3f(x, 0, 40);
+                s.mNormal = floor ? osg::Vec3f(0, 0, 1) : osg::Vec3f(0, -1, 0);
+                s.mRadius = 20; s.mVisualSeed = seed;
+                const osg::Vec3f right(20,0,0), up = floor ? osg::Vec3f(0,20,0) : osg::Vec3f(0,0,20);
+                s.mTriangles = {s.mCenter-right-up,s.mCenter+right-up,s.mCenter+right+up,
+                    s.mCenter-right-up,s.mCenter+right+up,s.mCenter-right+up};
+                return s;
+            };
+            std::vector<osg::ref_ptr<osg::Image>> floors, walls;
+            for (const char* name : {"floor06.png","floor07.png","wall01.png","wall02.png","wall03.png","wall04.png"})
+            {
+                auto image = osgDB::readRefImageFile(std::string(RAGDOLL_TEST_ASSET_DIR) + "/" + name);
+                check(bool(image), "Original uploaded blood PNG could not be loaded");
+                if (image->getOrigin() == osg::Image::BOTTOM_LEFT) image->flipVertical();
+                image->setOrigin(osg::Image::TOP_LEFT); // Native Resource::ImageManager convention.
+                (name[0] == 'f' ? floors : walls).push_back(image);
+            }
+            MWRender::BloodDecals blood(*root);
+            blood.setTextures(floors, walls); blood.setCellActive("atlas", true);
+            const auto baseline = read();
+            blood.add("atlas", stamp(false, -30, 16)); blood.add("atlas", stamp(false, 30, 16));
+            blood.update(.1f, 1200);
+            const auto original = read();
+            int visible = 0, occluded = 0;
+            for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x)
+            {
+                const int i = (y * width + x) * 3;
+                if (original[i] != baseline[i] || original[i+1] != baseline[i+1] || original[i+2] != baseline[i+2])
+                {
+                    if (x < width/2) ++visible; else ++occluded;
+                }
+            }
+            check(visible > 100 && occluded == 0, "Actual PNG decals are invisible or draw through opaque walls");
+            blood.clear();
+            osg::ref_ptr<osg::Image> marker = new osg::Image;
+            marker->allocateImage(32,32,1,GL_RGBA,GL_UNSIGNED_BYTE); marker->setOrigin(osg::Image::TOP_LEFT);
+            for (int y=0;y<32;++y) for (int x=0;x<32;++x)
+            {
+                const auto c = y < 16 ? (x < 16 ? osg::Vec4f(1,0,0,1) : osg::Vec4f(0,1,0,1))
+                    : (x < 16 ? osg::Vec4f(0,0,1,1) : osg::Vec4f(1,1,0,1));
+                marker->setColor(x < 4 || x > 27 || y < 4 || y > 27 ? osg::Vec4f() : c,x,y);
+            }
+            blood.setTextures({marker},{marker}); blood.setCellActive("atlas",true);
+            for (unsigned seed : {8u,9u,10u})
+            {
+                blood.add("atlas",stamp(false,-30,seed)); blood.update(.1f,1200);
+                const auto pixels=read();
+                const auto upper=pixel(pixels,{-40,0,50}), lower=pixel(pixels,{-40,0,30});
+                if (seed==9) check(upper.y()>upper.x()+30, "Horizontal wall mirror did not sample original artwork");
+                else check(upper.x()>upper.y()+30 && lower.z()>lower.x()+30,
+                    "Wall artwork was rotated or TOP_LEFT pixels were inverted");
+                check((pixel(pixels,{-49,0,21})-pixel(baseline,{-49,0,21})).length()<1,
+                    "Transparent atlas border rendered a solid rectangle");
+                blood.clear(); blood.setCellActive("atlas",true);
+            }
+            root->removeChild(geode);
+            camera->setViewMatrixAsLookAt({0,0,190},{0,0,0},{0,1,0});
+            blood.add("atlas",stamp(true,-30,8)); blood.add("atlas",stamp(true,30,10)); blood.update(.1f,1200);
+            const auto floorPixels=read();
+            const auto normal=pixel(floorPixels,{-40,30,0}), turned=pixel(floorPixels,{20,30,0});
+            check(normal.x()>normal.y()+30 && turned.x()>turned.z()+30 && turned.y()>turned.z()+30,
+                "Floor artwork failed its permitted 180-degree rotation");
+            blood.clear();
+            std::cout << "PASS actual PNG atlas, alpha silhouette, upright walls, horizontal mirror, floor 180, native projection and occlusion\n";
+            return 0;
+        }
         if (effect == "blood")
         {
             const auto read = [&] {
@@ -141,7 +226,7 @@ int main(int argc, char** argv)
             // than checking only the first splat on a single corpse.
             MWRender::BloodStamp stamp;
             stamp.mNormal = { 0, -1, 0 }; stamp.mRadius = .4f;
-            for (int i = 0; i < 9216; ++i)
+            for (int i = 0; i < int(MWRender::BloodDecals::MaxStains + 1024); ++i)
             {
                 const float x = -64.f + i % 128, z = float((i / 128) % 64);
                 stamp.mCenter = { x, 0, z };
@@ -166,14 +251,15 @@ int main(int argc, char** argv)
                 for (int i = 0; i < 8; ++i)
                     trails[i]->update(.1f, { { { float(i * 10 - 40), 0, 30 }, { 0, 0, -1 }, 1, true } }, 3, frame * .1f);
                 blood.update(.1f, 600);
-                check(blood.size() == 8192 && root->getNumChildren() <= 74, "Full GPU blood cache grew without bound");
+                check(blood.size() == MWRender::BloodDecals::MaxStains
+                    && root->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 10, "Full GPU blood cache grew without bound");
                 viewer.frame();
                 check(glGetError() == GL_NO_ERROR, "Full blood cache caused an OpenGL error");
             }
             glFinish(); trails.clear(); blood.clear();
             check(read() == baseline && root->getNumChildren() == 1, "Crowded blood leaked GPU/scene nodes after cleanup");
             std::cout << "PASS actual GL blood decals, native projection, inherited alpha/shader, opaque occlusion and expiry\n";
-            std::cout << "PASS full 8192-stain GPU cache rollover with eight simultaneous maximum-pressure blood trails\n";
+            std::cout << "PASS full bounded stain GPU cache rollover with eight simultaneous maximum-pressure blood trails\n";
             return 0;
         }
         if (effect == "wounds")

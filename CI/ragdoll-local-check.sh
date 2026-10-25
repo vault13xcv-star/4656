@@ -47,6 +47,7 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/spelleffects.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwlua/luamanagerimp.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwlua/types/actor.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwlua/types/creature.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/projectilemanager.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/mtphysics.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/physicssystem.cpp.o \

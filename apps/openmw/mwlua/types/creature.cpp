@@ -9,6 +9,7 @@
 #include <components/lua/util.hpp>
 #include <components/misc/resourcehelpers.hpp>
 #include <components/resource/resourcesystem.hpp>
+#include <components/ragdoll/blood.hpp>
 
 namespace
 {
@@ -157,6 +158,9 @@ namespace MWLua
         record["isRespawning"] = sol::readonly_property(
             [](const ESM::Creature& rec) -> bool { return rec.mFlags & ESM::Creature::Respawn; });
         record["bloodType"] = sol::readonly_property([](const ESM::Creature& rec) -> int { return rec.mBloodType; });
+        record["hasBlood"] = sol::readonly_property([](const ESM::Creature& rec) {
+            return Ragdoll::creatureHasBlood(rec.mId.toString(), rec.mOriginal.toString(), rec.mModel);
+        });
 
         addActorServicesBindings<ESM::Creature>(record, context);
     }

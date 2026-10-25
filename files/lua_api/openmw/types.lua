@@ -897,6 +897,7 @@
 -- @field #boolean isEssential whether the creature is essential
 -- @field #boolean isRespawning whether the creature respawns after death
 -- @field #number bloodType integer representing the blood type of the Creature. Used to generate the correct blood vfx.
+-- @field #boolean hasBlood Brutal Morrowind presentation filter based on canonical record/model identifiers. False for supported mechanical, skeletal, spectral and elemental creature families.
 
 
 --- @{#NPC} functions

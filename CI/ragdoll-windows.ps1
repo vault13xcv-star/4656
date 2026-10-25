@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.7.0-preview.2'
+$ragdollVersion = '0.7.0-preview.3'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -149,6 +149,13 @@ switch ($Phase) {
         Run 'cmake' @('--install', $build, '--prefix', $install, '--config', 'Release') 'install.log'
         Copy-Runtime $install
         Copy-CyrillicLaunchers $install
+        foreach ($decal in @('floor06.png', 'floor07.png', 'wall01.png', 'wall02.png', 'wall03.png', 'wall04.png')) {
+            $original = Join-Path $source "files/data/textures/brutal/blood/$decal"
+            $packaged = Join-Path $install "resources/vfs/textures/brutal/blood/$decal"
+            if (-not (Test-Path $packaged) -or (Get-FileHash $original -Algorithm SHA256).Hash -ne (Get-FileHash $packaged -Algorithm SHA256).Hash) {
+                throw "Missing or modified blood decal in package: $decal"
+            }
+        }
         foreach ($required in @('openmw.exe', 'defaults.bin', 'openmw.cfg', 'resources', 'LICENSE.txt', 'SDL2.dll', 'MyGUIEngine.dll')) {
             if (-not (Test-Path (Join-Path $install $required))) { throw "Incomplete package: $required is missing." }
         }

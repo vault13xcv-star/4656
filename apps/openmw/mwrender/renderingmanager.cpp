@@ -43,11 +43,13 @@
 #include <components/sceneutil/writescene.hpp>
 
 #include <components/misc/constants.hpp>
+#include <components/ragdoll/blood.hpp>
 
 #include <components/terrain/quadtreeworld.hpp>
 #include <components/terrain/terraingrid.hpp>
 
 #include <components/esm3/loadcell.hpp>
+#include <components/esm3/loadcrea.hpp>
 #include <components/esm4/loadcell.hpp>
 
 #include <components/debug/debugdraw.hpp>
@@ -247,6 +249,23 @@ namespace MWRender
 
         mEffectManager = std::make_unique<EffectManager>(sceneRoot, mResourceSystem);
         mBloodDecals = std::make_unique<BloodDecals>(*sceneRoot);
+        const auto loadBloodTextures = [this](std::initializer_list<const char*> paths) {
+            std::vector<osg::ref_ptr<osg::Image>> images;
+            auto* manager = mResourceSystem->getImageManager();
+            for (const auto* path : paths)
+            {
+                auto image = manager->getImage(VFS::Path::toNormalized(path));
+                if (image && image != manager->getWarningImage())
+                    images.push_back(std::move(image));
+                else
+                    Log(Debug::Warning) << "Brutal Morrowind: blood decal texture unavailable: " << path;
+            }
+            return images;
+        };
+        mBloodDecals->setTextures(
+            loadBloodTextures({ "textures/brutal/blood/floor06.png", "textures/brutal/blood/floor07.png" }),
+            loadBloodTextures({ "textures/brutal/blood/wall01.png", "textures/brutal/blood/wall02.png",
+                "textures/brutal/blood/wall03.png", "textures/brutal/blood/wall04.png" }));
 
         const std::string& normalMapPattern = Settings::shaders().mNormalMapPattern;
         const std::string& heightMapPattern = Settings::shaders().mNormalHeightMapPattern;
@@ -674,14 +693,42 @@ namespace MWRender
         {
             mEffectManager->update(dt);
             mBloodDecals->update(dt, Settings::ragdoll().mBloodLifetime.get());
+            unsigned bloodSnapshots = 0;
             for (auto& burst : mBloodBursts)
             {
                 burst.mAge += dt;
-                const std::vector<BloodTrail::Source> source = burst.mAge < .35f
+                if (!burst.mVictim.isEmpty() && burst.mAge < burst.mEmissionDuration)
+                {
+                    burst.mSource.mPosition = burst.mVictim.getRefData().getPosition().asVec3()
+                        + osg::Vec3f(0, 0, burst.mBodyHeight);
+                    if (const auto* animation = getAnimation(burst.mVictim))
+                    {
+                        osg::Vec3f corpsePosition;
+                        if (animation->getRagdollPosition(corpsePosition))
+                            burst.mSource.mPosition = corpsePosition;
+                    }
+                    // Follow a thrown corpse without re-querying world geometry
+                    // at every wound/frame. No more than two snapshots per frame.
+                    burst.mSinceSnapshot += dt;
+                    if (bloodSnapshots < 2 && burst.mSinceSnapshot >= .5f
+                        && (burst.mSource.mPosition - burst.mSnapshotCenter).length2() > 128.f * 128.f)
+                    {
+                        ++bloodSnapshots;
+                        burst.mSinceSnapshot = 0;
+                        auto ray = BloodTrail::collisionRaycast(MWBase::Environment::get().getWorld()
+                            ->getRagdollCollisionTriangles(burst.mSource.mPosition, 256));
+                        if (ray)
+                        {
+                            *burst.mRaycast = std::move(ray);
+                            burst.mSnapshotCenter = burst.mSource.mPosition;
+                        }
+                    }
+                }
+                const std::vector<BloodTrail::Source> source = burst.mAge < burst.mEmissionDuration
                     ? std::vector<BloodTrail::Source>{ burst.mSource } : std::vector<BloodTrail::Source>{};
                 burst.mTrail->update(dt, source, Settings::ragdoll().mBloodAmount.get(), burst.mAge);
             }
-            std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > 2.5f; });
+            std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > burst.mEmissionDuration + 2.5f; });
             mSky->update(dt);
 
             const MWWorld::Ptr& player = mPlayerAnimation->getPtr();
@@ -768,6 +815,7 @@ namespace MWRender
 
     void RenderingManager::removeObject(const MWWorld::Ptr& ptr)
     {
+        std::erase_if(mBloodBursts, [&](const auto& burst) { return burst.mVictim == ptr; });
         mActorsPaths->remove(ptr);
         mObjects->removeObject(ptr);
         mWater->removeEmitter(ptr);
@@ -1025,6 +1073,17 @@ namespace MWRender
 
     void RenderingManager::updatePtr(const MWWorld::Ptr& old, const MWWorld::Ptr& updated)
     {
+        for (auto& burst : mBloodBursts)
+            if (burst.mVictim == old)
+            {
+                burst.mVictim = updated;
+                if (updated.isInCell())
+                {
+                    burst.mCell = updated.getCell()->getCell()->getId().serializeText();
+                    if (burst.mDepositCell)
+                        *burst.mDepositCell = burst.mCell;
+                }
+            }
         mObjects->updatePtr(old, updated);
         mActorsPaths->updatePtr(old, updated);
     }
@@ -1062,9 +1121,23 @@ namespace MWRender
     }
     void RenderingManager::emitBloodHit(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit)
     {
+        if (victim.isEmpty())
+            return;
         const auto world = MWBase::Environment::get().getWorld();
-        if (!victim.isInCell() || !victim.getClass().isNpc() || victim == world->getPlayerPtr()
+        const bool creature = victim.getType() == ESM::Creature::sRecordId;
+        if (!victim.isInCell() || (!victim.getClass().isNpc() && !creature) || victim == world->getPlayerPtr()
             || !hit.mHasWeaponContact || Settings::ragdoll().mBloodAmount.get() <= 0) return;
+        if (creature)
+        {
+            const auto& record = *victim.get<ESM::Creature>()->mBase;
+            if (!Ragdoll::creatureHasBlood(record.mId.toString(), record.mOriginal.toString(), record.mModel))
+                return;
+        }
+        if (!std::isfinite(hit.mWeaponPosition.length2()) || !std::isfinite(hit.mWeaponDirection.length2()))
+            return;
+        if (mBloodBursts.size() >= 32
+            && std::none_of(mBloodBursts.begin(), mBloodBursts.end(), [](const auto& b) { return b.mVictim.isEmpty(); }))
+            return;
         const auto cell = victim.getCell()->getCell()->getId().serializeText();
         auto ray = BloodTrail::collisionRaycast(world->getRagdollCollisionTriangles(hit.mWeaponPosition, 256));
         if (!ray) return;
@@ -1073,7 +1146,52 @@ namespace MWRender
         burst.mSource = { hit.mWeaponPosition, -hit.mWeaponDirection, 1, false };
         burst.mTrail = std::make_unique<BloodTrail>(*mSceneRoot, std::move(ray),
             [this, cell](const auto& stamp) { mBloodDecals->add(cell, stamp); });
-        if (mBloodBursts.size() >= 32) mBloodBursts.erase(mBloodBursts.begin());
+        if (mBloodBursts.size() >= 32)
+        {
+            const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),
+                [](const auto& candidate) { return candidate.mVictim.isEmpty(); });
+            if (disposable == mBloodBursts.end())
+                return;
+            mBloodBursts.erase(disposable);
+        }
+        mBloodBursts.push_back(std::move(burst));
+    }
+
+    void RenderingManager::emitCreatureDeathBlood(const MWWorld::Ptr& victim)
+    {
+        if (victim.isEmpty() || !victim.isInCell() || victim.getType() != ESM::Creature::sRecordId
+            || Settings::ragdoll().mBloodAmount.get() <= 0)
+            return;
+        const auto& record = *victim.get<ESM::Creature>()->mBase;
+        if (!Ragdoll::creatureHasBlood(record.mId.toString(), record.mOriginal.toString(), record.mModel))
+            return;
+        // Death presentation is independent of supported ragdoll skeletons.
+        // A native animated creature therefore also receives a fountain.
+        const auto world = MWBase::Environment::get().getWorld();
+        BloodBurst burst;
+        burst.mCell = victim.getCell()->getCell()->getId().serializeText();
+        burst.mVictim = victim;
+        burst.mBodyHeight = std::clamp(world->getHalfExtents(victim, true).z(), 2.f, 256.f);
+        burst.mSource = { victim.getRefData().getPosition().asVec3() + osg::Vec3f(0, 0, burst.mBodyHeight),
+            osg::Vec3f(0, 0, 1), 1.f, true };
+        if (!std::isfinite(burst.mSource.mPosition.length2()))
+            return;
+        burst.mEmissionDuration = 10.f * Settings::ragdoll().mStatusDurationScale.get();
+        auto ray = BloodTrail::collisionRaycast(world->getRagdollCollisionTriangles(burst.mSource.mPosition, 256));
+        if (!ray)
+            return;
+        burst.mRaycast = std::make_shared<BloodTrail::Raycast>(std::move(ray));
+        burst.mSnapshotCenter = burst.mSource.mPosition;
+        burst.mDepositCell = std::make_shared<std::string>(burst.mCell);
+        burst.mTrail = std::make_unique<BloodTrail>(*mSceneRoot,
+            [ray = burst.mRaycast](const auto& a, const auto& b, auto& p, auto& n) { return (*ray)(a, b, p, n); },
+            [this, cell = burst.mDepositCell](const auto& stamp) { mBloodDecals->add(*cell, stamp); });
+        if (mBloodBursts.size() >= 32)
+        {
+            const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),
+                [](const auto& candidate) { return candidate.mVictim.isEmpty(); });
+            mBloodBursts.erase(disposable == mBloodBursts.end() ? mBloodBursts.begin() : disposable);
+        }
         mBloodBursts.push_back(std::move(burst));
     }
     void RenderingManager::writeBloodState(ESM::ESMWriter& writer) const

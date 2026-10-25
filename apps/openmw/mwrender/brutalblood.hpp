@@ -6,6 +6,8 @@
 #include <osg/Geometry>
 #include <osg/MatrixTransform>
 #include <osg/Uniform>
+#include <osg/Image>
+#include <osg/Texture2D>
 #include <components/esm3/brutalbloodstate.hpp>
 #include <cstdint>
 #include <deque>
@@ -22,6 +24,7 @@ namespace MWRender
         std::vector<osg::Vec3f> mTriangles;
         float mRadius = 1;
         bool mPool = false;
+        std::uint32_t mVisualSeed = 0;
     };
 
     struct BloodStainState
@@ -36,6 +39,9 @@ namespace MWRender
     class BloodDecals
     {
     public:
+        static constexpr std::size_t MaxStains = ESM::BrutalBloodState::MaxStains;
+        static constexpr std::size_t MaxVertices = ESM::BrutalBloodState::MaxVertices;
+        static constexpr std::size_t ChunkStains = 128;
         explicit BloodDecals(osg::Group& parent);
         ~BloodDecals();
         void add(const std::string& cell, const BloodStamp& stamp);
@@ -47,6 +53,10 @@ namespace MWRender
         ESM::BrutalBloodState getSaveRecord() const;
         void loadSaveRecord(const ESM::BrutalBloodState& state);
         std::size_t size() const;
+        // Files are sorted by the caller; an absent group retains the legacy
+        // procedural material. All variants share one bounded RGBA atlas.
+        void setTextures(const std::vector<osg::ref_ptr<osg::Image>>& floor,
+            const std::vector<osg::ref_ptr<osg::Image>>& wall);
 
     private:
         struct Chunk
@@ -68,6 +78,10 @@ namespace MWRender
         std::deque<Stain> mStains;
         std::map<std::string, Batch> mBatches;
         osg::ref_ptr<osg::Uniform> mTimeUniform, mLifetimeUniform;
+        osg::ref_ptr<osg::Texture2D> mAtlas;
+        std::vector<osg::Vec4f> mFloorTiles, mWallTiles;
+        std::size_t mVertexCount = 0;
+        std::uint32_t mRandom = 0x9f673bbdu;
         std::uint64_t mNextSequence = 0;
         double mTime = 0;
         float mSinceBatch = 1;

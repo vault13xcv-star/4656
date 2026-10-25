@@ -10,6 +10,7 @@
 #include "../mwworld/ptr.hpp"
 
 #include <components/misc/strings/algorithm.hpp>
+#include <components/ragdoll/blood.hpp>
 #include <components/sceneutil/animblendrules.hpp>
 #include <components/sceneutil/controller.hpp>
 #include <components/sceneutil/nodecallback.hpp>
@@ -197,6 +198,7 @@ namespace MWRender
         osg::Vec3f mRagdollLastPosition;
         osg::Vec3f mRagdollVelocity;
         bool mRagdollHasPosition = false;
+        Ragdoll::DeathBloodTrigger mCreatureDeathBlood;
 
         void updateRagdoll(float duration);
         virtual std::vector<osg::ref_ptr<osg::Node>> getRagdollSkinParts() const { return {}; }

@@ -237,6 +237,10 @@ local function adjustDamageForDifficulty(attack, defendant)
 end
 
 local function spawnBloodEffect(position)
+    -- Blood presentation only; health, armor and hit processing are unchanged.
+    if Creature.objectIsInstance(self.object) and not Creature.record(self.object).hasBlood then
+        return
+    end
     if isPlayer and not settings:get('spawnBloodEffectsOnPlayer') then
         return
     end
