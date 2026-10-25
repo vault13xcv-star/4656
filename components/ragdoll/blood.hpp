@@ -1,13 +1,29 @@
 #ifndef OPENMW_COMPONENTS_RAGDOLL_BLOOD_HPP
 #define OPENMW_COMPONENTS_RAGDOLL_BLOOD_HPP
 
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <string>
 #include <string_view>
 
 namespace Ragdoll
 {
+    // The setting is a multiplier of the new blood baseline: 100% emits
+    // twice as much as the original baseline, and 300% emits six times as much.
+    // Apply this once at each effect's input, including its existing pool-size
+    // response, so 100% preserves the former 200% appearance before decal scaling.
+    inline float bloodAmountMultiplier(float amount)
+    {
+        return std::isfinite(amount) ? std::clamp(amount, 0.f, 3.f) : 1.f;
+    }
+
+    inline float bloodEmissionScale(float amount)
+    {
+        return 2.f * bloodAmountMultiplier(amount);
+    }
+
     // TES3 has no mechanical/no-blood record flag. Use canonical record and
     // mesh identifiers (including the original of a generated creature), never
     // localized display names. Flesh-bearing undead are intentionally allowed.

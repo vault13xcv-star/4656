@@ -93,6 +93,9 @@ namespace MWRender
     class BloodTrail
     {
     public:
+        // Linear footprint of newly projected stains; separate from the blood
+        // amount slider, which controls emission and the existing pool growth.
+        static constexpr float DecalScale = 1.75f;
         using Raycast = std::function<bool(const osg::Vec3f&, const osg::Vec3f&, osg::Vec3f&, osg::Vec3f&)>;
         using Deposit = std::function<void(const BloodStamp&)>;
         struct Source

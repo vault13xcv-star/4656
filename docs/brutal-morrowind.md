@@ -1,4 +1,4 @@
-# Brutal Morrowind 0.7.0-preview.3
+# Brutal Morrowind 0.7.0-preview.4
 
 This blood update starts from the exact stable preview.2 source revision
 `a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
@@ -18,10 +18,19 @@ orientation or a 180-degree turn. Both groups may mirror horizontally; variants
 and modest size variation are random. The visual seed is saved with each stain,
 so loading a save does not reshuffle the artwork.
 
-Blood amount now defaults to 200% (twice preview.2); stain lifetime defaults to
-1200 seconds (20 minutes). Explicit existing user settings retain their values;
-the two sliders are under Esc > Settings > Physics. Raising the lifetime does
-not remove the bounded cache or particle budgets.
+Blood amount defaults to 100% of a doubled baseline. At 100%, emission and the
+existing pool-size response match the former 200% setting; 300% emits six times
+the original preview.2 baseline, subject to the same particle/work limits. New
+decal footprints are additionally 1.75 times larger in each direction. Blood
+is tinted dark burgundy, with subtle per-stain brightness and shade differences
+derived from the saved visual seed. Original PNGs remain unchanged. Existing
+saved stains receive the new tint but keep their surface-projected geometry.
+
+Stain lifetime defaults to 1200 seconds (20 minutes). Explicit existing user
+settings retain their values: if preview.3 left Blood amount at 200%, set it to
+100% under Esc > Settings > Physics to use the new baseline. The upper limit
+remains 300%. Raising the lifetime does not remove the bounded cache or particle
+budgets.
 
 Organic creatures now bleed from physical health hits and emit a short fountain
 on a new death, including creatures with no supported ragdoll profile. Loading
@@ -69,7 +78,7 @@ physical wounds, inventories and saved blood remain supported.
 
 ## Blood
 
-Successful physical health hits on NPCs emit ballistic droplets. Severed wounds
+Successful physical health hits on NPCs and organic creatures emit ballistic droplets. Severed wounds
 continue to spray and drip for the configured status duration (ten seconds at
 defaults). The exposed neck has a stronger, pulsing arterial fountain. Droplets
 follow gravity, sweep against collision triangles and stop at walls/floors.
@@ -81,10 +90,11 @@ Esc > Settings > Physics adds two English controls:
 
 | Control | Minimum | Default | Maximum |
 | --- | ---: | ---: | ---: |
-| Blood amount | 0% (off) | 200% | 300% |
+| Blood amount | 0% (off) | 100% (doubled baseline) | 300% |
 | Blood stain lifetime | 300 s | 1200 s (20 minutes) | 1800 s |
 
-The amount changes actual droplet emission and splat/pool size. Native blood
+The amount multiplies the doubled baseline and changes actual droplet emission
+and splat/pool size. Native blood
 sprite size follows the same amount control. Stain lifetime is independent of
 bleeding duration and corpse physics: freezing or looting the body does not erase
 its floor/wall stains. Lifetime changes retain elapsed time. Ages stop while
@@ -139,7 +149,8 @@ kills; loading an older save does not randomly recut its existing bodies.
 
 Automated checks exercise the real Bullet solver, skinned mesh snapshots,
 clipping/seam UVs, independent half poses, intestinal joints, saved blood ages,
-cell visibility, blood amount endpoints and lifetime expiry. Actual EGL/OpenGL
+cell visibility, blood amount endpoints, doubled base emission, enlarged stain
+footprints, stable burgundy tint variation and lifetime expiry. Actual EGL/OpenGL
 tests cover blood/flesh under native normal/reversed-Z projection, inherited NPC
 shaders/alpha testing, opaque wall occlusion and expiration. Windows CI also
 builds the full runtime, runs component/native integration tests, starts the

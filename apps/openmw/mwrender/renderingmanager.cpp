@@ -1092,8 +1092,7 @@ namespace MWRender
         const osg::Vec3f& worldPosition, float scale, bool isMagicVFX, bool useAmbientLight, std::string_view effectId,
         bool loop)
     {
-        const float configuredBlood = Settings::ragdoll().mBloodAmount.get();
-        const float bloodAmount = std::isfinite(configuredBlood) ? std::clamp(configuredBlood, 0.f, 3.f) : 1.f;
+        const float bloodAmount = Ragdoll::bloodEmissionScale(Settings::ragdoll().mBloodAmount.get());
         if (bloodAmount != 1.f)
             for (int i = 0; i < 3; ++i)
             {

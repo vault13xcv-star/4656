@@ -31,6 +31,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -150,15 +151,21 @@ namespace
                 require(std::abs((v - stamp.mCenter) * stamp.mNormal - .06f) < .01f, "Blood projected through a surface/corner");
         }
         require(wall && floor, "Blood did not stain both wall and floor");
-        std::size_t low = 0, high = 0;
-        for (float amount : { 0.f, .5f, 3.f })
-        {
-            MWRender::BloodTrail trial(*root, ray, {});
-            for (int frame = 0; frame < 60; ++frame) trial.update(1.f / 60, sources, amount, frame / 60.f);
-            if (amount == 0) require(trial.emittedCount() == 0, "Blood slider zero still emitted blood");
-            else if (amount == .5f) low = trial.emittedCount(); else high = trial.emittedCount();
-        }
-        require(high >= low * 5 && low > 0, "Blood amount slider did not change actual emission");
+        // Check unsaturated emission rather than the visible particle cap:
+        // 100% must double the former 60/14 droplets per second, and 300%
+        // must still multiply that new base by three.
+        for (const bool neck : { false, true })
+            for (const float amount : { 0.f, -1.f, .5f, 1.f, 3.f, std::numeric_limits<float>::quiet_NaN() })
+            {
+                MWRender::BloodTrail trial(*root, {}, {});
+                const std::vector<MWRender::BloodTrail::Source> source{ { { 0, 0, 100 }, { 0, 0, 1 }, 1, neck } };
+                for (int frame = 0; frame < 50; ++frame) trial.update(.01f, source, amount, frame * .01f);
+                const float multiplier = !std::isfinite(amount) ? 1.f : std::clamp(amount, 0.f, 3.f);
+                const float expected = (neck ? 60.f : 14.f) * multiplier;
+                require(std::abs(float(trial.emittedCount()) - expected) <= 1,
+                    "Blood 100% did not double the base emission or 300% stopped scaling it");
+                require(trial.particleCount() < 192, "Blood emission regression accidentally measured a saturated trail");
+            }
         std::array<float, 2> peak{};
         for (int neck = 0; neck < 2; ++neck)
         {
@@ -169,6 +176,34 @@ namespace
             for (int frame = 0; frame < 120; ++frame) fountain.update(1.f / 60, up, 1, frame / 60.f);
         }
         require(peak[1] > peak[0] + 35, "Severed neck lacks a physically higher-pressure fountain");
+        {
+            std::vector<MWRender::BloodStamp> pools;
+            MWRender::BloodTrail larger(*root, actualRay, [&](const auto& stamp) {
+                if (stamp.mPool) pools.push_back(stamp);
+            });
+            const std::vector<MWRender::BloodTrail::Source> source{ { { 0, 0, 10 }, { 0, 0, 1 }, 1, false } };
+            for (int frame = 0; frame < 4; ++frame) larger.update(.1f, source, 1, 4);
+            require(!pools.empty(), "Grounded wound did not create a pool for decal size regression");
+            // At age four preview.3's former 200% default had radius
+            // (3 + sqrt(4)*5)*sqrt(2). New 100% keeps that doubled base.
+            // The added 1.75 scale and existing +/-12% variation stay in
+            // the user's requested 1.5 to 2 times linear size range.
+            const float previousDefaultRadius = 13.f * std::sqrt(2.f);
+            for (const auto& pool : pools)
+            {
+                require(pool.mRadius >= previousDefaultRadius * 1.5f && pool.mRadius <= previousDefaultRadius * 2.f,
+                    "Projected blood pool was not enlarged by 1.5 to 2 times");
+                float extent = 0;
+                for (const auto& vertex : pool.mTriangles)
+                {
+                    extent = std::max({ extent, std::abs(vertex.x()), std::abs(vertex.y()) });
+                    require(std::abs(vertex.z() - .06f) < .001f,
+                        "Enlarged decal stopped projecting onto the actual floor");
+                }
+                require(std::abs(extent - pool.mRadius) < .001f,
+                    "Enlarged blood UV radius changed without enlarging projected geometry");
+            }
+        }
         MWRender::BloodDecals decals(*root);
         decals.setCellActive("interior:a", true);
         decals.add("interior:a", stamps.front());
@@ -195,7 +230,7 @@ namespace
                 require(root->getChild(i)->getNodeMask() == 0, "Blood leaked between overlapping interior coordinates");
         decals.update(.5f, 600);
         require(decals.size() == 0, "Blood persisted past its configured lifetime");
-        std::cout << "PASS ballistic neck spray, wall/floor decals, amount 0/50/300%, ten-minute lifetime, cell isolation and saved age\n";
+        std::cout << "PASS ballistic neck spray, doubled base at 100%, scaling to 300%, enlarged projected pools, ten-minute lifetime, cell isolation and saved age\n";
     }
 
     osg::ref_ptr<osg::Image> bloodMarkerImage(osg::Image::Origin origin)
@@ -267,8 +302,10 @@ namespace
         auto* mesh = scene->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
         auto* uv = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(0));
         auto* info = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(1));
+        auto* colors = static_cast<osg::Vec4Array*>(mesh->getColorArray());
         auto* texture = dynamic_cast<osg::Texture2D*>(scene->getChild(0)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
-        require(uv && info && texture && uv->size() == 54 && info->size() == uv->size(), "Textured blood vertex attributes are incomplete");
+        require(uv && info && colors && texture && uv->size() == 54 && info->size() == uv->size()
+            && colors->size() == uv->size(), "Textured blood vertex attributes are incomplete");
         const auto* atlas = texture->getImage();
         const auto sample = [&](int patch, float u, float v) {
             const auto index = patch * 6;
@@ -290,13 +327,34 @@ namespace
             require((*uv)[patch * 6 + 5].y() > (*uv)[patch * 6].y(), "Wall drips were rotated away from world gravity");
         require((*uv)[0].x() > .49f && (*uv)[4 * 6].x() > .74f && (*uv)[5 * 6].x() < .26f,
             "Wall/floor variants were selected from the wrong atlas bank");
-        const std::vector<osg::Vec2f> geometryBefore(uv->begin(), uv->end());
+        float minimumRed = 1, maximumRed = 0;
+        for (int patch = 0; patch < 9; ++patch)
+        {
+            const auto& color = (*colors)[patch * 6];
+            require(color.r() > .4f && color.r() < .8f && color.g() < color.r() && color.b() > color.g(),
+                "Textured blood bypassed its darker burgundy tint");
+            for (int vertex = 1; vertex < 6; ++vertex)
+                require((*colors)[patch * 6 + vertex] == color, "A stain changed shade within its own surface");
+            minimumRed = std::min(minimumRed, color.r()); maximumRed = std::max(maximumRed, color.r());
+        }
+        require(maximumRed - minimumRed > .002f && maximumRed - minimumRed < .15f,
+            "Blood stain shades lost their subtle per-decal variation");
+        const std::vector<osg::Vec2f> coordinatesBefore(uv->begin(), uv->end());
+        const std::vector<osg::Vec4f> colorsBefore(colors->begin(), colors->end());
+        const auto* vertices = static_cast<const osg::Vec3Array*>(mesh->getVertexArray());
+        const std::vector<osg::Vec3f> verticesBefore(vertices->begin(), vertices->end());
         const auto saved = decals.getSaveRecord();
         decals.loadSaveRecord(saved);
         auto* restored = scene->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
         const auto* after = static_cast<const osg::Vec2Array*>(restored->getTexCoordArray(0));
-        require(geometryBefore.size() == after->size() && std::equal(geometryBefore.begin(), geometryBefore.end(), after->begin()),
+        require(coordinatesBefore.size() == after->size() && std::equal(coordinatesBefore.begin(), coordinatesBefore.end(), after->begin()),
             "Loading a save rerolled stain variant/orientation/size");
+        const auto* colorsAfter = static_cast<const osg::Vec4Array*>(restored->getColorArray());
+        const auto* verticesAfter = static_cast<const osg::Vec3Array*>(restored->getVertexArray());
+        require(colorsBefore.size() == colorsAfter->size() && std::equal(colorsBefore.begin(), colorsBefore.end(), colorsAfter->begin()),
+            "Loading a save rerolled the blood stain's burgundy shade");
+        require(verticesBefore.size() == verticesAfter->size() && std::equal(verticesBefore.begin(), verticesBefore.end(), verticesAfter->begin()),
+            "Loading a save enlarged a blood stain for a second time");
         require(decals.getSaveRecord().mStains[0].mVisualSeed == 8u, "Saved decal identity was lost");
         std::set<std::uint32_t> identities;
         for (int i = 0; i < 32; ++i)
@@ -306,7 +364,7 @@ namespace
         }
         for (const auto& state : decals.saveState()) identities.insert(state.mStamp.mVisualSeed);
         require(identities.size() > 20 && !identities.contains(0), "Automatic stain variants repeat a single random identity");
-        std::cout << "PASS original RGBA PNGs, atlas banks, wall gravity, image origins, floor 180, mirrors and saved visual identity\n";
+        std::cout << "PASS original RGBA PNGs, atlas banks, wall gravity, image origins, floor 180, mirrors, burgundy shade variation and saved visual identity\n";
     }
 
     void organicCreatureBloodAndDeathTrigger()

@@ -144,6 +144,7 @@ int main(int argc, char** argv)
                 marker->setColor(x < 4 || x > 27 || y < 4 || y > 27 ? osg::Vec4f() : c,x,y);
             }
             blood.setTextures({marker},{marker}); blood.setCellActive("atlas",true);
+            std::array<float, 2> redShades{};
             for (unsigned seed : {8u,9u,10u})
             {
                 blood.add("atlas",stamp(false,-30,seed)); blood.update(.1f,1200);
@@ -152,10 +153,21 @@ int main(int argc, char** argv)
                 if (seed==9) check(upper.y()>upper.x()+30, "Horizontal wall mirror did not sample original artwork");
                 else check(upper.x()>upper.y()+30 && lower.z()>lower.x()+30,
                     "Wall artwork was rotated or TOP_LEFT pixels were inverted");
+                if (seed != 9)
+                {
+                    check(upper.x()>70 && upper.x()<150 && upper.z()>upper.y()+4,
+                        "Actual textured blood did not render as dark burgundy instead of bright primary red");
+                    redShades[seed == 8 ? 0 : 1] = upper.x();
+                }
                 check((pixel(pixels,{-49,0,21})-pixel(baseline,{-49,0,21})).length()<1,
                     "Transparent atlas border rendered a solid rectangle");
+                const auto saved = blood.getSaveRecord();
+                blood.loadSaveRecord(saved);
+                check(read() == pixels, "Saving and loading changed the rendered blood shade or geometry");
                 blood.clear(); blood.setCellActive("atlas",true);
             }
+            check(std::abs(redShades[0]-redShades[1])>=2 && std::abs(redShades[0]-redShades[1])<20,
+                "Actual blood shader ignored subtle per-decal shade variation");
             root->removeChild(geode);
             camera->setViewMatrixAsLookAt({0,0,190},{0,0,0},{0,1,0});
             blood.add("atlas",stamp(true,-30,8)); blood.add("atlas",stamp(true,30,10)); blood.update(.1f,1200);
@@ -164,7 +176,7 @@ int main(int argc, char** argv)
             check(normal.x()>normal.y()+30 && turned.x()>turned.z()+30 && turned.y()>turned.z()+30,
                 "Floor artwork failed its permitted 180-degree rotation");
             blood.clear();
-            std::cout << "PASS actual PNG atlas, alpha silhouette, upright walls, horizontal mirror, floor 180, native projection and occlusion\n";
+            std::cout << "PASS actual PNG atlas, alpha silhouette, upright walls, horizontal mirror, floor 180, dark burgundy shades, saved appearance, native projection and occlusion\n";
             return 0;
         }
         if (effect == "blood")

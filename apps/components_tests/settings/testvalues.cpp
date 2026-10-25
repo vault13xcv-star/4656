@@ -200,7 +200,7 @@ namespace Settings
             EXPECT_EQ(Manager::getFloat("bow impulse scale", "Ragdoll"), 1.f);
             physics.mBloodAmount.set(0); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 0);
             physics.mBloodAmount.set(3); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 3);
-            physics.mBloodAmount.reset(); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 2);
+            physics.mBloodAmount.reset(); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 1);
             physics.mBloodLifetime.set(300); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 300);
             physics.mBloodLifetime.set(1800); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 1800);
             physics.mBloodLifetime.reset(); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 1200);

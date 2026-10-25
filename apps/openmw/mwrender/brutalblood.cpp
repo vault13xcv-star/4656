@@ -1,5 +1,6 @@
 #include "brutalblood.hpp"
 #include "vismask.hpp"
+#include <components/ragdoll/blood.hpp>
 #include <components/sceneutil/depth.hpp>
 #include <osg/BlendFunc>
 #include <osg/Geode>
@@ -57,6 +58,18 @@ namespace MWRender
             if (!state) state = 0x9f673bbdu;
             return state;
         }
+        osg::Vec4f stainTint(std::uint32_t seed, bool textured)
+        {
+            // Use the saved visual seed, independently of the variant/mirror
+            // bits: a stain keeps its shade when chunks rebuild or games load.
+            seed ^= 0xd1b54a35u;
+            const float brightness = .92f + .16f * ((nextSeed(seed) & 65535u) / 65535.f);
+            const float blue = .95f + .10f * ((nextSeed(seed) & 65535u) / 65535.f);
+            // Texture RGB remains detailed, with a restrained burgundy tint.
+            // The untextured fallback uses the same palette at material scale.
+            const osg::Vec3f base = textured ? osg::Vec3f(.58f, .42f, .64f) : osg::Vec3f(.22f, .008f, .028f);
+            return { base.x() * brightness, base.y() * brightness, base.z() * brightness * blue, .94f };
+        }
     }
 
     static osg::ref_ptr<osg::StateSet> makeWetGoreState(bool decal)
@@ -84,13 +97,14 @@ namespace MWRender
             "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;varying vec2 bloodInfo;"
             "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
             "float age=max(0.0,brutalBloodTime-bloodInfo.x);float dry=min(1.0,age/90.0);"
-            "vec4 c=vec4(tint.rgb-vec3(.15*dry,0.0,0.0),"
-            "tint.a*clamp((brutalBloodLifetime-age)/10.0,0.0,1.0));"
+            "vec4 c=tint;"
             "if(bloodInfo.y>.5){vec4 texel=texture2D(brutalBloodAtlas,uv);"
-            "c=vec4(texel.rgb*(1.0-.5*dry),texel.a*.94*clamp((brutalBloodLifetime-age)/10.0,0.0,1.0));}"
+            "vec3 pigment=vec3(texel.r,texel.g,max(texel.b,texel.r*.11));"
+            "c=vec4(pigment*tint.rgb,texel.a*tint.a);}"
+            "c.rgb*=1.0-.5*dry;c.a*=clamp((brutalBloodLifetime-age)/10.0,0.0,1.0);"
             "if(c.a<.003)discard;"
             "float spec=pow(max(0.0,dot(reflect(-L,N),normalize(-p))),24.0);"
-            "gl_FragColor=vec4(c.rgb*(.62+.38*abs(dot(N,L)))+vec3(.12)*spec*c.a,c.a);}"
+            "gl_FragColor=vec4(c.rgb*(.62+.38*abs(dot(N,L)))+vec3(.035)*spec*c.a,c.a);}"
             :
             "#version 120\nvarying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
             "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
@@ -316,6 +330,7 @@ namespace MWRender
             const auto& tiles = floor ? mFloorTiles : mWallTiles;
             const bool textured = mAtlas && !tiles.empty();
             const auto seed = stamp.mVisualSeed;
+            const auto tint = stainTint(seed, textured);
             const osg::Vec4f tile = textured ? tiles[(seed >> 2) % tiles.size()] : osg::Vec4f(0, 0, 1, 1);
             // On walls V follows projected world-up, independent of impact
             // direction. Floor artwork may rotate only by exactly 180 degrees.
@@ -331,7 +346,7 @@ namespace MWRender
                 if (seed & 1) u = 1 - u;
                 vertices->push_back(vertex);
                 normals->push_back(stamp.mNormal);
-                colors->push_back({ .29f, .009f, .014f, .94f });
+                colors->push_back(tint);
                 coords->push_back({ tile.x() + u * (tile.z() - tile.x()), tile.y() + v * (tile.w() - tile.y()) });
                 births->push_back({ static_cast<float>(mTime - stain.mAge), textured ? 1.f : 0.f });
             }
@@ -494,7 +509,7 @@ namespace MWRender
         BloodStamp stamp;
         stamp.mCenter = position;
         stamp.mNormal = unit(normal);
-        stamp.mRadius = radius * (.88f + .24f * random());
+        stamp.mRadius = radius * DecalScale * (.88f + .24f * random());
         radius = stamp.mRadius;
         stamp.mPool = pool;
         const osg::Vec3f up = stamp.mNormal.z() >= .7f ? osg::Vec3f(0, 1, 0) : osg::Vec3f(0, 0, 1);
@@ -530,7 +545,7 @@ namespace MWRender
     {
         if (!std::isfinite(duration) || duration <= 0) return;
         const float dt = std::min(duration, .1f);
-        amount = std::isfinite(amount) ? std::clamp(amount, 0.f, 3.f) : 1;
+        amount = Ragdoll::bloodEmissionScale(amount);
         mRemainders.resize(sources.size(), 0);
         mPoolTimes.resize(sources.size(), 0);
         for (std::size_t i = 0; i < sources.size(); ++i)
@@ -602,7 +617,7 @@ namespace MWRender
                          std::array<osg::Vec3f, 3>{ tail, drop.mPosition + edge.second, drop.mPosition + edge.first } })
                 {
                     const auto n = unit((triangle[1] - triangle[0]) ^ (triangle[2] - triangle[0]));
-                    for (const auto& p : triangle) { vertices->push_back(p); normals->push_back(n); colors->push_back({ .4f, .008f, .018f, 1 }); }
+                    for (const auto& p : triangle) { vertices->push_back(p); normals->push_back(n); colors->push_back({ .26f, .007f, .028f, 1 }); }
                 }
         }
         vertices->dirty(); normals->dirty(); colors->dirty();
