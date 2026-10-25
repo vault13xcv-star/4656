@@ -1,17 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1072): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1301): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1302): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1308): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1309): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1340): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1341): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1342): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1348): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
@@ -178,3 +164,17 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1362): warning C4244: '=': conve
 [723/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\classbindings.cpp.obj
 [724/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\itemdata.cpp.obj
 [725/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\animationbindings.cpp.obj
+[726/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\birthsignbindings.cpp.obj
+[727/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\markupbindings.cpp.obj
+[728/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\racebindings.cpp.obj
+[729/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\regionbindings.cpp.obj
+[730/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\weatherbindings.cpp.obj
+[731/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\types.cpp.obj
+[732/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\item.cpp.obj
+[733/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\actor.cpp.obj
+[734/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\door.cpp.obj
+[735/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\magicbindings.cpp.obj
+[736/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockable.cpp.obj
+[737/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\container.cpp.obj
+[738/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\weapon.cpp.obj
+[739/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\npc.cpp.obj
