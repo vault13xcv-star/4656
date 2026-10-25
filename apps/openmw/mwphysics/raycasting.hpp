@@ -17,6 +17,7 @@ namespace MWPhysics
         osg::Vec3f mHitNormal;
         MWWorld::Ptr mHitObject;
         int mHitBody = -1; // Rendering contact metadata; physics-only rays leave this unknown.
+        bool mHitShield = false;
     };
 
     class RayCastingInterface

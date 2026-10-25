@@ -9,6 +9,16 @@ namespace SceneUtil
     // clones. -1 requests skeletal fallback (e.g. a whole robe); -2 excludes
     // carried weapons/shields from anatomical dismemberment contacts.
     inline constexpr char HitBodyTag[] = "openmw.ragdoll.hit-body";
+    inline constexpr char ShieldContactTag[] = "openmw.combat.shield";
+    inline bool isShieldContact(const osg::NodePath& path)
+    {
+        for (auto* node : path)
+        {
+            bool shield = false;
+            if (node->getUserValue(ShieldContactTag, shield) && shield) return true;
+        }
+        return false;
+    }
 
     inline int getHitBody(const osg::NodePath& path)
     {

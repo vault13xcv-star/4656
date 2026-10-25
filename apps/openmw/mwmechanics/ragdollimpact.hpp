@@ -33,6 +33,8 @@ namespace MWMechanics
             mApplied.mWeaponDistance = mWeapon.mWeaponDistance;
             mApplied.mWeaponMultiplier = mWeapon.mWeaponMultiplier;
             mApplied.mWeaponImpulseScale = mWeapon.mWeaponImpulseScale;
+            mApplied.mContactMomentum = mWeapon.mContactMomentum;
+            mApplied.mContactSpeed = mWeapon.mContactSpeed;
             mApplied.mWeaponPosition = mWeapon.mWeaponPosition;
             mApplied.mHasWeaponContact = mWeapon.mHasWeaponContact;
             mApplied.mCrossbow = mWeapon.mCrossbow;

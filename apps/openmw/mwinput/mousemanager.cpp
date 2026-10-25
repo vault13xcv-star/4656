@@ -17,6 +17,9 @@
 #include "../mwgui/settingswindow.hpp"
 
 #include "../mwworld/player.hpp"
+#include "../mwmechanics/combat.hpp"
+#include "../mwmechanics/creaturestats.hpp"
+#include "../mwworld/class.hpp"
 
 #include "actions.hpp"
 #include "bindingsmanager.hpp"
@@ -120,6 +123,15 @@ namespace MWInput
 
     void MouseManager::mouseReleased(const SDL_MouseButtonEvent& arg, Uint8 id)
     {
+        if (id == SDL_BUTTON_RIGHT && mCombatBlockCaptured)
+        {
+            const auto player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+            player.getClass().getCreatureStats(player).mPhysicalCombat.mGuard.mRequested = false;
+            mCombatBlockCaptured = false;
+            MWBase::Environment::get().getLuaManager()->inputEvent(
+                { MWBase::LuaManager::InputEvent::MouseButtonReleased, arg.button });
+            return;
+        }
         MWBase::Environment::get().getInputManager()->setJoystickLastUsed(false);
 
         if (mBindingsManager->isDetectingBindingState())
@@ -160,6 +172,20 @@ namespace MWInput
     void MouseManager::mousePressed(const SDL_MouseButtonEvent& arg, Uint8 id)
     {
         MWBase::InputManager* input = MWBase::Environment::get().getInputManager();
+        const auto player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+        if (id == SDL_BUTTON_RIGHT && !mBindingsManager->isDetectingBindingState()
+            && !MWBase::Environment::get().getWindowManager()->isGuiMode() && !input->controlsDisabled()
+            && input->getControlSwitch("playerfighting") && input->getControlSwitch("playercontrols")
+            && player.getClass().getCreatureStats(player).getDrawState() == MWMechanics::DrawState::Weapon
+            && MWMechanics::hasCombatShield(player))
+        {
+            mCombatBlockCaptured = true;
+            player.getClass().getCreatureStats(player).mPhysicalCombat.mGuard.mRequested = true;
+            input->setJoystickLastUsed(false);
+            MWBase::Environment::get().getLuaManager()->inputEvent(
+                { MWBase::LuaManager::InputEvent::MouseButtonPressed, arg.button });
+            return;
+        }
         input->setJoystickLastUsed(false);
         bool guiMode = false;
 
@@ -218,6 +244,16 @@ namespace MWInput
 
     void MouseManager::update(float dt)
     {
+        if (mCombatBlockCaptured && (!mMouseLookEnabled
+            || MWBase::Environment::get().getWindowManager()->isGuiMode()
+            || MWBase::Environment::get().getInputManager()->controlsDisabled()
+            || !MWBase::Environment::get().getInputManager()->getControlSwitch("playerfighting")
+            || !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_RMASK)))
+        {
+            const auto player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+            player.getClass().getCreatureStats(player).mPhysicalCombat.mGuard.mRequested = false;
+            mCombatBlockCaptured = false;
+        }
         SDL_GetRelativeMouseState(&mMouseMoveX, &mMouseMoveY);
 
         if (!mMouseLookEnabled)

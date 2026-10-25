@@ -1,5 +1,8 @@
 #include "animation.hpp"
 #include "renderingmanager.hpp"
+#include "weaponanimation.hpp"
+#include <osg/ComputeBoundsVisitor>
+#include <osg/FrameStamp>
 #include <components/ragdoll/profiles.hpp>
 
 #include <algorithm>
@@ -787,6 +790,7 @@ namespace MWRender
     void Animation::clearAnimSources()
     {
         mStates.clear();
+        mCombatTracks.clear();
 
         for (size_t i = 0; i < sNumBlendMasks; i++)
             mAnimationTimePtr[i]->setTimePtr(std::shared_ptr<float>());
@@ -1137,6 +1141,8 @@ namespace MWRender
 
         mActiveControllers.clear();
 
+        mCombatTracks.clear();
+
         mAccumCtrl = nullptr;
 
         for (size_t blendMask = 0; blendMask < sNumBlendMasks; blendMask++)
@@ -1189,6 +1195,7 @@ namespace MWRender
 
                     node->addUpdateCallback(callback);
                     mActiveControllers.emplace_back(node, callback);
+                    mCombatTracks[node.get()] = it->second;
 
                     if (blendMask == 0 && node == mAccumRoot)
                     {
@@ -1466,7 +1473,153 @@ namespace MWRender
                     osg::Quat(mHeadPitchRadians, osg::Vec3f(1, 0, 0)) * osg::Quat(yaw, osg::Vec3f(0, 0, 1)));
         }
 
+        const bool living = !mPtr.isEmpty() && mPtr.getClass().isActor()
+            && !mPtr.getClass().getCreatureStats(mPtr).isDead() && !mPlayScriptedOnly;
+        osg::Vec3f lean;
+        float recoil = 0, guard = 0;
+        if (living)
+        {
+            const auto& physical = mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat;
+            lean = physical.mLean;
+            if (const auto* base = mPtr.getRefData().getBaseNode()) lean = base->getAttitude().inverse() * lean;
+            recoil = physical.mRecoil;
+            guard = physical.mGuard.mProgress;
+        }
+        for (const auto& [controller, factor] : { std::pair(mCombatSpine, 1.f), std::pair(mCombatPelvis, .25f) })
+            if (controller)
+            {
+                controller->setEnabled(living);
+                controller->setRotate(osg::Quat(std::clamp(lean.x() * factor, -.3f, .3f), osg::Vec3f(1, 0, 0))
+                    * osg::Quat(std::clamp(lean.y() * factor, -.3f, .3f), osg::Vec3f(0, 1, 0)));
+            }
+        if (mCombatArm)
+        {
+            mCombatArm->setEnabled(living);
+            mCombatArm->setRotate(mCombatWeaponLag * osg::Quat(-recoil, osg::Vec3f(1, 0, 0)));
+        }
+        if (mCombatShield)
+        {
+            mCombatShield->setEnabled(living && guard > 0);
+            mCombatShield->setRotate(osg::Quat(-guard * .85f, osg::Vec3f(1, 0, 0)));
+        }
         return mRagdoll ? osg::Vec3f() : movement;
+    }
+
+    void Animation::rewindCombatPose(const std::string& group, float time)
+    {
+        if (auto it = mStates.find(group); it != mStates.end())
+        {
+            it->second.setTime(std::clamp(time, it->second.mStartTime, it->second.mStopTime));
+            it->second.mPlaying = true;
+            it->second.mSpeedMult = 0;
+        }
+    }
+
+    void Animation::setCombatWeaponLag(const osg::Quat& rotation, float recoil)
+    {
+        mCombatWeaponLag = rotation;
+        if (mCombatArm) mCombatArm->setRotate(rotation * osg::Quat(-recoil, osg::Vec3f(1, 0, 0)));
+    }
+
+    bool Animation::getCombatWeaponSegment(PhysicalCombat::Blade& result, bool ignoreArmCorrection)
+    {
+        auto* weapons = dynamic_cast<WeaponAnimation*>(this);
+        osg::Node* part = weapons ? weapons->getPhysicalWeaponNode() : nullptr;
+        const bool fist = part == nullptr;
+        if (!part) part = const_cast<osg::Node*>(getNode("Bip01 R Hand"));
+        if (!part) return false;
+        auto paths = part->getParentalNodePaths();
+        if (paths.empty()) return false;
+        auto path = paths.front();
+        if (!fist) path.pop_back(); // Bounds are in the part's parent frame.
+        osg::NodeVisitor nv(osg::NodeVisitor::TRAVERSE_NONE);
+        osg::ref_ptr<osg::FrameStamp> stamp = new osg::FrameStamp;
+        if (!mPtr.isEmpty())
+            if (const auto* rendering = MWBase::Environment::get().getWorld()->getRenderingManager())
+                stamp->setSimulationTime(rendering->getSimulationTime());
+        nv.setFrameStamp(stamp);
+        osg::Matrix world;
+        osg::Matrix relativeBase;
+        bool inSkeleton = false;
+        for (auto* node : path)
+        {
+            if (node == mObjectRoot) { relativeBase = world; inSkeleton = true; }
+            if (auto* transform = dynamic_cast<osg::MatrixTransform*>(node))
+            {
+                osg::Matrix local = transform->getMatrix();
+                if (auto it = mCombatTracks.find(node); it != mCombatTracks.end())
+                {
+                    auto sampled = it->second->getCurrentTransformation(&nv);
+                    auto* nif = dynamic_cast<NifOsg::MatrixTransform*>(node);
+                    if (nif)
+                        for (auto* callback = node->getUpdateCallback(); callback; callback = callback->getNestedCallback())
+                            if (auto* blend = dynamic_cast<NifAnimBlendController*>(callback))
+                            {
+                                sampled = blend->sampleCombatTransform(*nif, &nv, float(stamp->getSimulationTime()));
+                                break;
+                            }
+                    auto translation = sampled.mTranslation.value_or(osg::Vec3f(local.getTrans()));
+                    if (node == mAccumRoot)
+                        for (unsigned axis = 0; axis < 3; ++axis) if (mAccumulate[axis] != 0) translation[axis] = 0;
+                    if (nif)
+                    {
+                        local = sampled.mRotation ? osg::Matrix::rotate(*sampled.mRotation)
+                            : osg::Matrix(nif->mRotationScale.toOsgMatrix());
+                        const float scale = sampled.mScale.value_or(nif->mScale);
+                        for (unsigned row = 0; row < 3; ++row)
+                            for (unsigned column = 0; column < 3; ++column) local(row, column) *= scale;
+                        local.setTrans(translation);
+                    }
+                    else
+                    {
+                        const auto scale = sampled.mScale ? osg::Vec3f(*sampled.mScale, *sampled.mScale, *sampled.mScale)
+                            : osg::Vec3f(local.getScale());
+                        local = osg::Matrix::scale(scale) * osg::Matrix::rotate(sampled.mRotation.value_or(local.getRotate()))
+                            * osg::Matrix::translate(translation);
+                    }
+                }
+                // Include the same aim, torso twist and procedural corrections
+                // as the render callback; otherwise a downward-looking player
+                // would still collide with a horizontal weapon proxy.
+                for (auto* callback = node->getUpdateCallback(); callback; callback = callback->getNestedCallback())
+                    if (auto* rotation = dynamic_cast<RotateController*>(callback);
+                        rotation && rotation->isEnabled() && !(ignoreArmCorrection && rotation == mCombatArm)
+                        && inSkeleton && rotation->getRelativeTo() == mObjectRoot)
+                    {
+                        const auto orientation = (local * world * osg::Matrix::inverse(relativeBase)).getRotate();
+                        local.setRotate(orientation * rotation->getRotate() * orientation.inverse() * local.getRotate());
+                        local.setTrans(local.getTrans() + orientation.inverse() * rotation->getOffset());
+                    }
+                world = local * world;
+            }
+            else if (auto* otherTransform = node->asTransform()) otherTransform->computeLocalToWorldMatrix(world, &nv);
+        }
+        if (fist)
+        {
+            result.mBase = osg::Vec3f() * world;
+            const auto* base = mPtr.getRefData().getBaseNode();
+            result.mTip = result.mBase + (base ? base->getAttitude() * osg::Vec3f(0, 8, 0) : osg::Vec3f(0, 8, 0));
+        }
+        else
+        {
+            if (mCombatWeaponNode.get() != part || !mCombatWeaponBounds.valid())
+            {
+                osg::ComputeBoundsVisitor bounds;
+                bounds.setTraversalMask(~(Mask_Effect | Mask_ParticleSystem));
+                part->accept(bounds);
+                mCombatWeaponNode = part; mCombatWeaponBounds = bounds.getBoundingBox();
+            }
+            const auto& box = mCombatWeaponBounds;
+            if (!box.valid()) return false;
+            const auto extent = box._max - box._min;
+            unsigned axis = extent.x() > extent.y() ? 0 : 1;
+            if (extent.z() > extent[axis]) axis = 2;
+            auto a = box.center(), b = a;
+            a[axis] = box._min[axis]; b[axis] = box._max[axis];
+            if (a.length2() > b.length2()) std::swap(a, b);
+            result.mBase = a * world; result.mTip = b * world;
+        }
+        return std::isfinite(result.mBase.length2()) && std::isfinite(result.mTip.length2());
     }
 
     void Animation::updateRagdoll(float duration)
@@ -2127,6 +2280,10 @@ namespace MWRender
         mHeadController = addRotateController("bip01 head");
         mSpineController = addRotateController("bip01 spine1");
         mRootController = addRotateController("bip01");
+        mCombatSpine = addRotateController("bip01 spine2");
+        mCombatPelvis = addRotateController("bip01 pelvis");
+        mCombatArm = addRotateController("bip01 r forearm");
+        mCombatShield = addRotateController("bip01 l upperarm");
     }
 
     osg::ref_ptr<RotateController> Animation::addRotateController(std::string_view bone)

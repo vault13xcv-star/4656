@@ -1,6 +1,8 @@
 #include "types.hpp"
+#include "../../mwmechanics/combat.hpp"
 
 #include <array>
+#include <algorithm>
 
 #include <components/detournavigator/agentbounds.hpp>
 #include <components/lua/luastate.hpp>
@@ -501,6 +503,13 @@ namespace MWLua
                         if (!wasDead && stats.isDead())
                             stats.recordRagdollDeath(hit);
                     }
+                    // A magic/DOT tick sharing an enchanted hit must not replay
+                    // the original physical momentum on a living actor.
+                    if (hit && successful && !stats.isDead()
+                        && (sourceType == MWMechanics::DamageSourceType::Melee
+                            || sourceType == MWMechanics::DamageSourceType::Ranged)
+                        && std::any_of(damages.begin(), damages.end(), [](const auto& value) { return value.second > 0; }))
+                        MWMechanics::applyLivingImpact(target, hit->mWeapon);
                 },
                 "HitAction");
         };

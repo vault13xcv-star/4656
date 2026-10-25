@@ -134,6 +134,7 @@ namespace MWRender
         void preloadCommonAssets();
 
         double getReferenceTime() const;
+        double getSimulationTime() const;
 
         SceneUtil::LightManager* getLightRoot();
 
@@ -183,6 +184,7 @@ namespace MWRender
             ESM::RefNum mHitRefnum;
             float mRatio;
             int mHitBody = -1;
+            bool mHitShield = false;
         };
 
         RayResult castRay(const osg::Vec3f& origin, const osg::Vec3f& dest, bool ignorePlayer,

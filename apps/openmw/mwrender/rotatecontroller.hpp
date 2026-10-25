@@ -21,6 +21,7 @@ namespace MWRender
         RotateController(osg::Node* relativeTo);
 
         void setEnabled(bool enabled);
+        bool isEnabled() const { return mEnabled; }
         void setOffset(const osg::Vec3f& offset);
         void setRotate(const osg::Quat& rotate);
 

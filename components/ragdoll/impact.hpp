@@ -37,6 +37,8 @@ namespace Ragdoll
         float mWeaponDistance = 0.f;
         float mWeaponMultiplier = 1.f;
         float mWeaponImpulseScale = 1.f;
+        float mContactMomentum = 0.f;
+        float mContactSpeed = 0.f;
         float mMagicDistance = 0.f;
         float mMagicImpulseScale = 1.f;
         bool mCrossbow = false;

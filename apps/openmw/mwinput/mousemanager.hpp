@@ -48,6 +48,7 @@ namespace MWInput
         float mGuiCursorY;
         int mMouseWheel;
         bool mMouseLookEnabled;
+        bool mCombatBlockCaptured = false;
         bool mGuiCursorEnabled;
         float mLastWarpX;
         float mLastWarpY;

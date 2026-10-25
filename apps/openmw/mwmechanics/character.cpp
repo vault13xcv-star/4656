@@ -56,6 +56,9 @@
 #include "security.hpp"
 #include "spellcasting.hpp"
 #include "weapontype.hpp"
+#include "combat.hpp"
+#include "../mwphysics/raycasting.hpp"
+#include "../mwrender/ragdoll.hpp"
 
 namespace
 {
@@ -1105,7 +1108,7 @@ namespace MWMechanics
                 attackType = ESM::Weapon::AT_Thrust;
             // We want to avoid hit keys that come out of nowhere (e.g. in the follow animation)
             // and processing multiple hit keys for a single attack
-            if (mReadyToHit)
+            if (mReadyToHit && !usesPhysicalMelee())
             {
                 charClass.hit(mPtr, mAttackStrength, attackType, mAttackVictim, mAttackHitPos, mAttackSuccess);
                 mReadyToHit = false;
@@ -1231,6 +1234,174 @@ namespace MWMechanics
         return mAnimation->updateCarriedLeftVisible(weaptype);
     }
 
+    bool CharacterController::usesPhysicalMelee() const
+    {
+        return (mPtr.getClass().isNpc() || (mPtr.getClass().isBipedal(mPtr) && !mWeapon.isEmpty()))
+            && !isRandomAttackAnimation(mCurrentWeapon)
+            && (mWeaponType == ESM::Weapon::HandToHand
+            || (mWeaponType >= ESM::Weapon::ShortBladeOneHand && mWeaponType <= ESM::Weapon::SpearTwoWide));
+    }
+
+    void CharacterController::updatePhysicalCombat(float duration)
+    {
+        if (!mPtr.getClass().isActor()) return;
+        auto& stats = mPtr.getClass().getCreatureStats(mPtr);
+        auto& state = stats.mPhysicalCombat;
+        if (stats.isDead()) { state = {}; mSweepArmed = false; mContactRecovery = 0; mHasPreviousBlade = false; return; }
+        if (stats.wasTeleported())
+        {
+            mHasPreviousBlade = mSweepArmed = mStrikePhaseStarted = false;
+            mContactRecovery = 0; state.mHasBladeDirection = false; state.mHasPosition = false;
+        }
+        const float dt = std::clamp(duration, 0.f, .1f);
+        const auto position = mPtr.getRefData().getPosition().asVec3();
+        const auto delta = position - state.mLastPosition;
+        state.mVelocity = state.mHasPosition && duration > 0 && delta.length2() < 300.f * 300.f
+            ? delta / duration : osg::Vec3f();
+        state.mHasPosition = true; state.mLastPosition = position;
+        state.advance(dt);
+        if (stats.getKnockedDown() || stats.isParalyzed() || stats.getFatigue().getCurrent() < 0 || isScriptedAnimPlaying())
+        {
+            if (mUpperBodyState >= UpperBodyState::AttackWindUp && mUpperBodyState <= UpperBodyState::AttackEnd)
+            {
+                mAnimation->disable(mCurrentWeapon); mUpperBodyState = UpperBodyState::AttackEnd;
+                setAttackingOrSpell(false);
+            }
+            mReadyToHit = mSweepArmed = mStrikePhaseStarted = false;
+            mContactRecovery = 0;
+        }
+        mAttackCycleLeft = std::max(0.f, mAttackCycleLeft - dt);
+        if (mPtr != getPlayer())
+        {
+            MWWorld::Ptr opponent;
+            const bool threat = stats.getAiSequence().getCombatTarget(opponent) && !opponent.isEmpty()
+                && opponent.getClass().getCreatureStats(opponent).mPhysicalCombat.mSwinging
+                && (opponent.getRefData().getPosition().asVec3() - position).length2() < 220.f * 220.f;
+            state.mGuard.mRequested = threat;
+        }
+        const bool available = hasCombatShield(mPtr) && stats.getDrawState() == DrawState::Weapon
+            && !stats.getKnockedDown() && !stats.isParalyzed() && mUpperBodyState != UpperBodyState::AttackRelease
+            && stats.getFatigue().getCurrent() >= 0
+            && mContactRecovery <= 0 && !isScriptedAnimPlaying();
+        const bool guardWasHeld = state.mGuard.mHeld;
+        const float cost = state.mGuard.update(dt, mPtr.getClass().getSkill(mPtr, ESM::Skill::Block),
+            stats.getFatigue().getCurrent() <= 0, available);
+        if (guardWasHeld && !state.mGuard.mHeld && mHitState == CharState_Block)
+        {
+            mAnimation->disable(mCurrentHit); mCurrentHit.clear(); mHitState = CharState_None;
+            resetCurrentIdleState();
+        }
+        if (cost > 0 && !(mPtr == getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState()))
+        {
+            auto fatigue = stats.getFatigue(); fatigue.setCurrent(fatigue.getCurrent() - cost); stats.setFatigue(fatigue);
+        }
+        state.mSwinging = mUpperBodyState == UpperBodyState::AttackWindUp || mUpperBodyState == UpperBodyState::AttackRelease
+            || (mUpperBodyState == UpperBodyState::AttackEnd && mSweepArmed);
+        if (state.mGuard.mHeld && mUpperBodyState == UpperBodyState::AttackWindUp)
+        {
+            mAnimation->disable(mCurrentWeapon); mReadyToHit = mSweepArmed = false;
+            mUpperBodyState = UpperBodyState::WeaponEquipped;
+        }
+        if (mContactRecovery > 0 && !mAttackVictim.isEmpty() && mAttackVictim.getClass().isActor()
+            && mAttackVictim.getClass().getCreatureStats(mAttackVictim).isDead())
+        {
+            // Lua damage resolves after contact. A fatal blow may finish its
+            // arc; a surviving body remains an obstacle and forces withdrawal.
+            mContactRecovery = 0;
+            state.mRecoil *= .3f;
+            mAnimation->adjustSpeedMult(mCurrentWeapon,
+                PhysicalCombat::timing(physicalWeapon(mPtr, mWeapon), physicalActor(mPtr, mWeapon)).mStrike);
+        }
+        if (mContactRecovery > 0)
+        {
+            mContactRecovery = std::max(0.f, mContactRecovery - dt);
+            const float elapsed = mContactRecoveryTotal - mContactRecovery;
+            const float returnFraction = std::clamp((elapsed - .055f) / std::max(.1f, mContactRecoveryTotal - .055f), 0.f, 1.f);
+            mAnimation->rewindCombatPose(mCurrentWeapon, mImpactAnimTime * (1 - returnFraction) + mStrikeStartTime * returnFraction);
+            if (mContactRecovery == 0)
+            {
+                mAnimation->disable(mCurrentWeapon); mUpperBodyState = UpperBodyState::AttackEnd;
+            }
+        }
+    }
+
+    void CharacterController::tracePhysicalAttack(float duration, float previousTime)
+    {
+        if (!usesPhysicalMelee() || (mUpperBodyState != UpperBodyState::AttackRelease && mUpperBodyState != UpperBodyState::AttackEnd)
+            || !mStrikePhaseStarted || !mSweepArmed || !mReadyToHit || duration <= 0 || mContactRecovery > 0) return;
+        PhysicalCombat::Blade blade;
+        if (!mAnimation->getCombatWeaponSegment(blade)) return;
+        mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat.mWeaponLength
+            = std::clamp((blade.mTip - blade.mBase).length(), 12.f, 280.f);
+        if (!mHasPreviousBlade) { mPreviousBlade = blade; mHasPreviousBlade = true; return; }
+        const auto world = MWBase::Environment::get().getWorld();
+        MWPhysics::RayCastingResult best{};
+        float earliest = 2;
+        osg::Vec3f velocity;
+        const std::array<MWWorld::Ptr, 1> ignored{ mPtr };
+        PhysicalCombat::sweep(mPreviousBlade, blade, [&](const auto& a, const auto& b, float t0, float t1, float along) {
+            if ((b - a).length2() < .0001f) return;
+            MWPhysics::RayCastingResult hit{};
+            bool found = world->castRenderingRay(hit, a, b, mPtr == getPlayer(), false, ignored);
+            // The first-person player has no rendered torso. Its native physics
+            // shape remains solid, so NPC weapons cannot pass through it.
+            const auto physics = world->getRayCasting()->castRay(a, b, { mPtr });
+            if (physics.mHit && physics.mHitObject == getPlayer() && world->isFirstPerson()
+                && (!found || (physics.mHitPos - a).length2() < (hit.mHitPos - a).length2()))
+            { hit = physics; found = true; }
+            if (!found) return;
+            const float fraction = std::clamp((hit.mHitPos - a).length() / (b - a).length(), 0.f, 1.f);
+            const float when = t0 + (t1 - t0) * fraction;
+            if (when >= earliest) return;
+            earliest = when; best = hit;
+            velocity = PhysicalCombat::pointVelocity(mPreviousBlade, blade, t0 == t1 ? fraction : along, duration);
+        });
+        mPreviousBlade = blade;
+        if (earliest > 1) return;
+        auto& state = mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat;
+        if (!best.mHitObject.isEmpty() && best.mHitObject.getClass().isActor())
+            velocity -= best.mHitObject.getClass().getCreatureStats(best.mHitObject).mPhysicalCombat.mVelocity;
+        const float closing = std::abs(velocity * best.mHitNormal);
+        state.mContactValid = true; state.mContactAge = 0;
+        state.mContactPosition = best.mHitPos; state.mContactVelocity = velocity;
+        state.mContactNormal = best.mHitNormal;
+        state.mContactSpeed = closing; state.mContactBody = best.mHitShield ? 3 : best.mHitBody;
+        if (state.mContactBody == -1 && !best.mHitObject.isEmpty() && best.mHitObject.getClass().isNpc()
+            && best.mHitObject != getPlayer())
+            if (auto* targetAnimation = world->getAnimation(best.mHitObject); targetAnimation && targetAnimation->getObjectRoot())
+                state.mContactBody = MWRender::RagdollController::findHitBody(*targetAnimation->getObjectRoot(), best.mHitPos);
+        mAttackVictim = best.mHitObject; mAttackHitPos = best.mHitPos; mAttackSuccess = true;
+        if (best.mHitBody != -2 || best.mHitShield)
+            mPtr.getClass().hit(mPtr, mAttackStrength, mAttackType == "thrust" ? ESM::Weapon::AT_Thrust
+                : mAttackType == "slash" ? ESM::Weapon::AT_Slash : ESM::Weapon::AT_Chop,
+                mAttackVictim, mAttackHitPos, true);
+        else if (!best.mHitObject.isEmpty() && best.mHitObject.getClass().isActor())
+        {
+            Ragdoll::Impact clash;
+            clash.mWeaponDirection = velocity; clash.mWeaponDirection.normalize();
+            clash.mContactMomentum = PhysicalCombat::impulse(physicalWeapon(mPtr, mWeapon), closing) * .4f;
+            applyLivingImpact(best.mHitObject, clash);
+            best.mHitObject.getClass().getCreatureStats(best.mHitObject).mPhysicalCombat.mRecoil = .15f;
+        }
+        mReadyToHit = mSweepArmed = false;
+        if (!best.mHitObject.isEmpty() && best.mHitObject.getClass().isItem(best.mHitObject)
+            && best.mHitObject.getClass().getWeight(best.mHitObject)
+                < 2.f * (2.f + .12f * physicalWeapon(mPtr, mWeapon).mWeight))
+        {
+            // Light clutter takes the momentum; it cannot arrest the entire
+            // driven arm as though it were a wall or a surviving enemy.
+            state.mRecoil = .03f;
+            return;
+        }
+        mImpactAnimTime = previousTime + (mAnimation->getCurrentTime(mCurrentWeapon) - previousTime) * earliest;
+        mContactRecoveryTotal = (.23f + std::min(.14f, physicalWeapon(mPtr, mWeapon).mWeight * .002f))
+            * (physicalActor(mPtr, mWeapon).mFatigue > 0 ? 1.f : 2.f);
+        mContactRecovery = mContactRecoveryTotal;
+        state.mRecoil = .12f;
+        state.mWeaponLagVelocity *= -.2f;
+        mAnimation->rewindCombatPose(mCurrentWeapon, mImpactAnimTime);
+    }
+
     float CharacterController::calculateWindUp() const
     {
         if (!mAnimation || mCurrentWeapon.empty() || mWeaponType == ESM::Weapon::PickProbe
@@ -1251,18 +1422,26 @@ namespace MWMechanics
         if (mReadyToHit)
             return;
 
-        auto& prng = MWBase::Environment::get().getWorld()->getPrng();
         mAttackStrength = calculateWindUp();
-        if (mAttackStrength == -1.f)
-            mAttackStrength = std::min(1.f, 0.1f + Misc::Rng::rollClosedProbability(prng));
+        if (mAttackStrength == -1.f) mAttackStrength = .65f;
         ESM::WeaponType::Class weapclass = getWeaponType(mWeaponType)->mWeaponClass;
         if (weapclass != ESM::WeaponType::Ranged)
         {
             if (weapclass != ESM::WeaponType::Thrown)
             {
-                mAttackSuccess = mPtr.getClass().evaluateHit(mPtr, mAttackVictim, mAttackHitPos);
-                if (!mAttackSuccess)
-                    mAttackStrength = 0.f;
+                if (usesPhysicalMelee())
+                {
+                    mSweepArmed = true; mStrikePhaseStarted = false;
+                    auto& state = mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat;
+                    state.mContactValid = false;
+                    mStrikeStartTime = mAnimation->getTextKeyTime(mCurrentWeapon + ": " + mAttackType + " max attack");
+                    applyFatigueLoss(mPtr, mWeapon, mAttackStrength);
+                }
+                else
+                {
+                    mAttackSuccess = mPtr.getClass().evaluateHit(mPtr, mAttackVictim, mAttackHitPos);
+                    if (!mAttackSuccess) mAttackStrength = 0.f;
+                }
             }
             playSwishSound();
         }
@@ -1272,6 +1451,7 @@ namespace MWMechanics
 
     bool CharacterController::updateWeaponState()
     {
+        if (mContactRecovery > 0) return false;
         // If the current animation is scripted, we can't do anything here.
         if (isScriptedAnimPlaying())
             return false;
@@ -1315,6 +1495,9 @@ namespace MWMechanics
             if (mWeapon != newWeapon)
             {
                 mWeapon = newWeapon;
+                stats.mPhysicalCombat.mWeaponLength = 0;
+                stats.mPhysicalCombat.mHasBladeDirection = false;
+                mHasPreviousBlade = false;
                 weaponChanged = true;
             }
 
@@ -1322,6 +1505,16 @@ namespace MWMechanics
                 && mWeapon.getType() == ESM::Weapon::sRecordId)
             {
                 weapSpeed = mWeapon.get<ESM::Weapon>()->mBase->mData.mSpeed;
+                if (!weaponChanged && stats.mPhysicalCombat.mWeaponLength <= 0 && mAnimation->getWeaponsShown()
+                    && weaptype >= ESM::Weapon::ShortBladeOneHand && weaptype <= ESM::Weapon::SpearTwoWide)
+                {
+                    PhysicalCombat::Blade measured;
+                    if (mAnimation->getCombatWeaponSegment(measured))
+                        stats.mPhysicalCombat.mWeaponLength = std::clamp((measured.mTip - measured.mBase).length(), 12.f, 280.f);
+                }
+                const auto rates = PhysicalCombat::timing(physicalWeapon(mPtr, mWeapon), physicalActor(mPtr, mWeapon));
+                weapSpeed = mUpperBodyState == UpperBodyState::AttackRelease ? rates.mStrike
+                    : mUpperBodyState == UpperBodyState::AttackWindUp ? rates.mWindup : rates.mRecovery;
                 MWWorld::ConstContainerStoreIterator ammo = inv.getSlot(MWWorld::InventoryStore::Slot_Ammunition);
                 int ammotype = getWeaponType(mWeapon.get<ESM::Weapon>()->mBase->mData.mType)->mAmmoType;
                 if (ammotype != ESM::Weapon::None)
@@ -1347,6 +1540,12 @@ namespace MWMechanics
             }
         }
 
+        if (weaptype == ESM::Weapon::HandToHand)
+        {
+            const auto rates = PhysicalCombat::timing(physicalWeapon(mPtr, mWeapon), physicalActor(mPtr, mWeapon));
+            weapSpeed = mUpperBodyState == UpperBodyState::AttackRelease ? rates.mStrike
+                : mUpperBodyState == UpperBodyState::AttackWindUp ? rates.mWindup : rates.mRecovery;
+        }
         MWRender::Animation::AnimPriority priorityWeapon(Priority_Default);
         if (cls.isBipedal(mPtr))
         {
@@ -1518,7 +1717,12 @@ namespace MWMechanics
         float complete = 0.f;
         bool animPlaying = false;
         ESM::WeaponType::Class weapclass = getWeaponType(mWeaponType)->mWeaponClass;
-        if (getAttackingOrSpell())
+        if (!mCurrentWeapon.empty() && mWeaponType != ESM::Weapon::Spell && mWeaponType != ESM::Weapon::PickProbe)
+            mAnimation->adjustSpeedMult(mCurrentWeapon, weapSpeed);
+
+        if (getAttackingOrSpell() && !stats.mPhysicalCombat.mGuard.mHeld
+            && (mAttackCycleLeft <= 0 || mUpperBodyState == UpperBodyState::AttackWindUp
+                || mUpperBodyState == UpperBodyState::AttackRelease))
         {
             mResetIdleOnAttackEnd = true;
             if (mUpperBodyState == UpperBodyState::WeaponEquipped
@@ -1711,6 +1915,9 @@ namespace MWMechanics
                     // Strictly speaking this should probably be done when the attack ends,
                     // but the attack animation might be cancelled in a myriad different ways.
                     mAttackSuccess = false;
+                    mSweepArmed = mHasPreviousBlade = false;
+                    mStrikePhaseStarted = false;
+                    mAttackCycleLeft = PhysicalCombat::timing(physicalWeapon(mPtr, mWeapon), physicalActor(mPtr, mWeapon)).mMinimumCycle;
                     mAttackVictim = MWWorld::Ptr();
                     mAttackHitPos = osg::Vec3f();
 
@@ -1784,6 +1991,7 @@ namespace MWMechanics
                 mAnimation->disable(mCurrentWeapon);
                 playBlendedAnimation(mCurrentWeapon, priorityWeapon, MWRender::BlendMask_All, false, weapSpeed,
                     mAttackType + " max attack", mAttackType + ' ' + hit, startPoint, 0);
+                mStrikePhaseStarted = true;
             }
 
             animPlaying = mAnimation->getInfo(mCurrentWeapon, &complete);
@@ -1803,7 +2011,7 @@ namespace MWMechanics
                     stop = strength + ' ' + stop;
                 }
 
-                mReadyToHit = false;
+                mReadyToHit = usesPhysicalMelee() && mSweepArmed;
 
                 if (animPlaying)
                     mAnimation->disable(mCurrentWeapon);
@@ -1839,6 +2047,7 @@ namespace MWMechanics
                 // See the weapon->weapon mid-attack skip logic above
                 if (mUpperBodyState == UpperBodyState::AttackEnd)
                 {
+                    mReadyToHit = mSweepArmed = mStrikePhaseStarted = mHasPreviousBlade = false;
                     if (weapclass == ESM::WeaponType::Thrown && weaptype == ESM::Weapon::HandToHand)
                     {
                         forcestateupdate = true;
@@ -1966,6 +2175,7 @@ namespace MWMechanics
     {
         if (!mAnimation)
             return;
+        updatePhysicalCombat(duration);
         MWBase::World* world = MWBase::Environment::get().getWorld();
         MWBase::SoundManager* sndMgr = MWBase::Environment::get().getSoundManager();
         const MWWorld::Class& cls = mPtr.getClass();
@@ -2447,8 +2657,38 @@ namespace MWMechanics
             }
         }
 
+        const float previousCombatTime = mAnimation->getCurrentTime(mCurrentWeapon);
+        if (usesPhysicalMelee() && mSweepArmed && mStrikePhaseStarted
+            && mUpperBodyState == UpperBodyState::AttackRelease && !mHasPreviousBlade)
+            mHasPreviousBlade = mAnimation->getCombatWeaponSegment(mPreviousBlade);
         osg::Vec3f movementFromAnimation
             = mAnimation->runAnimation(mSkipAnim && !isScriptedAnimPlaying() ? 0.f : duration);
+        if (cls.isActor())
+        {
+            auto& motor = cls.getCreatureStats(mPtr).mPhysicalCombat;
+            PhysicalCombat::Blade target;
+            if (usesPhysicalMelee() && !cls.getCreatureStats(mPtr).isDead() && !isScriptedAnimPlaying()
+                && mAnimation->getCombatWeaponSegment(target, true))
+            {
+                motor.driveWeapon(target, duration, physicalWeapon(mPtr, mWeapon), physicalActor(mPtr, mWeapon).mStrength);
+                auto local = motor.mWeaponLag;
+                if (const auto* base = mPtr.getRefData().getBaseNode()) local = base->getAttitude().inverse() * local;
+                const float angle = local.normalize();
+                mAnimation->setCombatWeaponLag(angle > 0 ? osg::Quat(angle, local) : osg::Quat(), motor.mRecoil);
+            }
+            else
+            {
+                motor.mHasBladeDirection = false; motor.mWeaponLag = motor.mWeaponLagVelocity = osg::Vec3f();
+                mAnimation->setCombatWeaponLag(osg::Quat(), 0);
+            }
+        }
+        if (!mSkipAnim && !isScriptedAnimPlaying()) tracePhysicalAttack(duration, previousCombatTime);
+        // Retain the displayed wind-up/idle pose as well as strike poses. A new
+        // animation rebuilds its controllers; sampling a fresh pre-strike pose
+        // there would otherwise omit the previous frame's aim/inertia offsets.
+        if (usesPhysicalMelee() && !cls.getCreatureStats(mPtr).isDead() && !isScriptedAnimPlaying())
+            mHasPreviousBlade = mAnimation->getCombatWeaponSegment(mPreviousBlade);
+        else mHasPreviousBlade = false;
 
         if (mPtr.getClass().isActor() && !isScriptedAnimPlaying())
         {
@@ -2502,6 +2742,27 @@ namespace MWMechanics
 
             movement.x() *= scale;
             movement.y() *= scale;
+            if (!cls.getCreatureStats(mPtr).isDead())
+            {
+                const auto* base = mPtr.getRefData().getBaseNode();
+                const auto push = cls.getCreatureStats(mPtr).mPhysicalCombat.mPush;
+                movement += base ? base->getAttitude().inverse() * push : push;
+                if (mContactRecovery > 0)
+                {
+                    auto normal = cls.getCreatureStats(mPtr).mPhysicalCombat.mContactNormal;
+                    normal.z() = 0;
+                    if (normal.normalize() > 0)
+                    {
+                        auto velocity = base ? base->getAttitude() * movement : movement;
+                        osg::Vec3f otherVelocity;
+                        if (!mAttackVictim.isEmpty() && mAttackVictim.getClass().isActor())
+                            otherVelocity = mAttackVictim.getClass().getCreatureStats(mAttackVictim).mPhysicalCombat.mVelocity;
+                        const float closing = (velocity - otherVelocity) * normal;
+                        if (closing < 0) velocity -= normal * closing;
+                        movement = base ? base->getAttitude().inverse() * velocity : velocity;
+                    }
+                }
+            }
             world->queueMovement(mPtr, movement);
         }
 
@@ -2918,7 +3179,8 @@ namespace MWMechanics
 
     bool CharacterController::isReadyToBlock() const
     {
-        return mAnimation && updateCarriedLeftVisible(mWeaponType);
+        const auto& guard = mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat.mGuard;
+        return mAnimation && updateCarriedLeftVisible(mWeaponType) && guard.mHeld && guard.mProgress >= .999f;
     }
 
     bool CharacterController::isKnockedDown() const

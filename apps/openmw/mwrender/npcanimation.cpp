@@ -947,6 +947,7 @@ namespace MWRender
         const int hitBody = type == ESM::PRT_Weapon || type == ESM::PRT_Shield ? -2
             : group == MWWorld::InventoryStore::Slot_Robe ? -1 : static_cast<int>(bodyFor(type));
         node->setUserValue(SceneUtil::HitBodyTag, hitBody);
+        node->setUserValue(SceneUtil::ShieldContactTag, type == ESM::PRT_Shield);
         if (node->getNumChildrenRequiringUpdateTraversal() > 0)
         {
             std::shared_ptr<SceneUtil::ControllerSource> src;

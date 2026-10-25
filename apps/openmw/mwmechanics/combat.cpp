@@ -36,6 +36,7 @@
 #include "actorutil.hpp"
 #include "difficultyscaling.hpp"
 #include "movement.hpp"
+#include "weapontype.hpp"
 #include "npcstats.hpp"
 #include "pathfinding.hpp"
 #include "spellcasting.hpp"
@@ -43,11 +44,6 @@
 
 namespace
 {
-
-    float signedAngleRadians(const osg::Vec3f& v1, const osg::Vec3f& v2, const osg::Vec3f& normal)
-    {
-        return std::atan2((normal * (v1 ^ v2)), (v1 * v2));
-    }
 
     void captureWoundContact(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim,
         const MWWorld::Ptr& projectile, Ragdoll::Impact& impact)
@@ -215,11 +211,32 @@ namespace MWMechanics
             : type == ESM::Weapon::Arrow || type == ESM::Weapon::MarksmanBow ? settings.mBowImpulseScale.get()
             : type == ESM::Weapon::MarksmanThrown                            ? settings.mThrownImpulseScale.get()
                                                                              : settings.mMeleeImpulseScale.get();
+        if (projectile.isEmpty())
+        {
+            impact.mContactMomentum = PhysicalCombat::impulse(physicalWeapon(attacker, weapon), 400.f)
+                * impact.mWeaponImpulseScale;
+            if (!attacker.isEmpty() && attacker.getClass().isActor())
+            {
+                const auto& physical = attacker.getClass().getCreatureStats(attacker).mPhysicalCombat;
+                if (physical.mContactValid && physical.mContactAge < .15f)
+                {
+                    impact.mWeaponPosition = impact.mPosition = physical.mContactPosition;
+                    impact.mWeaponHitBody = physical.mContactBody;
+                    impact.mWeaponDirection = physical.mContactVelocity;
+                    if (impact.mWeaponDirection.normalize() == 0) impact.mWeaponDirection.set(0, 1, 0);
+                    impact.mContactSpeed = physical.mContactSpeed;
+                    impact.mContactMomentum = PhysicalCombat::impulse(physicalWeapon(attacker, weapon), physical.mContactSpeed)
+                        * impact.mWeaponImpulseScale;
+                    impact.mWeaponMultiplier *= PhysicalCombat::speedDamage(physical.mContactSpeed, 500.f);
+                }
+            }
+        }
         return hit;
     }
 
     bool applyOnStrikeEnchantment(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& object,
-        const osg::Vec3f& hitPosition, const bool fromProjectile, const std::shared_ptr<RagdollHit>& ragdollHit)
+        const osg::Vec3f& hitPosition, const bool fromProjectile, const std::shared_ptr<RagdollHit>& ragdollHit,
+        float guardTransmission)
     {
         const ESM::RefId enchantmentName = !object.isEmpty() ? object.getClass().getEnchantment(object) : ESM::RefId();
         if (!enchantmentName.empty())
@@ -231,6 +248,7 @@ namespace MWMechanics
                 MWMechanics::CastSpell cast(attacker, victim, fromProjectile);
                 cast.mHitPosition = hitPosition;
                 cast.mRagdollHit = ragdollHit;
+                cast.mGuardTransmission = std::clamp(guardTransmission, 0.f, 1.f);
                 if (ragdollHit)
                     cast.mImpactDirection = ragdollHit->mWeapon.mWeaponDirection;
                 const bool applied = cast.cast(object, false);
@@ -243,113 +261,101 @@ namespace MWMechanics
         return false;
     }
 
-    bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
-        float damage, float attackStrength)
+    PhysicalCombat::Weapon physicalWeapon(const MWWorld::Ptr& actor, const MWWorld::Ptr& weapon)
     {
-        if (!blocker.getClass().hasInventoryStore(blocker))
-            return false;
-
-        MWMechanics::CreatureStats& blockerStats = blocker.getClass().getCreatureStats(blocker);
-
-        if (blockerStats.getKnockedDown() // Used for both knockout or knockdown
-            || blockerStats.getHitRecovery() || blockerStats.isParalyzed())
-            return false;
-
-        if (!MWBase::Environment::get().getMechanicsManager()->isReadyToBlock(blocker))
-            return false;
-
-        MWWorld::InventoryStore& inv = blocker.getClass().getInventoryStore(blocker);
-        MWWorld::ContainerStoreIterator shield = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
-        if (shield == inv.end() || shield->getType() != ESM::Armor::sRecordId)
-            return false;
-
-        if (!blocker.getRefData().getBaseNode())
-            return false; // shouldn't happen
-
-        float angleDegrees = osg::RadiansToDegrees(signedAngleRadians(
-            (attacker.getRefData().getPosition().asVec3() - blocker.getRefData().getPosition().asVec3()),
-            blocker.getRefData().getBaseNode()->getAttitude() * osg::Vec3f(0, 1, 0), osg::Vec3f(0, 0, 1)));
-
-        const MWWorld::Store<ESM::GameSetting>& gmst
-            = MWBase::Environment::get().getESMStore()->get<ESM::GameSetting>();
-        static const float fCombatBlockLeftAngle = gmst.find("fCombatBlockLeftAngle")->mValue.getFloat();
-        if (angleDegrees < fCombatBlockLeftAngle)
-            return false;
-        static const float fCombatBlockRightAngle = gmst.find("fCombatBlockRightAngle")->mValue.getFloat();
-        if (angleDegrees > fCombatBlockRightAngle)
-            return false;
-
-        MWMechanics::CreatureStats& attackerStats = attacker.getClass().getCreatureStats(attacker);
-
-        float blockTerm = blocker.getClass().getSkill(blocker, ESM::Skill::Block)
-            + 0.2f * blockerStats.getAttribute(ESM::Attribute::Agility).getModified()
-            + 0.1f * blockerStats.getAttribute(ESM::Attribute::Luck).getModified();
-        float enemySwing = attackStrength;
-        static const float fSwingBlockMult = gmst.find("fSwingBlockMult")->mValue.getFloat();
-        static const float fSwingBlockBase = gmst.find("fSwingBlockBase")->mValue.getFloat();
-        float swingTerm = enemySwing * fSwingBlockMult + fSwingBlockBase;
-
-        float blockerTerm = blockTerm * swingTerm;
-        if (blocker.getClass().getMovementSettings(blocker).mPosition[1] <= 0)
+        PhysicalCombat::Weapon result;
+        if (weapon.isEmpty() || weapon.getType() != ESM::Weapon::sRecordId)
         {
-            static const float fBlockStillBonus = gmst.find("fBlockStillBonus")->mValue.getFloat();
-            blockerTerm *= fBlockStillBonus;
+            result.mWeight = 0; result.mLength = 24;
+            result.mHandling = PhysicalCombat::Handling::LightBlade;
+            return result;
         }
-        blockerTerm *= blockerStats.getFatigueTerm();
+        const auto& data = weapon.get<ESM::Weapon>()->mBase->mData;
+        result.mWeight = data.mWeight; result.mLength = std::max(20.f, data.mReach * 70.f);
+        const float measured = !actor.isEmpty() && actor.getClass().isActor()
+            ? actor.getClass().getCreatureStats(actor).mPhysicalCombat.mWeaponLength : 0.f;
+        if (measured > 0) result.mLength = measured;
+        result.mRecordSpeed = data.mSpeed;
+        if (data.mType == ESM::Weapon::LongBladeTwoHand || data.mType == ESM::Weapon::AxeTwoHand
+            || data.mType == ESM::Weapon::BluntTwoClose)
+            result.mHandling = PhysicalCombat::Handling::Heavy;
+        else if (data.mType == ESM::Weapon::ShortBladeOneHand || data.mType == ESM::Weapon::LongBladeOneHand)
+            result.mHandling = PhysicalCombat::Handling::LightBlade;
+        return result;
+    }
 
-        float attackerSkill = 0;
-        if (weapon.isEmpty())
-            attackerSkill = attacker.getClass().getSkill(attacker, ESM::Skill::HandToHand);
-        else
-            attackerSkill = attacker.getClass().getSkill(attacker, weapon.getClass().getEquipmentSkill(weapon));
-        float attackerTerm = attackerSkill + 0.2f * attackerStats.getAttribute(ESM::Attribute::Agility).getModified()
-            + 0.1f * attackerStats.getAttribute(ESM::Attribute::Luck).getModified();
-        attackerTerm *= attackerStats.getFatigueTerm();
+    PhysicalCombat::Actor physicalActor(const MWWorld::Ptr& actor, const MWWorld::Ptr& weapon)
+    {
+        const auto& stats = actor.getClass().getCreatureStats(actor);
+        return { stats.getAttribute(ESM::Attribute::Strength).getModified(),
+            stats.getAttribute(ESM::Attribute::Agility).getModified(),
+            actor.getClass().getSkill(actor, weapon.isEmpty() ? ESM::Skill::HandToHand
+                : weapon.getClass().getEquipmentSkill(weapon)), stats.getFatigue().getCurrent() };
+    }
 
-        static const int iBlockMaxChance = gmst.find("iBlockMaxChance")->mValue.getInteger();
-        static const int iBlockMinChance = gmst.find("iBlockMinChance")->mValue.getInteger();
-        int x = std::clamp(static_cast<int>(blockerTerm - attackerTerm), iBlockMinChance, iBlockMaxChance);
+    bool hasCombatShield(const MWWorld::Ptr& actor)
+    {
+        if (!actor.getClass().hasInventoryStore(actor)) return false;
+        auto& inventory = actor.getClass().getInventoryStore(actor);
+        const auto shield = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
+        if (shield == inventory.end() || shield->getType() != ESM::Armor::sRecordId) return false;
+        const auto weapon = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
+        return weapon == inventory.end() || (weapon->getType() == ESM::Weapon::sRecordId
+            && !(getWeaponType(weapon->get<ESM::Weapon>()->mBase->mData.mType)->mFlags & ESM::WeaponType::TwoHanded));
+    }
 
-        auto& prng = MWBase::Environment::get().getWorld()->getPrng();
-        if (Misc::Rng::roll0to99(prng) < x)
-        {
-            MWBase::SoundManager* sndMgr = MWBase::Environment::get().getSoundManager();
-            const ESM::RefId skill = shield->getClass().getEquipmentSkill(*shield);
-            if (skill == ESM::Skill::LightArmor)
-                sndMgr->playSound3D(blocker, ESM::RefId::stringRefId("Light Armor Hit"), 1.0f, 1.0f);
-            else if (skill == ESM::Skill::MediumArmor)
-                sndMgr->playSound3D(blocker, ESM::RefId::stringRefId("Medium Armor Hit"), 1.0f, 1.0f);
-            else if (skill == ESM::Skill::HeavyArmor)
-                sndMgr->playSound3D(blocker, ESM::RefId::stringRefId("Heavy Armor Hit"), 1.0f, 1.0f);
+    void applyLivingImpact(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit)
+    {
+        if (hit.mContactMomentum <= 0 || victim.isEmpty() || !victim.getClass().isActor()) return;
+        auto& stats = victim.getClass().getCreatureStats(victim);
+        if (stats.isDead() || stats.isParalyzed()) return;
+        if (victim == getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState()) return;
+        const float scale = std::clamp(victim.getCellRef().getScale(), .5f, 2.f);
+        const float mass = 70.f * scale * scale * scale;
+        const bool down = stats.mPhysicalCombat.receive(hit.mWeaponDirection,
+            hit.mContactMomentum, mass, stats.getAttribute(ESM::Attribute::Agility).getModified(),
+            stats.getFatigue().getCurrent());
+        if (down) stats.setKnockedDown(true);
+        else if (stats.mPhysicalCombat.mPoise > .35f) stats.setHitRecovery(true);
+    }
 
-            // Reduce shield durability by incoming damage
-            int shieldhealth = shield->getClass().getItemHealth(*shield);
-
-            shieldhealth -= std::min(shieldhealth, int(damage));
-            shield->getCellRef().setCharge(shieldhealth);
-            if (shieldhealth == 0)
-                inv.unequipItem(*shield);
-            // Reduce blocker fatigue
-            static const float fFatigueBlockBase = gmst.find("fFatigueBlockBase")->mValue.getFloat();
-            static const float fFatigueBlockMult = gmst.find("fFatigueBlockMult")->mValue.getFloat();
-            static const float fWeaponFatigueBlockMult = gmst.find("fWeaponFatigueBlockMult")->mValue.getFloat();
-            MWMechanics::DynamicStat<float> fatigue = blockerStats.getFatigue();
-            float normalizedEncumbrance = blocker.getClass().getNormalizedEncumbrance(blocker);
-            normalizedEncumbrance = std::min(1.f, normalizedEncumbrance);
-            float fatigueLoss = fFatigueBlockBase + normalizedEncumbrance * fFatigueBlockMult;
-            if (!weapon.isEmpty())
-                fatigueLoss += weapon.getClass().getWeight(weapon) * attackStrength * fWeaponFatigueBlockMult;
-            fatigue.setCurrent(fatigue.getCurrent() - fatigueLoss);
-            blockerStats.setFatigue(fatigue);
-
-            blockerStats.setBlock(true);
-
-            if (blocker == getPlayer())
-                blocker.getClass().skillUsageSucceeded(blocker, ESM::Skill::Block, ESM::Skill::Block_Success);
-
-            return true;
-        }
-        return false;
+    bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
+        float& damage, float attackStrength, float* transmission)
+    {
+        if (transmission) *transmission = 1.f;
+        if (attacker.isEmpty() || !hasCombatShield(blocker)) return false;
+        auto& stats = blocker.getClass().getCreatureStats(blocker);
+        if (stats.getKnockedDown() || stats.isParalyzed()
+            || !MWBase::Environment::get().getMechanicsManager()->isReadyToBlock(blocker)) return false;
+        const auto* base = blocker.getRefData().getBaseNode();
+        if (!base) return false;
+        auto incoming = attacker.getRefData().getPosition().asVec3() - blocker.getRefData().getPosition().asVec3();
+        incoming.z() = 0;
+        if (incoming.normalize() == 0) return false;
+        const auto forward = base->getAttitude() * osg::Vec3f(0, 1, 0);
+        if (incoming * forward < .42f) return false; // frontal 130-degree guard
+        auto& guard = stats.mPhysicalCombat.mGuard;
+        const float fraction = guard.damageMultiplier(stats.getFatigue().getCurrent() <= 0);
+        if (fraction >= 1) return false;
+        if (transmission) *transmission = fraction;
+        auto& inventory = blocker.getClass().getInventoryStore(blocker);
+        auto shield = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
+        const float skill = std::clamp(blocker.getClass().getSkill(blocker, ESM::Skill::Block), 0.f, 100.f);
+        const float absorbed = std::max(0.f, damage) * (1 - fraction);
+        const int wear = PhysicalCombat::shieldWear(absorbed, skill);
+        const int health = std::max(0, shield->getClass().getItemHealth(*shield) - wear);
+        shield->getCellRef().setCharge(health);
+        if (!health) inventory.unequipItem(*shield);
+        auto fatigue = stats.getFatigue();
+        const float weight = weapon.isEmpty() ? 0.f : weapon.getClass().getWeight(weapon);
+        fatigue.setCurrent(fatigue.getCurrent() - PhysicalCombat::shieldFatigue(absorbed, weight, attackStrength, skill));
+        stats.setFatigue(fatigue);
+        stats.setBlock(true);
+        damage *= fraction;
+        MWBase::Environment::get().getSoundManager()->playSound3D(blocker,
+            ESM::RefId::stringRefId("Medium Armor Hit"), 1, 1);
+        if (blocker == getPlayer()) blocker.getClass().skillUsageSucceeded(blocker, ESM::Skill::Block, ESM::Skill::Block_Success);
+        return true;
     }
 
     bool isNormalWeapon(const MWWorld::Ptr& weapon)
@@ -429,16 +435,6 @@ namespace MWMechanics
             if (attacker == getPlayer())
                 MWBase::Environment::get().getWindowManager()->setEnemy(victim);
 
-            int skillValue = static_cast<int>(attacker.getClass().getSkill(attacker, weaponSkill));
-
-            if (Misc::Rng::roll0to99(world->getPrng()) >= getHitChance(attacker, victim, skillValue))
-            {
-                MWBase::Environment::get().getLuaManager()->onHit(attacker, victim, weapon, projectile, 0,
-                    attackStrength, damage, false, hitPosition, false, MWMechanics::DamageSourceType::Ranged);
-                MWMechanics::reduceWeaponCondition(damage, false, weapon, attacker);
-                return;
-            }
-
             {
                 const auto& attack = weapon.get<ESM::Weapon>()->mBase->mData.mChop;
                 damage = attack[0] + ((attack[1] - attack[0]) * attackStrength); // Bow/crossbow damage
@@ -450,6 +446,7 @@ namespace MWMechanics
                 damage += attack[0] + ((attack[1] - attack[0]) * attackStrength);
             }
             adjustWeaponDamage(damage, weapon, attacker);
+            damage *= PhysicalCombat::skillDamage(attacker.getClass().getSkill(attacker, weaponSkill));
         }
 
         reduceWeaponCondition(damage, validVictim, weapon, attacker);
@@ -479,11 +476,22 @@ namespace MWMechanics
         }
 
         auto ragdollHit = makeRagdollHit(attacker, victim, weapon, projectile, 0, hitPosition, impactDirection);
-        // Apply "On hit" effect of the projectile with the same contact identity.
-        bool appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
-        if (weapon != projectile)
-            appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit)
-                || appliedEnchantment;
+        ragdollHit->mWeapon.mContactMomentum = 650.f * ragdollHit->mWeapon.mWeaponImpulseScale;
+        ragdollHit->mWeapon.mContactSpeed = impactDirection.length();
+        float transmission = 1;
+        const bool blocked = validVictim && blockMeleeAttack(attacker, victim, weapon, damage, attackStrength, &transmission);
+        if (blocked)
+        {
+            ragdollHit->mWeapon.mContactMomentum *= std::max(.15f, transmission);
+            if (damage <= 0) applyLivingImpact(victim, ragdollHit->mWeapon);
+        }
+        bool appliedEnchantment = false;
+        {
+            appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit, transmission);
+            if (weapon != projectile)
+                appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit, transmission)
+                    || appliedEnchantment;
+        }
 
         if (validVictim)
         {
@@ -502,40 +510,9 @@ namespace MWMechanics
         }
     }
 
-    float getHitChance(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, int skillValue)
+    float getHitChance(const MWWorld::Ptr&, const MWWorld::Ptr&, int)
     {
-        MWMechanics::CreatureStats& stats = attacker.getClass().getCreatureStats(attacker);
-        const MWMechanics::MagicEffects& mageffects = stats.getMagicEffects();
-
-        MWBase::World* world = MWBase::Environment::get().getWorld();
-        const MWWorld::Store<ESM::GameSetting>& gmst = world->getStore().get<ESM::GameSetting>();
-
-        float defenseTerm = 0;
-        MWMechanics::CreatureStats& victimStats = victim.getClass().getCreatureStats(victim);
-        if (victimStats.getFatigue().getCurrent() >= 0)
-        {
-            // Maybe we should keep an aware state for actors updated every so often instead of testing every time
-            bool unaware = (!victimStats.getAiSequence().isInCombat()) && (attacker == getPlayer())
-                && (!MWBase::Environment::get().getMechanicsManager()->awarenessCheck(attacker, victim));
-            if (!(victimStats.getKnockedDown() || victimStats.isParalyzed() || unaware))
-            {
-                defenseTerm = victimStats.getEvasion();
-            }
-            static const float fCombatInvisoMult = gmst.find("fCombatInvisoMult")->mValue.getFloat();
-            defenseTerm += std::min(100.f,
-                fCombatInvisoMult
-                    * victimStats.getMagicEffects().getOrDefault(ESM::MagicEffect::Chameleon).getMagnitude());
-            defenseTerm += std::min(100.f,
-                fCombatInvisoMult
-                    * victimStats.getMagicEffects().getOrDefault(ESM::MagicEffect::Invisibility).getMagnitude());
-        }
-        float attackTerm = skillValue + (stats.getAttribute(ESM::Attribute::Agility).getModified() / 5.0f)
-            + (stats.getAttribute(ESM::Attribute::Luck).getModified() / 10.0f);
-        attackTerm *= stats.getFatigueTerm();
-        attackTerm += mageffects.getOrDefault(ESM::MagicEffect::FortifyAttack).getMagnitude()
-            - mageffects.getOrDefault(ESM::MagicEffect::Blind).getMagnitude();
-
-        return round(attackTerm - defenseTerm);
+        return 100.f; // Contact, not a skill/luck roll, determines whether an attack hits.
     }
 
     void applyElementalShields(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim)

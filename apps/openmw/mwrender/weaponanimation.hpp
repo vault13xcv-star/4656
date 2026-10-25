@@ -39,6 +39,8 @@ namespace MWRender
         WeaponAnimation();
         virtual ~WeaponAnimation();
 
+        osg::Node* getPhysicalWeaponNode() { return getWeaponNode(); }
+
         /// @note If no weapon (or an invalid weapon) is equipped, this function is a no-op.
         void attachArrow(const MWWorld::Ptr& actor);
 

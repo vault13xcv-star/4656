@@ -16,6 +16,9 @@
 #include <components/sceneutil/textkeymap.hpp>
 #include <components/sceneutil/util.hpp>
 #include <components/vfs/pathutil.hpp>
+#include <components/ragdoll/physicalcombat.hpp>
+#include <osg/BoundingBox>
+#include <osg/observer_ptr>
 
 #include <map>
 #include <span>
@@ -215,6 +218,11 @@ namespace MWRender
         // Keep track of controllers that we added to our scene graph.
         // We may need to rebuild these controllers when the active animation groups / sources change.
         ActiveControllersVector mActiveControllers;
+        std::map<const osg::Node*, osg::ref_ptr<SceneUtil::KeyframeController>> mCombatTracks;
+        osg::observer_ptr<osg::Node> mCombatWeaponNode;
+        osg::BoundingBox mCombatWeaponBounds;
+        osg::ref_ptr<RotateController> mCombatSpine, mCombatPelvis, mCombatArm, mCombatShield;
+        osg::Quat mCombatWeaponLag;
 
         // Keep track of the animation controllers for easy access
         std::map<osg::ref_ptr<osg::Node>, osg::ref_ptr<NifAnimBlendController>> mAnimBlendControllers;
@@ -451,6 +459,10 @@ namespace MWRender
         float getVelocity(std::string_view groupname) const;
 
         virtual osg::Vec3f runAnimation(float duration);
+
+        bool getCombatWeaponSegment(PhysicalCombat::Blade& result, bool ignoreArmCorrection = false);
+        void setCombatWeaponLag(const osg::Quat& rotation, float recoil);
+        void rewindCombatPose(const std::string& group, float time);
 
         /// True for both simulating and settled corpse poses; no saved actor position is changed.
         bool getRagdollPosition(osg::Vec3f& position) const;

@@ -235,6 +235,9 @@ namespace MWMechanics
 
             if (enam.mData.mRange != range)
                 continue;
+            const float transmission = !exploded && target == mTarget && target != mCaster && range != ESM::RT_Self
+                ? mGuardTransmission : 1.f;
+            if (transmission <= 0) continue;
             const ESM::MagicEffect* magicEffect = store.find(enam.mData.mEffectID);
             if (!magicEffect)
                 continue;
@@ -249,6 +252,8 @@ namespace MWMechanics
             effect.mMagnitude = 0.f;
             effect.mMinMagnitude = static_cast<float>(enam.mData.mMagnMin);
             effect.mMaxMagnitude = static_cast<float>(enam.mData.mMagnMax);
+            effect.mMinMagnitude *= transmission;
+            effect.mMaxMagnitude *= transmission;
             effect.mTimeLeft = 0.f;
             effect.mEffectIndex = enam.mIndex;
             effect.mFlags = ESM::ActiveEffect::Flag_None;

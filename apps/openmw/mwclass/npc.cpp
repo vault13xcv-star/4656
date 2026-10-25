@@ -581,7 +581,6 @@ namespace MWClass
         if (weaponslot != inv.end() && weaponslot->getType() == ESM::Weapon::sRecordId)
             weapon = *weaponslot;
 
-        MWBase::World* world = MWBase::Environment::get().getWorld();
 
         const float dist = MWMechanics::getMeleeWeaponReach(ptr, weapon);
         const std::pair<MWWorld::Ptr, osg::Vec3f> result = MWMechanics::getHitContact(ptr, dist);
@@ -595,13 +594,7 @@ namespace MWClass
         if (!victim.getClass().isActor())
             return true;
 
-        ESM::RefId weapskill = ESM::Skill::HandToHand;
-        if (!weapon.isEmpty())
-            weapskill = weapon.getClass().getEquipmentSkill(weapon);
-
-        float hitchance = MWMechanics::getHitChance(ptr, victim, static_cast<int>(getSkill(ptr, weapskill)));
-
-        return Misc::Rng::roll0to99(world->getPrng()) < hitchance;
+        return true; // A real contact never performs a second hit/miss roll.
     }
 
     void Npc::hit(const MWWorld::Ptr& ptr, float attackStrength, int type, const MWWorld::Ptr& victim,
@@ -613,21 +606,34 @@ namespace MWClass
         if (weaponslot != inv.end() && weaponslot->getType() == ESM::Weapon::sRecordId)
             weapon = *weaponslot;
 
-        MWMechanics::applyFatigueLoss(ptr, weapon, attackStrength);
+        const auto& physicalContact = getCreatureStats(ptr).mPhysicalCombat;
+        const bool sweptContact = physicalContact.mContactValid && physicalContact.mContactAge < .15f;
+        if (!sweptContact) MWMechanics::applyFatigueLoss(ptr, weapon, attackStrength);
 
         // PrepareHit runs during wind-up; clutter must be sampled again at the
         // actual animation contact key, with the current aim and reach.
-        const auto contact = MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon));
-        if (!contact.first.isEmpty())
+        const auto contact = sweptContact ? std::make_pair(victim, hitPosition)
+            : MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon));
+        if (!contact.first.isEmpty() && contact.first.getClass().isItem(contact.first))
         {
             osg::Vec3f direction = contact.second - ptr.getRefData().getPosition().asVec3();
             direction.z() = std::max(0.15f * direction.length(), direction.z() * 0.1f);
             direction.normalize();
             const float weight = weapon.isEmpty() ? 1.f : weapon.getClass().getWeight(weapon);
+            float impulseScale = Settings::ragdoll().mMeleeImpulseScale.get();
+            osg::Vec3f impulse = direction * ((200.f + weight * 100.f) * (0.25f + attackStrength));
+            if (sweptContact)
+            {
+                auto actual = physicalContact.mContactVelocity;
+                if (actual.normalize() > 0)
+                {
+                    impulse = actual * 2000.f;
+                    impulseScale *= std::clamp(PhysicalCombat::impulse(MWMechanics::physicalWeapon(ptr, weapon),
+                        physicalContact.mContactSpeed) / 2000.f, .1f, 3.f);
+                }
+            }
             MWBase::Environment::get().getWorld()->applyItemImpulse(contact.first,
-                direction
-                    * ((200.f + weight * 100.f) * (0.25f + attackStrength)),
-                contact.second, Settings::ragdoll().mMeleeImpulseScale.get());
+                impulse, contact.second, impulseScale);
             MWMechanics::applyOnStrikeEnchantment(ptr, contact.first, weapon, contact.second, false);
             return;
         }
@@ -643,7 +649,7 @@ namespace MWClass
         if (otherstats.isDead()) // Can't hit dead actors
             return;
 
-        if (!MWMechanics::isInMeleeReach(ptr, victim, MWMechanics::getMeleeWeaponReach(ptr, weapon)))
+        if (!sweptContact && !MWMechanics::isInMeleeReach(ptr, victim, MWMechanics::getMeleeWeaponReach(ptr, weapon)))
             return;
 
         if (ptr == MWMechanics::getPlayer())
@@ -674,6 +680,11 @@ namespace MWClass
                 damage = attack[0] + ((attack[1] - attack[0]) * attackStrength);
             }
             MWMechanics::adjustWeaponDamage(damage, weapon, ptr);
+            const auto& contactState = getCreatureStats(ptr).mPhysicalCombat;
+            const auto handling = MWMechanics::physicalWeapon(ptr, weapon);
+            damage *= PhysicalCombat::skillDamage(MWMechanics::physicalActor(ptr, weapon).mSkill);
+            if (contactState.mContactValid && contactState.mContactAge < .15f)
+                damage *= PhysicalCombat::speedDamage(contactState.mContactSpeed, 350.f + handling.mLength * 2.f);
             MWMechanics::reduceWeaponCondition(damage, true, weapon, ptr);
             MWMechanics::resistNormalWeapon(victim, ptr, weapon, damage);
             MWMechanics::applyWerewolfDamageMult(victim, weapon, damage);
@@ -714,13 +725,12 @@ namespace MWClass
             damage *= store.find("fCombatKODamageMult")->mValue.getFloat();
 
         auto ragdollHit = MWMechanics::makeRagdollHit(ptr, victim, weapon, {}, type, hitPosition);
-        // Bind enchantments and the asynchronous physical hit to this contact.
-        MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit);
-
+        float transmitted = 1;
+        const bool blocked = MWMechanics::blockMeleeAttack(ptr, victim, weapon, damage, attackStrength, &transmitted);
+        ragdollHit->mWeapon.mContactMomentum *= blocked ? std::max(.15f, transmitted) : 1.f;
+        if (blocked && damage <= 0) MWMechanics::applyLivingImpact(victim, ragdollHit->mWeapon);
+        MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit, blocked ? transmitted : 1.f);
         MWMechanics::applyElementalShields(ptr, victim);
-
-        if (MWMechanics::blockMeleeAttack(ptr, victim, weapon, damage, attackStrength))
-            damage = 0;
 
         if (victim == MWMechanics::getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState())
             damage = 0;
@@ -827,23 +837,17 @@ namespace MWClass
             // something, alert the character controller, scripts, etc.
 
             const MWWorld::ESMStore& store = *MWBase::Environment::get().getESMStore();
-            const GMST& gmst = getGmst();
 
             int chance = store.get<ESM::GameSetting>().find("iVoiceHitOdds")->mValue.getInteger();
             auto& prng = MWBase::Environment::get().getWorld()->getPrng();
             if (Misc::Rng::roll0to99(prng) < chance)
                 MWBase::Environment::get().getDialogueManager()->say(ptr, ESM::RefId::stringRefId("hit"));
 
-            // Check for knockdown
-            float agilityTerm
-                = stats.getAttribute(ESM::Attribute::Agility).getModified() * gmst.fKnockDownMult->mValue.getFloat();
-            float knockdownTerm = stats.getAttribute(ESM::Attribute::Agility).getModified()
-                    * gmst.iKnockDownOddsMult->mValue.getInteger() * 0.01f
-                + gmst.iKnockDownOddsBase->mValue.getInteger();
-            if (hasHealthDamage && agilityTerm <= healthDamage && knockdownTerm <= Misc::Rng::roll0to99(prng))
-                stats.setKnockedDown(true);
-            else
-                stats.setHitRecovery(true); // Is this supposed to always occur?
+            // Native physical contacts apply their deterministic momentum/poise
+            // reaction after this deferred health action. No random knockdown.
+            if (sourceType != MWMechanics::DamageSourceType::Melee
+                && sourceType != MWMechanics::DamageSourceType::Ranged)
+                stats.setHitRecovery(true);
         }
 
         if (hasHealthDamage && healthDamage > 0.0f)

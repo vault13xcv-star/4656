@@ -296,6 +296,39 @@ namespace MWRender
         SceneUtil::NodeCallback<BoneAnimBlendController, osgAnimation::Bone*>::traverse(node, nv);
     }
 
+    SceneUtil::KeyframeController::KfTransform NifAnimBlendController::sampleCombatTransform(
+        NifOsg::MatrixTransform& node, osg::NodeVisitor* nv, float time)
+    {
+        if (!mKeyframeTrack) return {};
+        auto result = mKeyframeTrack->getCurrentTransformation(nv);
+        if (mBlendDuration <= 0) return result;
+        const float fraction = mBlendTrigger ? 0.f : std::clamp((time - mBlendStartTime) / mBlendDuration, 0.f, 1.f);
+        if (fraction >= 1) return result;
+        const float factor = mEasingFn(fraction);
+        if (result.mRotation)
+        {
+            osg::Quat rotation;
+            rotation.slerp(factor, mBlendTrigger ? node.mRotationScale.toOsgMatrix().getRotate() : mBlendStartRot,
+                *result.mRotation);
+            result.mRotation = rotation;
+        }
+        if (result.mTranslation)
+        {
+            auto start = mBlendTrigger ? osg::Vec3f(node.getMatrix().getTrans()) : mBlendStartTrans;
+            if (mBlendTrigger)
+                for (auto* callback = node.getUpdateCallback(); callback; callback = callback->getNestedCallback())
+                    if (auto* rotation = dynamic_cast<RotateController*>(callback))
+                    {
+                        const auto paths = node.getParentalNodePaths(rotation->getRelativeTo());
+                        const auto orientation = paths.empty() ? osg::Quat()
+                            : osg::computeLocalToWorld(paths.front()).getRotate();
+                        start -= (orientation * rotation->getRotate().inverse()).inverse() * rotation->getOffset();
+                    }
+            result.mTranslation = start * (1 - factor) + *result.mTranslation * factor;
+        }
+        return result;
+    }
+
     void NifAnimBlendController::operator()(NifOsg::MatrixTransform* node, osg::NodeVisitor* nv)
     {
         // HOW THIS WORKS: The actual retrieval of the bone transformation based on animation is done by the

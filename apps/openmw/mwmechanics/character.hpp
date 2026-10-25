@@ -177,6 +177,14 @@ namespace MWMechanics
         MWWorld::Ptr mAttackVictim;
         osg::Vec3f mAttackHitPos;
         bool mAttackSuccess{ false };
+        PhysicalCombat::Blade mPreviousBlade;
+        bool mHasPreviousBlade = false, mSweepArmed = false;
+        bool mStrikePhaseStarted = false;
+        float mAttackCycleLeft = 0, mContactRecovery = 0, mContactRecoveryTotal = 0;
+        float mImpactAnimTime = 0, mStrikeStartTime = 0;
+        bool usesPhysicalMelee() const;
+        void updatePhysicalCombat(float duration);
+        void tracePhysicalAttack(float duration, float previousTime);
 
         bool mSkipAnim{ false };
 

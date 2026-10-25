@@ -18,6 +18,7 @@
 #include <components/esm/attr.hpp>
 #include <components/esm/refid.hpp>
 #include <components/esm3/magiceffects.hpp>
+#include <components/ragdoll/physicalcombat.hpp>
 
 namespace ESM
 {
@@ -105,6 +106,10 @@ namespace MWMechanics
 
     public:
         CreatureStats();
+
+        // Transient controls/contact/reaction state. Never persists held input
+        // or an unfinished attack across save/load or resurrection.
+        PhysicalCombat::State mPhysicalCombat;
 
         DrawState getDrawState() const;
         void setDrawState(DrawState state);

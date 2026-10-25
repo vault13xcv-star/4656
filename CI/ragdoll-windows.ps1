@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.7.0-preview.2'
+$ragdollVersion = '0.8.0-preview.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -164,6 +164,7 @@ switch ($Phase) {
             Copy-Item "$source/docs/realcombat-ragdoll.md" (Join-Path $install 'RAGDOLL-README.md')
         }
         Copy-Item "$source/docs/brutal-morrowind.md" (Join-Path $install 'BRUTAL-MORROWIND-README.md')
+        Copy-Item "$source/docs/physical-combat.md" (Join-Path $install 'physical-combat.md')
         Copy-Item "$source/docs/physics-tz-audit.md" (Join-Path $install 'PHYSICS-STATUS.md')
         Copy-Item "$source/docs/dismemberment.md" (Join-Path $install 'dismemberment.md')
         @"
@@ -225,7 +226,7 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Version 0.7 adds ballistic blood, projected wall/floor stains and growing pools, saved ten-minute stain lifetimes, high-pressure neck fountains, physical intestines, longitudinal two-handed cuts and hammer torso tearing. Existing impact, enchantment and DOT rules are retained.
+Version 0.8 adds hybrid physical combat, driven weapon inertia and contact recoil, deterministic contacts, stat/skill/fatigue handling, kinetic damage, living balance reactions and an active RMB shield. Version 0.7 blood, physical intestines, heavy cuts and the crowded-gore performance fixes remain included. Read physical-combat.md for controls and simulation limits.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

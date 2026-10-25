@@ -5,6 +5,7 @@
 
 #include <osg/Vec3f>
 #include "ragdollimpact.hpp"
+#include <components/ragdoll/physicalcombat.hpp>
 
 namespace osg
 {
@@ -21,11 +22,16 @@ namespace MWMechanics
 
     bool applyOnStrikeEnchantment(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& object,
         const osg::Vec3f& hitPosition, const bool fromProjectile = false,
-        const std::shared_ptr<RagdollHit>& ragdollHit = {});
+        const std::shared_ptr<RagdollHit>& ragdollHit = {}, float guardTransmission = 1.f);
 
     /// @return can we block the attack?
     bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
-        float damage, float attackStrength);
+        float& damage, float attackStrength, float* transmission = nullptr);
+
+    PhysicalCombat::Weapon physicalWeapon(const MWWorld::Ptr& actor, const MWWorld::Ptr& weapon);
+    PhysicalCombat::Actor physicalActor(const MWWorld::Ptr& actor, const MWWorld::Ptr& weapon);
+    bool hasCombatShield(const MWWorld::Ptr& actor);
+    void applyLivingImpact(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit);
 
     /// @return does normal weapon resistance and weakness apply to the weapon?
     bool isNormalWeapon(const MWWorld::Ptr& weapon);
@@ -45,7 +51,7 @@ namespace MWMechanics
         const MWWorld::Ptr& weapon, const MWWorld::Ptr& projectile, int attackType,
         const osg::Vec3f& hitPosition, const osg::Vec3f& impactDirection = {});
 
-    /// Get the chance (in percent) for \a attacker to successfully hit \a victim with a given weapon skill value
+    /// Compatibility API: physical contacts always hit (100%). Skill affects damage and handling.
     float getHitChance(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, int skillValue);
 
     /// Applies damage to attacker based on the victim's elemental shields.

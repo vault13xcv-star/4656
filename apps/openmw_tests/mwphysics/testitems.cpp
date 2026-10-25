@@ -12,6 +12,10 @@
 #include "apps/openmw/mwworld/class.hpp"
 #include "apps/openmw/mwworld/esmstore.hpp"
 #include "apps/openmw/mwworld/livecellref.hpp"
+#include "apps/openmw/mwrender/animation.hpp"
+#include "apps/openmw/mwrender/weaponanimation.hpp"
+#include "apps/openmw/mwrender/rotatecontroller.hpp"
+#include <components/nifosg/controller.hpp>
 
 #include <components/esm3/loadalch.hpp>
 #include <components/esm3/loadappa.hpp>
@@ -44,6 +48,115 @@
 
 namespace
 {
+    class FixedCombatTrack : public NifOsg::KeyframeController
+    {
+    public:
+        KfTransform mPose;
+        KfTransform getCurrentTransformation(osg::NodeVisitor*) override { return mPose; }
+    };
+    class CombatPoseFixture : public MWRender::Animation, public MWRender::WeaponAnimation
+    {
+        osg::ref_ptr<osg::Geode> mBlade = new osg::Geode;
+    public:
+        osg::ref_ptr<osg::MatrixTransform> mHand = new NifOsg::MatrixTransform(Nif::NiTransform::getIdentity());
+        osg::ref_ptr<FixedCombatTrack> mTrack = new FixedCombatTrack;
+        CombatPoseFixture() : MWRender::Animation({}, new osg::MatrixTransform, nullptr)
+        {
+            static_cast<osg::MatrixTransform*>(mInsert.get())->setMatrix(osg::Matrix::translate(100, 10, 0));
+            mObjectRoot = new osg::Group; mInsert->addChild(mObjectRoot);
+            mObjectRoot->addChild(mHand); mHand->addChild(mBlade);
+            mBlade->addDrawable(new osg::ShapeDrawable(new osg::Box({ 0, 30, 0 }, 2, 60, 2)));
+            mTrack->mPose.mTranslation = osg::Vec3f(0, 20, 40);
+            mTrack->mPose.mRotation = osg::Quat(osg::PI_2, osg::Vec3f(0, 0, 1));
+            mTrack->mPose.mScale = 1;
+            mCombatTracks[mHand.get()] = mTrack;
+            auto& state = mStates["blade"];
+            state.mStartTime = 1; state.mStopTime = 3; state.setTime(2);
+        }
+        float poseTime() const { return mStates.at("blade").getTime(); }
+    protected:
+        osg::Group* getArrowBone() override { return nullptr; }
+        osg::Node* getWeaponNode() override { return mBlade; }
+        Resource::ResourceSystem* getResourceSystem() override { return nullptr; }
+        void showWeapon(bool) override {}
+    };
+
+    TEST(ItemPhysicsCombat, CollisionUsesCurrentKeyframePoseWithoutMutatingTheRenderSkeleton)
+    {
+        osg::ref_ptr<CombatPoseFixture> animation = new CombatPoseFixture;
+        const auto original = animation->mHand->getMatrix();
+        PhysicalCombat::Blade blade;
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_LT((blade.mBase - osg::Vec3f(100, 30, 40)).length(), .01f);
+        EXPECT_LT((blade.mTip - osg::Vec3f(40, 30, 40)).length(), .01f);
+        EXPECT_EQ(animation->mHand->getMatrix(), original);
+        animation->mTrack->mPose.mTranslation = osg::Vec3f(-10, 20, 40);
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_LT((blade.mTip - osg::Vec3f(30, 30, 40)).length(), .01f);
+        osg::ref_ptr<MWRender::RotateController> aim = new MWRender::RotateController(animation->getObjectRoot());
+        aim->setRotate(osg::Quat(.5, osg::Vec3f(0, 1, 0)));
+        animation->mHand->addUpdateCallback(aim);
+        animation->mHand->setMatrix(osg::Matrix::rotate(*animation->mTrack->mPose.mRotation)
+            * osg::Matrix::translate(*animation->mTrack->mPose.mTranslation));
+        osg::NodeVisitor visitor(osg::NodeVisitor::TRAVERSE_NONE);
+        (*aim)(animation->mHand, &visitor);
+        const auto renderedTip = osg::Vec3f(0, 60, 0)
+            * osg::computeLocalToWorld(animation->mHand->getParentalNodePaths().front());
+        animation->mHand->setMatrix(original);
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_LT((blade.mTip - renderedTip).length(), .01f);
+        EXPECT_EQ(animation->mHand->getMatrix(), original);
+        aim->setEnabled(false);
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_LT((blade.mTip - osg::Vec3f(30, 30, 40)).length(), .01f);
+        animation->mTrack->mPose.mRotation.reset();
+        auto* nif = static_cast<NifOsg::MatrixTransform*>(animation->mHand.get());
+        nif->setRotation(osg::Quat(osg::PI_2, osg::Vec3f(0, 0, 1)));
+        nif->setTranslation({ -10, 20, 40 });
+        aim->setEnabled(true);
+        (*aim)(animation->mHand, &visitor);
+        const auto partialTip = osg::Vec3f(0, 60, 0)
+            * osg::computeLocalToWorld(animation->mHand->getParentalNodePaths().front());
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_LT((blade.mTip - partialTip).length(), .01f); // Do not apply last frame's aim twice.
+        animation->rewindCombatPose("blade", 1.4f);
+        EXPECT_FLOAT_EQ(animation->poseTime(), 1.4f);
+        animation->rewindCombatPose("blade", -10);
+        EXPECT_FLOAT_EQ(animation->poseTime(), 1);
+    }
+
+    class CombatBlendFixture : public MWRender::NifAnimBlendController
+    {
+    public:
+        CombatBlendFixture(SceneUtil::KeyframeController* track)
+            : MWRender::NifAnimBlendController(track, { "weapononehand", "chop max attack" }, nullptr)
+        { mBlendDuration = .2f; }
+    };
+
+    TEST(ItemPhysicsCombat, CollisionSamplesTheSameSmoothTransitionAsRendering)
+    {
+        osg::ref_ptr<FixedCombatTrack> track = new FixedCombatTrack;
+        track->mPose.mRotation = osg::Quat(osg::PI_2, osg::Vec3f(0, 0, 1));
+        track->mPose.mTranslation = osg::Vec3f(0, 20, 0);
+        osg::ref_ptr<NifOsg::MatrixTransform> node = new NifOsg::MatrixTransform(Nif::NiTransform::getIdentity());
+        osg::ref_ptr<CombatBlendFixture> blend = new CombatBlendFixture(track);
+        node->addUpdateCallback(blend);
+        osg::NodeVisitor visitor(osg::NodeVisitor::TRAVERSE_NONE);
+        osg::ref_ptr<osg::FrameStamp> stamp = new osg::FrameStamp;
+        stamp->setSimulationTime(1); visitor.setFrameStamp(stamp);
+        const auto first = blend->sampleCombatTransform(*node, &visitor, 1);
+        ASSERT_TRUE(first.mTranslation);
+        EXPECT_EQ(*first.mTranslation, osg::Vec3f());
+        EXPECT_TRUE(blend->getBlendTrigger());
+        (*blend)(node, &visitor);
+        stamp->setSimulationTime(1.1);
+        const auto sampled = blend->sampleCombatTransform(*node, &visitor, 1.1f);
+        (*blend)(node, &visitor);
+        ASSERT_TRUE(sampled.mTranslation); ASSERT_TRUE(sampled.mRotation);
+        EXPECT_LT((node->getMatrix().getTrans() - *sampled.mTranslation).length(), .001);
+        EXPECT_GT(std::abs(node->getMatrix().getRotate().asVec4() * sampled.mRotation->asVec4()), .9999);
+    }
+
     // Real record classes, native scene insertion, mesh loading, contact rays,
     // collision snapshots and pose updates. No Morrowind assets are needed.
     std::string boxMesh(float x, float y, float z)
@@ -541,6 +654,39 @@ namespace
                 EXPECT_FALSE(torso.mBurstHead);
             }
         }
+    }
+
+    TEST_F(ItemPhysicsIntegration, PhysicalHandlingMatchesNativeWeaponTypesAndContactsNeverRollMisses)
+    {
+        Reference<ESM::Weapon> weapon(0, 0, 0);
+        weapon.mBase.mData.mWeight = 20;
+        weapon.mBase.mData.mReach = 1;
+        weapon.mBase.mData.mSpeed = 1;
+        for (const auto& [type, handling] : {
+            std::pair(ESM::Weapon::ShortBladeOneHand, PhysicalCombat::Handling::LightBlade),
+            std::pair(ESM::Weapon::LongBladeOneHand, PhysicalCombat::Handling::LightBlade),
+            std::pair(ESM::Weapon::LongBladeTwoHand, PhysicalCombat::Handling::Heavy),
+            std::pair(ESM::Weapon::AxeTwoHand, PhysicalCombat::Handling::Heavy),
+            std::pair(ESM::Weapon::BluntTwoClose, PhysicalCombat::Handling::Heavy),
+            std::pair(ESM::Weapon::AxeOneHand, PhysicalCombat::Handling::Mixed),
+            std::pair(ESM::Weapon::SpearTwoWide, PhysicalCombat::Handling::Mixed),
+            std::pair(ESM::Weapon::BluntOneHand, PhysicalCombat::Handling::Mixed),
+            std::pair(ESM::Weapon::BluntTwoWide, PhysicalCombat::Handling::Mixed) })
+        {
+            weapon.mBase.mData.mType = type;
+            const auto profile = MWMechanics::physicalWeapon({}, weapon.ptr());
+            EXPECT_EQ(profile.mHandling, handling);
+            EXPECT_FLOAT_EQ(profile.mWeight, 20);
+            EXPECT_FLOAT_EQ(profile.mLength, 70);
+        }
+        for (int skill : { 0, 10, 100, 1000 }) EXPECT_FLOAT_EQ(MWMechanics::getHitChance({}, {}, skill), 100);
+        auto hit = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(), {}, ESM::Weapon::AT_Chop, {}, { 0, 1, 0 });
+        hit->mWeapon.mContactMomentum = 2100; hit->mWeapon.mContactSpeed = 700;
+        hit->applyWeapon();
+        EXPECT_FLOAT_EQ(hit->mApplied.mContactMomentum, 2100);
+        EXPECT_FLOAT_EQ(hit->mApplied.mContactSpeed, 700);
+        hit->beginMagicTick(1.01f);
+        EXPECT_FLOAT_EQ(hit->mApplied.mContactMomentum, 0); // DOT cannot repeat the physical blow.
     }
 
     TEST_F(ItemPhysicsIntegration, PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders)

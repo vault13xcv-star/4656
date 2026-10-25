@@ -432,6 +432,11 @@ namespace MWRender
         return mViewer->getFrameStamp()->getReferenceTime();
     }
 
+    double RenderingManager::getSimulationTime() const
+    {
+        return mViewer->getFrameStamp()->getSimulationTime();
+    }
+
     SceneUtil::LightManager* RenderingManager::getLightRoot()
     {
         return mSceneRoot.get();
@@ -888,6 +893,7 @@ namespace MWRender
                 result.mHitNormalWorld = intersection.getWorldIntersectNormal();
                 result.mRatio = static_cast<float>(intersection.ratio);
                 result.mHitBody = SceneUtil::getHitBody(intersection.nodePath);
+                result.mHitShield = SceneUtil::isShieldContact(intersection.nodePath);
             }
         };
 

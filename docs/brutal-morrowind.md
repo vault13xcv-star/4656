@@ -1,4 +1,9 @@
-# Brutal Morrowind 0.7.0-preview.2
+# Brutal Morrowind 0.8.0-preview.1
+
+This release adds hybrid physical combat: driven weapon inertia, swept model
+contacts, skill/speed damage, live stagger/knockdown and a held RMB shield.
+See [physical-combat.md](physical-combat.md) for controls, exact shield percentages,
+handling rules, validation and the scope of the hybrid simulation.
 
 A modified OpenMW 0.51.0 Windows x64 runtime. This continues the working
 Real Combat Ragdoll 0.6.0-preview.5 engine, retaining its physics controls,

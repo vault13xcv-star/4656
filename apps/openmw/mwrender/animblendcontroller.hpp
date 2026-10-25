@@ -74,6 +74,9 @@ namespace MWRender
 
         void operator()(NifOsg::MatrixTransform* node, osg::NodeVisitor* nv);
 
+        SceneUtil::KeyframeController::KfTransform sampleCombatTransform(
+            NifOsg::MatrixTransform& node, osg::NodeVisitor* nv, float time);
+
         osg::Callback* getAsCallback() { return this; }
 
     private:

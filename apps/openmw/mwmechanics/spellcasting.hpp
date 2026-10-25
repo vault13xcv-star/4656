@@ -39,6 +39,7 @@ namespace MWMechanics
         std::string mSourceName; // Display name for spell, potion, etc
         osg::Vec3f mHitPosition{ 0, 0, 0 }; // Used for spawning area orb
         osg::Vec3f mImpactDirection;
+        float mGuardTransmission = 1.f; // Only the struck defender, never self effects or the surrounding area.
         std::shared_ptr<RagdollHit> mRagdollHit; // Optional weapon/enchantment contact
         bool mAlwaysSucceed{
             false
