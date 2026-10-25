@@ -1,11 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(571): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-[571/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\distortion.cpp.obj
-[572/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\brutalgore.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\brutalgore.cpp(71): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-[573/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ragdoll.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(279): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(604): warning C4244: 'initializing': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(603): warning C4244: 'initializing': conversion from 'btScalar' to 'const float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(614): warning C4244: 'argument': conversion from 'btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1053): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
         with
@@ -178,3 +170,11 @@ D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(712): warning C4267: 'argume
 [703/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\luabindings.cpp.obj
 [704/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\localscripts.cpp.obj
 [705/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\contentbindings.cpp.obj
+[706/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\cellbindings.cpp.obj
+[707/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\coremwscriptbindings.cpp.obj
+[708/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\mwscriptbindings.cpp.obj
+[709/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\camerabindings.cpp.obj
+[710/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\vfsbindings.cpp.obj
+[711/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\uibindings.cpp.obj
+[712/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\soundbindings.cpp.obj
+[713/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\nearbybindings.cpp.obj
