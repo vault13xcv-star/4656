@@ -1,7 +1,3 @@
-[850/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\esm4base.cpp.obj
-[851/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\light4.cpp.obj
-[852/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\stat.cpp.obj
-[853/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\esm4npc.cpp.obj
 [854/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\magiceffects.cpp.obj
 [855/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\creaturestats.cpp.obj
 [856/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\actorutil.cpp.obj
@@ -178,3 +174,7 @@ D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(471): warning C4244: '=
 D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(514): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
 [998/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
 [999/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[1000/1004] Linking CXX executable components-tests.exe
+[1001/1004] Linking CXX executable openmw.exe
+[1002/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[1003/1004] Linking CXX executable openmw-tests.exe
