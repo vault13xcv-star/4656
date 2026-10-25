@@ -1,6 +1,6 @@
 # Windows x64 ragdoll build
 
-Status: **running**, phase: **dependencies**.
+Status: **running**, phase: **configure**.
 
 Source commit: `cdc56cc22afb333dfcd7c3c6fc10b8bb4959bf5d`.
 
