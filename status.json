@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "sourceCommit": "0dabdfb0048048fe3cb1b2f766fe04c41a1cfa9a",
+  "sourceBranch": "experimental/ragdoll-physical-combat",
+  "runId": "40177271061",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40177271061",
+  "resultsBranch": "build-results/ragdoll-0dabdfb0048048fe3cb1b2f766fe04c41a1cfa9a-40177271061-1",
+  "stage": "dependencies",
+  "result": "running",
+  "updatedUtc": "2026-10-25T08:36:24.2852149Z",
+  "releaseUrl": null,
+  "package": null
+}
