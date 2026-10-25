@@ -1,15 +1,3 @@
-[561/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\pingpongcull.cpp.obj
-[562/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\postprocessor.cpp.obj
-[563/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\transparentpass.cpp.obj
-[564/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\precipitationocclusion.cpp.obj
-[565/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\luminancecalculator.cpp.obj
-[566/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\pingpongcanvas.cpp.obj
-[567/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\actorutil.cpp.obj
-[568/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ripples.cpp.obj
-[569/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\animblendcontroller.cpp.obj
-[570/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ragdollappearance.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(358): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(359): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(571): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
 [571/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\distortion.cpp.obj
 [572/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\brutalgore.cpp.obj
@@ -178,3 +166,15 @@ D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(712): warning C4267: 'argume
 [691/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwscript\ref.cpp.obj
 [692/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwscript\aiextensions.cpp.obj
 [693/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwscript\animationextensions.cpp.obj
+[694/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwscript\userextensions.cpp.obj
+[695/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwscript\dialogueextensions.cpp.obj
+[696/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwscript\transformationextensions.cpp.obj
+[697/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\objectlists.cpp.obj
+[698/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\userdataserializer.cpp.obj
+[699/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\luaevents.cpp.obj
+[700/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\engineevents.cpp.obj
+[701/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\luamanagerimp.cpp.obj
+[702/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\menuscripts.cpp.obj
+[703/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\luabindings.cpp.obj
+[704/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\localscripts.cpp.obj
+[705/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\contentbindings.cpp.obj
