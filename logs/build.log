@@ -1,140 +1,3 @@
-[782/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\inventorystore.cpp.obj
-[783/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\ptr.cpp.obj
-[784/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionopen.cpp.obj
-[785/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionharvest.cpp.obj
-[786/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\timestamp.cpp.obj
-[787/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionread.cpp.obj
-[788/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionequip.cpp.obj
-[789/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionalchemy.cpp.obj
-[790/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionapply.cpp.obj
-[791/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actioneat.cpp.obj
-[792/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellstore.cpp.obj
-[793/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionrepair.cpp.obj
-[794/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionsoulgem.cpp.obj
-[795/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\livecellref.cpp.obj
-[796/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiondoor.cpp.obj
-[797/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\esmloader.cpp.obj
-[798/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\esmstore.cpp.obj
-[799/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\store.cpp.obj
-[800/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontrap.cpp.obj
-[801/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellref.cpp.obj
-[802/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellpreloader.cpp.obj
-[803/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\weather.cpp.obj
-[804/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\projectilemanager.cpp.obj
-[805/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\datetimemanager.cpp.obj
-[806/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\groundcoverstore.cpp.obj
-[807/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cell.cpp.obj
-[808/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\magiceffects.cpp.obj
-[809/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\trace.cpp.obj
-[810/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\itemphysics.cpp.obj
-D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(36): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(37): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-[811/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actor.cpp.obj
-[812/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\heightfield.cpp.obj
-[813/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\physicssystem.cpp.obj
-[814/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\closestnotmerayresultcallback.cpp.obj
-[815/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\object.cpp.obj
-[816/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\stepper.cpp.obj
-[817/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestresultcallback.cpp.obj
-[818/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectile.cpp.obj
-[819/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actorconvexcallback.cpp.obj
-[820/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestwrapper.cpp.obj
-[821/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\movementsolver.cpp.obj
-[822/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectileconvexcallback.cpp.obj
-[823/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\mtphysics.cpp.obj
-[824/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\classes.cpp.obj
-[825/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\activator.cpp.obj
-[826/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\weapon.cpp.obj
-[827/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creature.cpp.obj
-[828/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\potion.cpp.obj
-[829/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\npc.cpp.obj
-[830/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\apparatus.cpp.obj
-[831/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\armor.cpp.obj
-[832/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\book.cpp.obj
-[833/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\clothing.cpp.obj
-[834/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\container.cpp.obj
-[835/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\ingredient.cpp.obj
-[836/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\itemlevlist.cpp.obj
-[837/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\door.cpp.obj
-[838/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creaturelevlist.cpp.obj
-[839/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\lockpick.cpp.obj
-[840/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\light.cpp.obj
-[841/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\probe.cpp.obj
-[842/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\repair.cpp.obj
-[843/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\misc.cpp.obj
-[844/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\static.cpp.obj
-[845/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\bodypart.cpp.obj
-[846/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\actor.cpp.obj
-[847/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\esm4base.cpp.obj
-[848/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\esm4npc.cpp.obj
-[849/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\stat.cpp.obj
-[850/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\light4.cpp.obj
-[851/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\magiceffects.cpp.obj
-[852/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\creaturestats.cpp.obj
-[853/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\actorutil.cpp.obj
-[854/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\mechanicsmanagerimp.cpp.obj
-[855/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spelllist.cpp.obj
-[856/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spells.cpp.obj
-[857/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\activespells.cpp.obj
-[858/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\npcstats.cpp.obj
-[859/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aipackage.cpp.obj
-[860/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aisequence.cpp.obj
-[861/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aipursue.cpp.obj
-[862/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aitravel.cpp.obj
-[863/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\alchemy.cpp.obj
-[864/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aiwander.cpp.obj
-[865/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aiavoiddoor.cpp.obj
-[866/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aifollow.cpp.obj
-[867/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aicast.cpp.obj
-[868/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aibreathe.cpp.obj
-[869/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aiface.cpp.obj
-[870/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aiescort.cpp.obj
-[871/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aiactivate.cpp.obj
-[872/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\recharge.cpp.obj
-[873/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\repair.cpp.obj
-[874/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aicombat.cpp.obj
-[875/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\pathgrid.cpp.obj
-[876/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\enchanting.cpp.obj
-[877/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\pathfinding.cpp.obj
-[878/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\security.cpp.obj
-[879/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spellresistance.cpp.obj
-[880/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\pickpocket.cpp.obj
-[881/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spellcasting.cpp.obj
-[882/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\levelledlist.cpp.obj
-[883/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\steering.cpp.obj
-[884/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\obstacle.cpp.obj
-[885/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\combat.cpp.obj
-[886/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\difficultyscaling.cpp.obj
-[887/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\autocalcspell.cpp.obj
-[888/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\aicombataction.cpp.obj
-[889/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\summoning.cpp.obj
-[890/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\objects.cpp.obj
-[891/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\character.cpp.obj
-[892/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\weaponpriority.cpp.obj
-[893/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\actors.cpp.obj
-[894/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spellpriority.cpp.obj
-[895/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\weapontype.cpp.obj
-[896/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spellutil.cpp.obj
-[897/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwstate\charactermanager.cpp.obj
-[898/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwstate\character.cpp.obj
-[899/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\spelleffects.cpp.obj
-[900/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwstate\quicksavemanager.cpp.obj
-[901/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwbase\environment.cpp.obj
-[902/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwstate\statemanagerimp.cpp.obj
-[903/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\options.cpp.obj
-[904/997] Building CXX object apps\openmw\CMakeFiles\openmw.dir\cmake_pch.cxx.obj
-[905/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\engine.cpp.obj
-[906/997] Linking CXX static library lib\gmock.lib
-[907/997] Linking CXX static library lib\gtest.lib
-[908/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\cmake_pch.cxx.obj
 [909/997] Building RC object apps\openmw\CMakeFiles\openmw.dir\__\__\files\windows\openmw.rc.res
 [910/997] Building CXX object apps\openmw\CMakeFiles\openmw.dir\main.cpp.obj
 [911/997] Linking CXX static library apps\openmw\openmw-lib.lib
@@ -178,3 +41,140 @@ D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(37): warning C4244: '=': co
 [949/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testuicontent.cpp.obj
 [950/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testutilpackage.cpp.obj
 [951/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\main.cpp.obj
+[952/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\compression.cpp.obj
+[953/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testyaml.cpp.obj
+[954/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\testendianness.cpp.obj
+[955/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\progressreporter.cpp.obj
+[956/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\testresourcehelpers.cpp.obj
+[957/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\testmathutil.cpp.obj
+[958/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\teststringops.cpp.obj
+[959/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\nif\testphysics.cpp.obj
+[960/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\resource\testobjectcache.cpp.obj
+[961/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\nifosg\testnifloader.cpp.obj
+[962/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\nifloader\testbulletnifloader.cpp.obj
+[963/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sceneutil\osgacontroller.cpp.obj
+[964/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\binaryreader.cpp.obj
+[965/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\resource\testresourcesystem.cpp.obj
+[966/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\sizeaccumulator.cpp.obj
+[967/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\binarywriter.cpp.obj
+[968/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\integration.cpp.obj
+[969/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\settings\parser.cpp.obj
+[970/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\settings\shadermanager.cpp.obj
+[971/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\parsefors.cpp.obj
+[972/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\parsedefines.cpp.obj
+[973/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\parselinks.cpp.obj
+[974/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\db.cpp.obj
+[975/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\shadermanager.cpp.obj
+[976/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\statement.cpp.obj
+[977/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\settings\testvalues.cpp.obj
+[978/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\toutf8\toutf8.cpp.obj
+[979/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\transaction.cpp.obj
+[980/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\request.cpp.obj
+[981/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\main.cpp.obj
+[982/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\tooltips.cpp.obj
+[983/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwdialogue\testkeywordsearch.cpp.obj
+[984/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\weightedsearch.cpp.obj
+[985/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\vfs\testpathutil.cpp.obj
+[986/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testduration.cpp.obj
+[987/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
+[988/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwscript\testscripts.cpp.obj
+[989/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testtimestamp.cpp.obj
+[990/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwphysics\testitems.cpp.obj
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(51): warning C4250: '`anonymous-namespace'::FixedCombatTrack': inherits 'osg::Callback::osg::Callback::asCallback' via dominance
+D:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\osg/Callback(47): note: see declaration of 'osg::Callback::asCallback'
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(51): warning C4250: '`anonymous-namespace'::FixedCombatTrack': inherits 'osg::Callback::osg::Callback::asCallbackObject' via dominance
+D:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\osg/Callback(50): note: see declaration of 'osg::Callback::asCallbackObject'
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(583): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(584): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(627): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(676): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(166): warning C4244: '=': conversion from '_Ty' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=int
+        ]
+        and
+        [
+            _Ty=float
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(166): note: the template instantiation context (the oldest one first) is
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(71): note: see reference to function template instantiation 'std::optional<float> &std::optional<float>::operator =<int,0>(_Ty2 &&) noexcept' being compiled
+        with
+        [
+            _Ty2=int
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(71): note: see the first reference to 'std::optional<float>::operator =' in '`anonymous-namespace'::CombatPoseFixture::CombatPoseFixture'
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(312): note: see reference to function template instantiation 'void std::_Optional_construct_base<_Ty>::_Assign<int>(_Ty2 &&) noexcept' being compiled
+        with
+        [
+            _Ty=float,
+            _Ty2=int
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(462): warning C4244: 'initializing': conversion from '_Ty' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=int
+        ]
+        and
+        [
+            _Ty=float
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(462): note: the template instantiation context (the oldest one first) is
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(312): note: see reference to function template instantiation 'void std::_Optional_construct_base<_Ty>::_Assign<int>(_Ty2 &&) noexcept' being compiled
+        with
+        [
+            _Ty=float,
+            _Ty2=int
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(168): note: see reference to function template instantiation '_Ty &std::_Optional_construct_base<_Ty>::_Construct<int>(int &&) noexcept' being compiled
+        with
+        [
+            _Ty=float
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(156): note: see reference to function template instantiation 'void std::_Construct_in_place<float,_Ty>(float &,_Ty &&) noexcept' being compiled
+        with
+        [
+            _Ty=int
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(472): note: see reference to function template instantiation '_Ty *std::construct_at<_Ty,int>(_Ty *const ,int &&) noexcept(<expr>)' being compiled
+        with
+        [
+            _Ty=float
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(476): warning C4244: 'initializing': conversion from '_Ty' to 'float', possible loss of data
+        with
+        [
+            _Ty=int
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(463): warning C4244: 'initializing': conversion from '_Ty' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=int
+        ]
+        and
+        [
+            _Ty=float
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(463): note: the template instantiation context (the oldest one first) is
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\optional(156): note: see reference to function template instantiation 'void std::_Construct_in_place<float,_Ty>(float &,_Ty &&) noexcept' being compiled
+        with
+        [
+            _Ty=int
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\xutility(472): note: see reference to function template instantiation '_Ty *std::construct_at<_Ty,int>(_Ty *const ,int &&) noexcept' being compiled
+        with
+        [
+            _Ty=float
+        ]
+[991/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
+[992/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[993/997] Linking CXX executable components-tests.exe
+[994/997] Linking CXX executable openmw.exe
