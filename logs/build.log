@@ -1,18 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1411): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1412): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-[574/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\brutalblood.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(43): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(712): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-[575/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\bloodsurfacevisitor.cpp.obj
-[576/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\bloodsurface.cpp.obj
-[577/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\bindingsmanager.cpp.obj
-[578/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controllermanager.cpp.obj
-[579/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\actionmanager.cpp.obj
-[580/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controlswitch.cpp.obj
-[581/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\keyboardmanager.cpp.obj
-[582/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\mousemanager.cpp.obj
-[583/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\sensormanager.cpp.obj
-[584/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\layout.cpp.obj
 [585/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\inputmanagerimp.cpp.obj
 [586/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\gyromanager.cpp.obj
 [587/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\textinput.cpp.obj
@@ -178,3 +163,18 @@ D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(712): warning C4267: 'argume
 [747/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\apparatus.cpp.obj
 [748/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\potion.cpp.obj
 [749/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\probe.cpp.obj
+[750/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\repair.cpp.obj
+[751/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\misc.cpp.obj
+[752/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\ingredient.cpp.obj
+[753/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\armor.cpp.obj
+[754/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\static.cpp.obj
+[755/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\light.cpp.obj
+[756/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\clothing.cpp.obj
+[757/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\levelledlist.cpp.obj
+[758/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\terminal.cpp.obj
+[759/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundmanagerimp.cpp.obj
+[760/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\ffmpegdecoder.cpp.obj
+[761/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\openaloutput.cpp.obj
+[762/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\loudness.cpp.obj
+[763/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundbuffer.cpp.obj
+[764/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\movieaudiofactory.cpp.obj
