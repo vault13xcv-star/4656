@@ -1,6 +1,6 @@
 # Windows x64 ragdoll build
 
-Status: **running**, phase: **package**.
+Status: **success**, phase: **completed**.
 
 Source commit: `9b07837d195899d370cb7ff5bb02463adbe4a4f9`.
 
