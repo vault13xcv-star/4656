@@ -1,6 +1,3 @@
-[835/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\clothing.cpp.obj
-[836/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\container.cpp.obj
-[837/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\ingredient.cpp.obj
 [838/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\itemlevlist.cpp.obj
 [839/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\door.cpp.obj
 [840/1000] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creaturelevlist.cpp.obj
@@ -178,3 +175,6 @@ D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(514): warning C4244: '=
 [994/1000] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
 [995/1000] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
 [996/1000] Linking CXX executable components-tests.exe
+[997/1000] Linking CXX executable openmw.exe
+[998/1000] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[999/1000] Linking CXX executable openmw-tests.exe
