@@ -1,27 +1,3 @@
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(37): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-[811/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actor.cpp.obj
-[812/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\heightfield.cpp.obj
-[813/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\physicssystem.cpp.obj
-[814/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\closestnotmerayresultcallback.cpp.obj
-[815/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\stepper.cpp.obj
-[816/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\object.cpp.obj
-[817/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestresultcallback.cpp.obj
-[818/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actorconvexcallback.cpp.obj
-[819/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectile.cpp.obj
-[820/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestwrapper.cpp.obj
-[821/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectileconvexcallback.cpp.obj
-[822/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\movementsolver.cpp.obj
-[823/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\mtphysics.cpp.obj
-[824/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\classes.cpp.obj
-[825/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\activator.cpp.obj
-[826/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\weapon.cpp.obj
-[827/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creature.cpp.obj
 [828/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\npc.cpp.obj
 [829/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\armor.cpp.obj
 [830/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\potion.cpp.obj
@@ -178,3 +154,27 @@ D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(37): warning C4244: '=': co
 [981/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\request.cpp.obj
 [982/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\tooltips.cpp.obj
 [983/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwdialogue\testkeywordsearch.cpp.obj
+[984/997] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\vfs\testpathutil.cpp.obj
+[985/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\weightedsearch.cpp.obj
+[986/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testduration.cpp.obj
+[987/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
+[988/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwscript\testscripts.cpp.obj
+[989/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testtimestamp.cpp.obj
+[990/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwphysics\testitems.cpp.obj
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(470): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(471): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(514): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
+[991/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
+[992/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[993/997] Linking CXX executable components-tests.exe
+[994/997] Linking CXX executable openmw.exe
+[995/997] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[996/997] Linking CXX executable openmw-tests.exe
