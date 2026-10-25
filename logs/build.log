@@ -1,22 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1349): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1360): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1361): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1362): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-[575/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\bindingsmanager.cpp.obj
-[576/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\actionmanager.cpp.obj
-[577/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controllermanager.cpp.obj
-[578/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controlswitch.cpp.obj
-[579/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\keyboardmanager.cpp.obj
-[580/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\sensormanager.cpp.obj
-[581/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\mousemanager.cpp.obj
-[582/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\inputmanagerimp.cpp.obj
-[583/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\layout.cpp.obj
-[584/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\gyromanager.cpp.obj
-[585/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\textinput.cpp.obj
 [586/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\widgets.cpp.obj
 [587/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\race.cpp.obj
 [588/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\class.cpp.obj
@@ -178,3 +159,22 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1362): warning C4244: '=': conve
 [744/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockpick.cpp.obj
 [745/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\apparatus.cpp.obj
 [746/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\potion.cpp.obj
+[747/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\probe.cpp.obj
+[748/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\repair.cpp.obj
+[749/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\misc.cpp.obj
+[750/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\ingredient.cpp.obj
+[751/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\armor.cpp.obj
+[752/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\static.cpp.obj
+[753/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\light.cpp.obj
+[754/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\clothing.cpp.obj
+[755/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\levelledlist.cpp.obj
+[756/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\terminal.cpp.obj
+[757/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundmanagerimp.cpp.obj
+[758/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\openaloutput.cpp.obj
+[759/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\ffmpegdecoder.cpp.obj
+[760/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\loudness.cpp.obj
+[761/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\movieaudiofactory.cpp.obj
+[762/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundbuffer.cpp.obj
+[763/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\regionsoundselector.cpp.obj
+[764/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\watersoundupdater.cpp.obj
+[765/997] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\refdata.cpp.obj
