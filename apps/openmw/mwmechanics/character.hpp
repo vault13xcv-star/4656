@@ -19,6 +19,11 @@ namespace MWRender
     class Animation;
 }
 
+namespace MWPhysics
+{
+    class RayCastingResult;
+}
+
 namespace MWMechanics
 {
 
@@ -180,11 +185,15 @@ namespace MWMechanics
         PhysicalCombat::Blade mPreviousBlade;
         bool mHasPreviousBlade = false, mSweepArmed = false;
         bool mStrikePhaseStarted = false;
+        bool mMeleeHitKeyPending = false;
+        float mStrikeTravel = 0;
         float mAttackCycleLeft = 0, mContactRecovery = 0, mContactRecoveryTotal = 0;
         float mImpactAnimTime = 0, mStrikeStartTime = 0;
         bool usesPhysicalMelee() const;
         void updatePhysicalCombat(float duration);
         void tracePhysicalAttack(float duration, float previousTime);
+        void applyPhysicalContact(const MWPhysics::RayCastingResult& contact, osg::Vec3f velocity, float animationTime);
+        void resolveMeleeHitKey();
 
         bool mSkipAnim{ false };
 

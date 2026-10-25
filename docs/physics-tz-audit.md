@@ -1,4 +1,4 @@
-# Текущее состояние: Brutal Morrowind 0.8.0-preview.2
+# Текущее состояние: Brutal Morrowind 0.8.0-preview.3
 
 Актуальные управление, формулы и ограничения гибридной боевой физики описаны в
 [physical-combat.md](physical-combat.md), кровь и расчленение — в

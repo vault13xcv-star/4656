@@ -25,6 +25,8 @@ namespace MWMechanics
 
     const ESM::WeaponType* getWeaponType(const int weaponType);
 
+    bool isPhysicalMeleeWeapon(int weaponType);
+
     std::vector<std::string_view> getAllWeaponTypeShortGroups();
 }
 

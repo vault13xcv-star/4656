@@ -51,6 +51,7 @@
 #include <components/sceneutil/lightmanager.hpp>
 #include <components/sceneutil/lightutil.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
+#include <components/sceneutil/riggeometry.hpp>
 #include <components/sceneutil/skeleton.hpp>
 #include <components/sceneutil/statesetupdater.hpp>
 #include <components/sceneutil/util.hpp>
@@ -482,19 +483,6 @@ namespace MWRender
 
     private:
         float mAlpha;
-    };
-
-    struct Animation::AnimSource
-    {
-        osg::ref_ptr<const SceneUtil::KeyframeHolder> mKeyframes;
-
-        typedef std::map<std::string, osg::ref_ptr<SceneUtil::KeyframeController>> ControllerMap;
-
-        ControllerMap mControllerMap[sNumBlendMasks];
-
-        const SceneUtil::TextKeyMap& getTextKeys() const;
-
-        osg::ref_ptr<const SceneUtil::AnimBlendRules> mAnimBlendRules;
     };
 
     void UpdateVfxCallback::operator()(osg::Node* node, osg::NodeVisitor* nv)
@@ -1488,7 +1476,7 @@ namespace MWRender
         for (const auto& [controller, factor] : { std::pair(mCombatSpine, 1.f), std::pair(mCombatPelvis, .25f) })
             if (controller)
             {
-                controller->setEnabled(living);
+                controller->setEnabled(living && lean.length2() > .000001f);
                 controller->setRotate(osg::Quat(std::clamp(lean.x() * factor, -.3f, .3f), osg::Vec3f(1, 0, 0))
                     * osg::Quat(std::clamp(lean.y() * factor, -.3f, .3f), osg::Vec3f(0, 1, 0)));
             }
@@ -1511,7 +1499,6 @@ namespace MWRender
         {
             it->second.setTime(std::clamp(time, it->second.mStartTime, it->second.mStopTime));
             it->second.mPlaying = true;
-            it->second.mSpeedMult = 0;
         }
     }
 
@@ -1525,10 +1512,14 @@ namespace MWRender
     {
         auto* weapons = dynamic_cast<WeaponAnimation*>(this);
         osg::Node* part = weapons ? weapons->getPhysicalWeaponNode() : nullptr;
+        if (part && mCombatWeaponNode.get() == part && mCombatWeaponSkinned) return false;
         const bool fist = part == nullptr;
-        if (!part) part = const_cast<osg::Node*>(getNode("Bip01 R Hand"));
+        if (!part) part = const_cast<osg::Node*>(getNode("bip01 r hand"));
         if (!part) return false;
-        auto paths = part->getParentalNodePaths();
+        // Actor insert transforms already contain world coordinates. Walking
+        // above them includes shadow/preview cameras and can produce several
+        // unrelated paths (and coordinates), even for the same weapon.
+        auto paths = part->getParentalNodePaths(mInsert.get());
         if (paths.empty()) return false;
         auto path = paths.front();
         if (!fist) path.pop_back(); // Bounds are in the part's parent frame.
@@ -1597,19 +1588,33 @@ namespace MWRender
         if (fist)
         {
             result.mBase = osg::Vec3f() * world;
-            const auto* base = mPtr.getRefData().getBaseNode();
+            const auto* base = mPtr.isEmpty() ? nullptr : mPtr.getRefData().getBaseNode();
             result.mTip = result.mBase + (base ? base->getAttitude() * osg::Vec3f(0, 8, 0) : osg::Vec3f(0, 8, 0));
             result.mGripReach = 8;
         }
         else
         {
-            if (mCombatWeaponNode.get() != part || !mCombatWeaponBounds.valid())
+            if (mCombatWeaponNode.get() != part || (!mCombatWeaponBounds.valid() && !mCombatWeaponSkinned))
             {
-                osg::ComputeBoundsVisitor bounds;
+                class WeaponBounds : public osg::ComputeBoundsVisitor
+                {
+                public:
+                    bool mSkinned = false;
+                    void apply(osg::Drawable& drawable) override
+                    {
+                        if (dynamic_cast<SceneUtil::RigGeometry*>(&drawable)) mSkinned = true;
+                        else osg::ComputeBoundsVisitor::apply(drawable);
+                    }
+                } bounds;
                 bounds.setTraversalMask(~(Mask_Effect | Mask_ParticleSystem));
                 part->accept(bounds);
                 mCombatWeaponNode = part; mCombatWeaponBounds = bounds.getBoundingBox();
+                mCombatWeaponSkinned = bounds.mSkinned;
             }
+            // A skinned attachment ignores its scene-graph parent transform.
+            // A cached posed box is not a rigid blade: use the hit-key fallback
+            // until a per-bone proxy is available, rather than a frozen blade.
+            if (mCombatWeaponSkinned) return false;
             const auto& box = mCombatWeaponBounds;
             if (!box.valid()) return false;
             const auto extent = box._max - box._min;

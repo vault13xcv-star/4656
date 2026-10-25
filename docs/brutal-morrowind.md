@@ -1,7 +1,10 @@
-# Brutal Morrowind 0.8.0-preview.2
+# Brutal Morrowind 0.8.0-preview.3
 
 This release adds hybrid physical combat: driven weapon inertia, swept model
 contacts, skill/speed damage, live stagger/knockdown and a held RMB shield.
+Preview.3 fixes Preview.2's camera-contaminated melee coordinates, restores the
+hit-key compatibility path for unsupported weapon poses, includes both axe
+types, and separates contact recovery from locomotion playback.
 See [physical-combat.md](physical-combat.md) for controls, exact shield percentages,
 handling rules, validation and the scope of the hybrid simulation.
 

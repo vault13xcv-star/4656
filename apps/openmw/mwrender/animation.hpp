@@ -12,6 +12,7 @@
 #include <components/misc/strings/algorithm.hpp>
 #include <components/sceneutil/animblendrules.hpp>
 #include <components/sceneutil/controller.hpp>
+#include <components/sceneutil/keyframe.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/textkeymap.hpp>
 #include <components/sceneutil/util.hpp>
@@ -148,7 +149,14 @@ namespace MWRender
             float getValue(osg::NodeVisitor* nv) override { return 0.f; }
         };
 
-        struct AnimSource;
+        struct AnimSource
+        {
+            osg::ref_ptr<const SceneUtil::KeyframeHolder> mKeyframes;
+            using ControllerMap = std::map<std::string, osg::ref_ptr<SceneUtil::KeyframeController>>;
+            ControllerMap mControllerMap[sNumBlendMasks];
+            const SceneUtil::TextKeyMap& getTextKeys() const;
+            osg::ref_ptr<const SceneUtil::AnimBlendRules> mAnimBlendRules;
+        };
 
         struct AnimState
         {
@@ -221,6 +229,7 @@ namespace MWRender
         std::map<const osg::Node*, osg::ref_ptr<SceneUtil::KeyframeController>> mCombatTracks;
         osg::observer_ptr<osg::Node> mCombatWeaponNode;
         osg::BoundingBox mCombatWeaponBounds;
+        bool mCombatWeaponSkinned = false;
         osg::ref_ptr<RotateController> mCombatSpine, mCombatPelvis, mCombatArm, mCombatShield;
         osg::Quat mCombatWeaponLag;
 

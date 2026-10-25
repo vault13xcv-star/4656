@@ -188,7 +188,7 @@ namespace MWRender
         };
 
         RayResult castRay(const osg::Vec3f& origin, const osg::Vec3f& dest, bool ignorePlayer,
-            bool ignoreActors = false, std::span<const MWWorld::Ptr> ignoreList = {});
+            bool ignoreActors = false, std::span<const MWWorld::Ptr> ignoreList = {}, bool ignoreWeapons = false);
 
         /// Return the object under the mouse cursor / crosshair position, given by nX and nY normalized screen
         /// coordinates, where (0,0) is the top left corner.

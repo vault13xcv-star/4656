@@ -1,7 +1,12 @@
-# Brutal Morrowind 0.8.0-preview.2 — hybrid physical combat
+# Brutal Morrowind 0.8.0-preview.3 — hybrid physical combat
 
 This preview adds driven weapon inertia, model-based melee contacts, live-body
 impulses and an active shield to the existing blood/dismemberment runtime.
+Preview.3 fixes the contact/animation regression in Preview.2. Weapon poses are
+anchored at the actor's world transform, excluding main/shadow/preview cameras.
+All melee types (including both axes) use physical contacts. Actor collision
+bodies back up visual intersection tests in every camera mode. A carried weapon
+no longer grants an unsolicited automatic full block.
 Extract the complete Windows ZIP into a new directory. Keep the working 0.7
 installation and use a separate test save while checking your animation mods.
 
@@ -86,14 +91,26 @@ During a resisted contact, movement into the obstruction is constrained too;
 walking forward cannot simply carry the stopped blade through the body. Light
 movable clutter receives momentum without arresting the whole weapon stroke.
 One attack applies one physical contact; it does not repeatedly damage an enemy
-while the weapon rests against it. Weapon clashes transfer recoil without body
-damage. A lowered shield does not grant an automatic successful block.
+while the weapon rests against it. Passive weapon clashes are disabled in this
+hotfix. A lowered shield does not grant an automatic successful block.
 
 The collision sampler uses the current keyframe time, NIF transition easing and
 the same aiming/procedural corrections as rendering. Anatomical contacts on
 clothes/armour retain their body-part metadata. Whole robes use the nearest
 anatomy at the actual contact point. The invisible first-person player torso
 uses its native collision shape.
+The contact text key is retained as a deferred checkpoint. If the weapon model
+has no usable moving rigid pose (including skinned weapon attachments), a live
+aim ray at that key checks current visual/physical surfaces. This compatibility
+path uses neither the old random miss roll nor a target selected during wind-up;
+its geometry is simpler than a blade sweep. Visible body-part information takes
+precedence over the collision capsule on the same actor. A geometric miss from
+a valid moving blade remains a miss.
+
+Contact seeking no longer changes playback speed implicitly. The character
+controller pauses only the weapon track and restores it or ends the contact
+recovery explicitly; locomotion continues independently. Idle/running actors no
+longer sample and drive the weapon motor every frame outside an attack.
 
 Effective weapon mass and contact speed drive collision-aware live-body push,
 spring-driven torso/pelvis lean and accumulated loss of balance. Very strong
@@ -125,6 +142,9 @@ strength response, driven inertia and settling, shield timing/transmission/costs
 bounded blade sweeps and deterministic knockdown. Native engine tests compare
 current collision poses to actual aiming/blending callbacks, including partial
 NIF tracks, and check native weapon classes and momentum expiry after DOT.
+Regression tests attach an actual OSG camera above the actor, cover axes and
+missing/skinned weapon nodes, and play real Animation states/text keys while
+pausing/resuming the weapon independently of the running track.
 The previous crowded blood/intestinal physics, saved gore and normal/reversed-Z
 rendering regressions also run, followed by the full Windows component/native
 tests and installed executable/package checks.

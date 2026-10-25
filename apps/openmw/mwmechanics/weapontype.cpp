@@ -419,6 +419,13 @@ namespace MWMechanics
         return &Weapon<ESM::Weapon::ShortBladeOneHand>::getValue();
     }
 
+    bool isPhysicalMeleeWeapon(int weaponType)
+    {
+        return weaponType == ESM::Weapon::HandToHand
+            || (weaponType >= ESM::Weapon::ShortBladeOneHand && weaponType <= ESM::Weapon::Last
+                && getWeaponType(weaponType)->mWeaponClass == ESM::WeaponType::Melee);
+    }
+
     std::vector<std::string_view> getAllWeaponTypeShortGroups()
     {
         // Go via a set to eliminate duplicates.

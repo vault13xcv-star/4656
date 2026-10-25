@@ -87,6 +87,13 @@ namespace
     }
     void motionAndContacts()
     {
+        check(usePhysicsContact(false, true, false, 0, 100),
+            "An actor without a visible surface lost its physical contact");
+        check(!usePhysicsContact(true, true, true, 110, 100),
+            "A collision capsule overwrote visible anatomical/shield contact on the same actor");
+        check(usePhysicsContact(true, true, false, 400, 100), "A nearer physical wall did not stop the blade");
+        check(!usePhysicsContact(true, true, false, 100, 400), "A further collision body hid the visible contact");
+        check(!usePhysicsContact(false, false, false, 0, 0), "A miss created a phantom contact");
         const float fistRange = approachRange(8, 64, 16);
         const float daggerRange = approachRange(25, 64, 16);
         const float swordRange = approachRange(70, 64, 16);

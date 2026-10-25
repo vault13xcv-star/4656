@@ -1,6 +1,8 @@
 #include "apps/openmw/mwclass/classes.hpp"
 #include "apps/openmw/mwbase/environment.hpp"
 #include "apps/openmw/mwmechanics/combat.hpp"
+#include "apps/openmw/mwmechanics/character.hpp"
+#include "apps/openmw/mwmechanics/weapontype.hpp"
 #include "apps/openmw/mwmechanics/creaturestats.hpp"
 #include "apps/openmw/mwmechanics/ragdollimpact.hpp"
 #include "apps/openmw/mwphysics/itemhit.hpp"
@@ -36,13 +38,16 @@
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/shadow.hpp>
+#include <components/sceneutil/riggeometry.hpp>
 #include <components/settings/values.hpp>
 #include <components/testing/util.hpp>
 #include <components/toutf8/toutf8.hpp>
 
 #include <osg/Geode>
+#include <osg/Camera>
 #include <osg/ShapeDrawable>
 #include <osgDB/Registry>
+#include <osgUtil/UpdateVisitor>
 
 #include <gtest/gtest.h>
 
@@ -74,6 +79,12 @@ namespace
             state.mStartTime = 1; state.mStopTime = 3; state.setTime(2);
         }
         float poseTime() const { return mStates.at("blade").getTime(); }
+        void setWeaponNode(osg::Node* node)
+        {
+            mHand->removeChild(mBlade);
+            mBlade = node ? node->asGeode() : nullptr;
+            if (mBlade) mHand->addChild(mBlade);
+        }
     protected:
         osg::Group* getArrowBone() override { return nullptr; }
         osg::Node* getWeaponNode() override { return mBlade; }
@@ -125,6 +136,97 @@ namespace
         EXPECT_FLOAT_EQ(animation->poseTime(), 1.4f);
         animation->rewindCombatPose("blade", -10);
         EXPECT_FLOAT_EQ(animation->poseTime(), 1);
+    }
+
+    TEST(ItemPhysicsCombat, ShadowAndPreviewParentsCannotChangeWorldWeaponContacts)
+    {
+        osg::ref_ptr<CombatPoseFixture> animation = new CombatPoseFixture;
+        osg::ref_ptr<osg::Camera> shadow = new osg::Camera;
+        shadow->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
+        shadow->setViewMatrix(osg::Matrix::lookAt(osg::Vec3f(6000, -9000, 4000), osg::Vec3f(), osg::Vec3f(0, 0, 1)));
+        // The actor's insert transform is already in game world coordinates.
+        // Render ancestors must not contaminate the collision pose.
+        auto* insert = animation->getObjectRoot()->getParent(0);
+        shadow->addChild(insert);
+        PhysicalCombat::Blade blade;
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_LT((blade.mBase - osg::Vec3f(100, 30, 40)).length(), .01f);
+        EXPECT_LT((blade.mTip - osg::Vec3f(40, 30, 40)).length(), .01f);
+        osg::ref_ptr<osg::MatrixTransform> preview = new osg::MatrixTransform;
+        preview->setMatrix(osg::Matrix::scale(.01, .01, .01));
+        preview->addChild(insert);
+        ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
+        EXPECT_NEAR((blade.mTip - blade.mBase).length(), 60.f, .01f);
+    }
+
+    TEST(ItemPhysicsCombat, MissingWeaponsUseTheLowercaseHandMapAndSkinnedBoundsAreNotFrozenBlades)
+    {
+        osg::ref_ptr<CombatPoseFixture> animation = new CombatPoseFixture;
+        animation->mHand->setName("Bip01 R Hand");
+        animation->setWeaponNode(nullptr);
+        PhysicalCombat::Blade fist;
+        ASSERT_TRUE(animation->getCombatWeaponSegment(fist));
+        EXPECT_NEAR((fist.mTip - fist.mBase).length(), 8.f, .001f);
+        osg::ref_ptr<osg::Geode> skinned = new osg::Geode;
+        skinned->addDrawable(new SceneUtil::RigGeometry);
+        animation->setWeaponNode(skinned);
+        EXPECT_FALSE(animation->getCombatWeaponSegment(fist));
+    }
+
+    class CombatPlaybackFixture : public MWRender::Animation
+    {
+    public:
+        CombatPlaybackFixture() : Animation({}, new osg::MatrixTransform, nullptr)
+        {
+            mObjectRoot = new osg::Group; mInsert->addChild(mObjectRoot);
+            osg::ref_ptr<SceneUtil::KeyframeHolder> keys = new SceneUtil::KeyframeHolder;
+            keys->mTextKeys.emplace(0, "runforward1h: start");
+            keys->mTextKeys.emplace(0, "runforward1h: loop start");
+            keys->mTextKeys.emplace(1, "runforward1h: loop stop");
+            keys->mTextKeys.emplace(1, "runforward1h: stop");
+            keys->mTextKeys.emplace(2, "weapononehand: chop max attack");
+            keys->mTextKeys.emplace(2.5f, "weapononehand: chop hit");
+            keys->mTextKeys.emplace(3, "weapononehand: chop large follow stop");
+            auto source = std::make_shared<AnimSource>();
+            source->mKeyframes = keys; mAnimSources.push_back(source);
+        }
+    };
+
+    TEST(ItemPhysicsCombat, WeaponContactPauseCannotFreezeLocomotionOrDiscardTheHitKey)
+    {
+        struct Keys : MWRender::Animation::TextKeyListener
+        {
+            int mHits = 0;
+            void handleTextKey(std::string_view, SceneUtil::TextKeyMap::ConstIterator key,
+                const SceneUtil::TextKeyMap&) override
+            { if (key->second == "weapononehand: chop hit") ++mHits; }
+        } listener;
+        osg::ref_ptr<CombatPlaybackFixture> animation = new CombatPlaybackFixture;
+        animation->setTextKeyListener(&listener);
+        MWRender::AnimPriority weapon(MWMechanics::Priority_Weapon);
+        weapon[MWRender::BoneGroup_LowerBody] = MWMechanics::Priority_WeaponLowerBody;
+        animation->play("runforward1h", MWMechanics::Priority_Movement, MWRender::BlendMask_All,
+            false, 1, "start", "stop", 0, 20, true);
+        animation->play("weapononehand", weapon, MWRender::BlendMask_All,
+            false, 1, "chop max attack", "chop large follow stop", 0, 0);
+        animation->runAnimation(.4f);
+        const float beforeRun = animation->getCurrentTime("runforward1h");
+        animation->rewindCombatPose("weapononehand", 2.3f);
+        animation->runAnimation(.2f);
+        EXPECT_FLOAT_EQ(animation->getCurrentTime("weapononehand"), 2.5f);
+        EXPECT_EQ(listener.mHits, 1); // Seeking must not silently change playback speed.
+        EXPECT_GT(animation->getCurrentTime("runforward1h"), beforeRun);
+        animation->adjustSpeedMult("weapononehand", 0);
+        const float moving = animation->getCurrentTime("runforward1h");
+        animation->runAnimation(.1f);
+        EXPECT_FLOAT_EQ(animation->getCurrentTime("weapononehand"), 2.5f);
+        EXPECT_GT(animation->getCurrentTime("runforward1h"), moving);
+        EXPECT_EQ(listener.mHits, 1);
+        animation->adjustSpeedMult("weapononehand", 1);
+        animation->runAnimation(.1f);
+        EXPECT_GT(animation->getCurrentTime("weapononehand"), 2.5f);
+        EXPECT_EQ(listener.mHits, 1);
+        animation->setTextKeyListener(nullptr);
     }
 
     class CombatBlendFixture : public MWRender::NifAnimBlendController
@@ -677,10 +779,16 @@ namespace
         {
             weapon.mBase.mData.mType = type;
             const auto profile = MWMechanics::physicalWeapon({}, weapon.ptr());
+            EXPECT_TRUE(MWMechanics::isPhysicalMeleeWeapon(type));
             EXPECT_EQ(profile.mHandling, handling);
             EXPECT_FLOAT_EQ(profile.mWeight, 20);
             EXPECT_FLOAT_EQ(profile.mLength, 70);
         }
+        EXPECT_TRUE(MWMechanics::isPhysicalMeleeWeapon(ESM::Weapon::HandToHand));
+        for (int type : { int(ESM::Weapon::None), int(ESM::Weapon::Spell), int(ESM::Weapon::PickProbe),
+                 int(ESM::Weapon::MarksmanBow), int(ESM::Weapon::MarksmanCrossbow), int(ESM::Weapon::MarksmanThrown),
+                 int(ESM::Weapon::Arrow), int(ESM::Weapon::Bolt), 999 })
+            EXPECT_FALSE(MWMechanics::isPhysicalMeleeWeapon(type));
         for (int skill : { 0, 10, 100, 1000 }) EXPECT_FLOAT_EQ(MWMechanics::getHitChance({}, {}, skill), 100);
         auto hit = MWMechanics::makeRagdollHit({}, {}, weapon.ptr(), {}, ESM::Weapon::AT_Chop, {}, { 0, 1, 0 });
         hit->mWeapon.mContactMomentum = 2100; hit->mWeapon.mContactSpeed = 700;

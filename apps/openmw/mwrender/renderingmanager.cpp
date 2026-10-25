@@ -821,7 +821,8 @@ namespace MWRender
     }
 
     RenderingManager::RayResult getIntersectionResult(osgUtil::LineSegmentIntersector* intersector,
-        const osg::ref_ptr<osgUtil::IntersectionVisitor>& visitor, std::span<const MWWorld::Ptr> ignoreList = {})
+        const osg::ref_ptr<osgUtil::IntersectionVisitor>& visitor, std::span<const MWWorld::Ptr> ignoreList = {},
+        bool ignoreWeapons = false)
     {
         constexpr auto nonObjectWorldMask = Mask_Terrain | Mask_Water;
         RenderingManager::RayResult result;
@@ -832,6 +833,8 @@ namespace MWRender
             return result;
 
         auto test = [&](const osgUtil::LineSegmentIntersector::Intersection& intersection) {
+            if (ignoreWeapons && SceneUtil::getHitBody(intersection.nodePath) == -2
+                && !SceneUtil::isShieldContact(intersection.nodePath)) return;
             PtrHolder* ptrHolder = nullptr;
             std::vector<RefnumMarker*> refnumMarkers;
             bool hitNonObjectWorld = false;
@@ -897,7 +900,8 @@ namespace MWRender
             }
         };
 
-        if (ignoreList.empty() || intersector->getIntersectionLimit() != osgUtil::LineSegmentIntersector::NO_LIMIT)
+        if (!ignoreWeapons && (ignoreList.empty()
+                || intersector->getIntersectionLimit() != osgUtil::LineSegmentIntersector::NO_LIMIT))
         {
             test(intersector->getFirstIntersection());
         }
@@ -998,15 +1002,16 @@ namespace MWRender
     }
 
     RenderingManager::RayResult RenderingManager::castRay(const osg::Vec3f& origin, const osg::Vec3f& dest,
-        bool ignorePlayer, bool ignoreActors, std::span<const MWWorld::Ptr> ignoreList)
+        bool ignorePlayer, bool ignoreActors, std::span<const MWWorld::Ptr> ignoreList, bool ignoreWeapons)
     {
         osg::ref_ptr<osgUtil::LineSegmentIntersector> intersector(
             new osgUtil::LineSegmentIntersector(osgUtil::LineSegmentIntersector::MODEL, origin, dest));
-        intersector->setIntersectionLimit(osgUtil::LineSegmentIntersector::LIMIT_NEAREST);
+        intersector->setIntersectionLimit(ignoreWeapons ? osgUtil::LineSegmentIntersector::NO_LIMIT
+                                                       : osgUtil::LineSegmentIntersector::LIMIT_NEAREST);
 
         mRootNode->accept(*getIntersectionVisitor(intersector, ignorePlayer, ignoreActors, ignoreList));
 
-        return getIntersectionResult(intersector, mIntersectionVisitor, ignoreList);
+        return getIntersectionResult(intersector, mIntersectionVisitor, ignoreList, ignoreWeapons);
     }
 
     RenderingManager::RayResult RenderingManager::castCameraToViewportRay(

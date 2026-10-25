@@ -1754,10 +1754,10 @@ namespace MWWorld
     }
 
     bool World::castRenderingRay(MWPhysics::RayCastingResult& res, const osg::Vec3f& from, const osg::Vec3f& to,
-        bool ignorePlayer, bool ignoreActors, std::span<const MWWorld::Ptr> ignoreList)
+        bool ignorePlayer, bool ignoreActors, std::span<const MWWorld::Ptr> ignoreList, bool ignoreWeapons)
     {
         MWRender::RenderingManager::RayResult rayRes
-            = mRendering->castRay(from, to, ignorePlayer, ignoreActors, ignoreList);
+            = mRendering->castRay(from, to, ignorePlayer, ignoreActors, ignoreList, ignoreWeapons);
         res.mHit = rayRes.mHit;
         res.mHitPos = rayRes.mHitPointWorld;
         res.mHitNormal = rayRes.mHitNormalWorld;

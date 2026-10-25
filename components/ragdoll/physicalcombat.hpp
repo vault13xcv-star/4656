@@ -12,6 +12,13 @@ namespace PhysicalCombat
 {
     inline float finite(float value, float fallback) { return std::isfinite(value) ? value : fallback; }
     enum class Handling { LightBlade, Heavy, Mixed };
+    inline bool usePhysicsContact(bool renderedHit, bool physicsHit, bool sameObject,
+        float renderedDistanceSquared, float physicsDistanceSquared)
+    {
+        // Preserve visible anatomy/shields on the same actor, but retain a
+        // collision body when rendering has no surface and respect nearer walls.
+        return physicsHit && (!renderedHit || (!sameObject && physicsDistanceSquared < renderedDistanceSquared));
+    }
     struct Blade
     {
         osg::Vec3f mBase, mTip;
