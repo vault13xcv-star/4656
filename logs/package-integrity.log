@@ -1,0 +1,18 @@
+
+7-Zip 26.05 (x64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-10-21
+
+Scanning the drive for archives:
+1 file, 45643088 bytes (44 MiB)
+
+Testing archive: D:\a\4656\4656\dist\Brutal-Morrowind-0.8.0-preview.1-OpenMW-0.51-Windows-x64-0dabdfb00480.zip
+--
+Path = D:\a\4656\4656\dist\Brutal-Morrowind-0.8.0-preview.1-OpenMW-0.51-Windows-x64-0dabdfb00480.zip
+Type = zip
+Physical Size = 45643088
+
+Everything is Ok
+
+Folders: 64
+Files: 591
+Size:       128144989
+Compressed: 45643088
