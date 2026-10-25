@@ -210,6 +210,8 @@ namespace MWRender
         void addBloodDecal(const std::string& cell, const BloodStamp& stamp);
         void emitBloodHit(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit);
         void emitCreatureDeathBlood(const MWWorld::Ptr& victim);
+        BloodTrail::Surface getBloodSurface(const MWWorld::CellStore* cell,
+            const osg::Vec3f& center, float radius = 768.f);
         void writeBloodState(ESM::ESMWriter& writer) const;
         void readBloodState(ESM::ESMReader& reader);
 
@@ -299,6 +301,8 @@ namespace MWRender
         osg::Vec2f getProjectionOffset() const { return mProjectionOffset; }
 
     private:
+        void invalidateBloodSurfaces(const MWWorld::Ptr* receiver = nullptr,
+            const MWWorld::CellStore* cell = nullptr);
         void updateTextureFiltering();
         void updateAmbient();
         void setFogColor(const osg::Vec4f& color);
@@ -352,13 +356,26 @@ namespace MWRender
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
         std::unique_ptr<BloodDecals> mBloodDecals;
+        struct BloodSurfaceSnapshot
+        {
+            const MWWorld::CellStore* mCell = nullptr;
+            osg::Vec3f mCenter;
+            float mRadius = 0;
+            double mTime = 0;
+            std::shared_ptr<BloodTrail::Surface> mSurface;
+        };
+        std::deque<BloodSurfaceSnapshot> mBloodSurfaceSnapshots;
+        double mBloodSurfaceTime = 0;
+        unsigned mBloodSurfaceFrame = ~0u;
+        unsigned mBloodSurfacesBuilt = 0;
         struct BloodBurst
         {
             std::string mCell;
             std::unique_ptr<BloodTrail> mTrail;
             BloodTrail::Source mSource;
             MWWorld::Ptr mVictim;
-            std::shared_ptr<BloodTrail::Raycast> mRaycast;
+            std::shared_ptr<BloodTrail::Surface> mSurface;
+            const MWWorld::CellStore* mReceiverCell = nullptr;
             std::shared_ptr<std::string> mDepositCell;
             osg::Vec3f mSnapshotCenter;
             float mBodyHeight = 0;

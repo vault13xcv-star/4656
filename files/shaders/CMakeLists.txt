@@ -43,6 +43,8 @@ set(SHADER_FILES
     compatibility/terrain_composite.frag
     compatibility/shadows_vertex.glsl
     compatibility/shadows_fragment.glsl
+    compatibility/brutalblood_shadow.vert
+    compatibility/brutalblood_shadow.frag
     compatibility/shadowcasting.vert
     compatibility/shadowcasting.frag
     compatibility/vertexcolors.glsl

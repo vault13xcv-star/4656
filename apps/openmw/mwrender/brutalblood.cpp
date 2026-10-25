@@ -1,4 +1,5 @@
 #include "brutalblood.hpp"
+#include "brutalbloodlightingbase.hpp"
 #include "vismask.hpp"
 #include <components/ragdoll/blood.hpp>
 #include <components/sceneutil/depth.hpp>
@@ -88,14 +89,46 @@ namespace MWRender
         osg::ref_ptr<osg::Program> program = new osg::Program;
         program->addShader(new osg::Shader(osg::Shader::VERTEX,
             "#version 120\nuniform mat4 projectionMatrix; varying vec4 tint; varying vec3 n; varying vec3 p; varying vec2 uv;varying vec2 bloodInfo;"
+            "void setupShadowCoords(vec4 viewPos,vec3 viewNormal);"
             "void main(){mat4 proj=projectionMatrix; if(proj[0][0]==0.0)proj=gl_ProjectionMatrix;"
             "vec4 eye=gl_ModelViewMatrix*gl_Vertex;gl_Position=proj*eye;n=gl_NormalMatrix*gl_Normal;"
-            "p=eye.xyz;tint=gl_Color;uv=gl_MultiTexCoord0.xy;bloodInfo=gl_MultiTexCoord1.xy;}"));
-        program->addShader(new osg::Shader(osg::Shader::FRAGMENT, decal ?
-            "#version 120\nuniform float brutalBloodTime;uniform float brutalBloodLifetime;"
+            "p=eye.xyz;tint=gl_Color;uv=gl_MultiTexCoord0.xy;bloodInfo=gl_MultiTexCoord1.xy;"
+            "setupShadowCoords(eye,normalize(n));}"));
+        const std::string lighting =
+            "uniform vec3 brutalBloodSunDirection;uniform vec3 brutalBloodSunDiffuse;"
+            "uniform vec3 brutalBloodPointPosition[8];uniform vec3 brutalBloodPointDiffuse[8];"
+            "uniform vec3 brutalBloodPointAmbient[8];uniform vec4 brutalBloodPointAttenuation[8];"
+            "uniform int brutalBloodPointCount;uniform bool brutalBloodClassicFalloff;uniform bool brutalBloodClamp;"
+            "uniform int brutalBloodFogMode;uniform bool brutalBloodFogRadial;"
+            "float unshadowedLightRatio(float distance);"
+            "float bloodSpec(vec3 N,vec3 L,vec3 V){if(dot(N,L)<=0.0)return 0.0;"
+            "vec3 H=L+V;H/=max(.0001,length(H));return pow(max(0.0,dot(N,H)),24.0);}"
+            "vec3 bloodLighting(vec3 N,vec3 pos,out vec3 spec){"
+            "vec3 V=-pos/max(.0001,length(pos));vec3 L=brutalBloodSunDirection/max(.0001,length(brutalBloodSunDirection));"
+            "float shadow=unshadowedLightRatio(length(pos));"
+            "vec3 light=gl_LightModel.ambient.rgb+brutalBloodSunDiffuse*max(0.0,dot(N,L))*shadow;"
+            "spec=brutalBloodSunDiffuse*bloodSpec(N,L,V)*shadow;"
+            "for(int i=0;i<8;++i){if(i>=brutalBloodPointCount)break;"
+            "vec3 delta=brutalBloodPointPosition[i]-pos;float dist=length(delta);"
+            "vec4 att=brutalBloodPointAttenuation[i];"
+            "float power=1.0/max(.0001,att.x+att.y*dist+att.z*dist*dist);"
+            "if(!brutalBloodClassicFalloff){float fade=clamp(dist/max(.0001,att.w)-1.0,0.0,1.0);"
+            "fade=1.0-fade*fade;power*=fade*fade;}"
+            "L=delta/max(.0001,dist);light+=(brutalBloodPointAmbient[i]+brutalBloodPointDiffuse[i]*max(0.0,dot(N,L)))*power;"
+            "spec+=brutalBloodPointDiffuse[i]*bloodSpec(N,L,V)*power;}"
+            "light=max(vec3(0.0),light);spec=max(vec3(0.0),spec);"
+            "if(brutalBloodClamp)light=min(vec3(1.0),light);return light;}"
+            "vec3 bloodFog(vec3 color,vec3 pos){if(brutalBloodFogMode==0)return color;"
+            "float dist=brutalBloodFogRadial?length(pos):abs(pos.z);float f=0.0;"
+            "if(brutalBloodFogMode==2){float start=gl_Fog.start*.5;"
+            "if(gl_Fog.end>start)f=1.0-exp(-2.0*max(0.0,dist-start)/(gl_Fog.end-start));}"
+            "else if(gl_Fog.end>gl_Fog.start)f=clamp((dist-gl_Fog.start)/(gl_Fog.end-gl_Fog.start),0.0,1.0);"
+            "return mix(color,gl_Fog.color.rgb,clamp(f,0.0,1.0));}";
+        const std::string decalFragment =
+            "uniform float brutalBloodTime;uniform float brutalBloodLifetime;"
             "uniform sampler2D brutalBloodAtlas;"
             "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;varying vec2 bloodInfo;"
-            "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
+            "void main(){vec3 N=normalize(n);"
             "float age=max(0.0,brutalBloodTime-bloodInfo.x);float dry=min(1.0,age/90.0);"
             "vec4 c=tint;"
             "if(bloodInfo.y>.5){vec4 texel=texture2D(brutalBloodAtlas,uv);"
@@ -103,15 +136,28 @@ namespace MWRender
             "c=vec4(pigment*tint.rgb,texel.a*tint.a);}"
             "c.rgb*=1.0-.5*dry;c.a*=clamp((brutalBloodLifetime-age)/10.0,0.0,1.0);"
             "if(c.a<.003)discard;"
-            "float spec=pow(max(0.0,dot(reflect(-L,N),normalize(-p))),24.0);"
-            "gl_FragColor=vec4(c.rgb*(.62+.38*abs(dot(N,L)))+vec3(.035)*spec*c.a,c.a);}"
-            :
-            "#version 120\nvarying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
+            "vec3 spec;vec3 light=bloodLighting(N,p,spec);"
+            "gl_FragColor=vec4(bloodFog(c.rgb*light+spec*.035*c.a,p),c.a);}";
+        const std::string solidFragment =
+            "uniform bool brutalBloodWorldLighting;"
+            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
             "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
             "float fold=.92+.08*sin(uv.x*110.0);float vein=pow(max(0.0,sin(uv.x*47.0+sin(uv.y*17.0)*2.0)),24.0);"
             "vec3 flesh=mix(tint.rgb,vec3(.23,.025,.045),vein*.5);"
             "float spec=pow(max(0.0,dot(reflect(-L,N),normalize(-p))),28.0);"
-            "gl_FragColor=vec4(flesh*fold*(.5+.5*abs(dot(N,L)))+vec3(.32)*spec,1.0);}"));
+            "vec3 color=flesh*fold*(.5+.5*abs(dot(N,L)))+vec3(.32)*spec;"
+            "if(brutalBloodWorldLighting){vec3 wetSpec;vec3 light=bloodLighting(N,p,wetSpec);"
+            "color=bloodFog(tint.rgb*light+wetSpec*.035,p);}gl_FragColor=vec4(color,1.0);}";
+        program->addShader(new osg::Shader(osg::Shader::FRAGMENT,
+            "#version 120\n" + lighting + (decal ? decalFragment : solidFragment)));
+        osg::ref_ptr<osg::Shader> vertexFallback = new osg::Shader(osg::Shader::VERTEX,
+            "#version 120\nvoid setupShadowCoords(vec4 viewPos,vec3 viewNormal){}");
+        vertexFallback->setName("Brutal blood fallback shadows vertex");
+        program->addShader(vertexFallback);
+        osg::ref_ptr<osg::Shader> fragmentFallback = new osg::Shader(osg::Shader::FRAGMENT,
+            "#version 120\nfloat unshadowedLightRatio(float distance){return 1.0;}");
+        fragmentFallback->setName("Brutal blood fallback shadows fragment");
+        program->addShader(fragmentFallback);
         state->setAttributeAndModes(program, on);
         if (decal)
         {
@@ -337,15 +383,23 @@ namespace MWRender
             const osg::Vec3f up = floor ? osg::Vec3f(0, 1, 0) : osg::Vec3f(0, 0, 1);
             const auto vertical = unit(up - stamp.mNormal * (up * stamp.mNormal), { 0, 1, 0 });
             const auto horizontal = unit(vertical ^ stamp.mNormal, { 1, 0, 0 });
-            for (const auto& vertex : stamp.mTriangles)
+            osg::Vec3f surfaceNormal = stamp.mNormal;
+            for (std::size_t corner = 0; corner < stamp.mTriangles.size(); ++corner)
             {
+                const auto& vertex = stamp.mTriangles[corner];
+                if (corner % 3 == 0)
+                {
+                    surfaceNormal = unit((stamp.mTriangles[corner + 1] - vertex)
+                        ^ (stamp.mTriangles[corner + 2] - vertex), stamp.mNormal);
+                    if (surfaceNormal * stamp.mNormal < 0) surfaceNormal = -surfaceNormal;
+                }
                 const auto relative = vertex - stamp.mCenter;
                 float u = std::clamp(.5f + (relative * horizontal) / (stamp.mRadius * 2), 0.f, 1.f);
                 float v = std::clamp(.5f + (relative * vertical) / (stamp.mRadius * 2), 0.f, 1.f);
                 if (floor && (seed & 2)) { u = 1 - u; v = 1 - v; }
                 if (seed & 1) u = 1 - u;
                 vertices->push_back(vertex);
-                normals->push_back(stamp.mNormal);
+                normals->push_back(surfaceNormal);
                 colors->push_back(tint);
                 coords->push_back({ tile.x() + u * (tile.z() - tile.x()), tile.y() + v * (tile.w() - tile.y()) });
                 births->push_back({ static_cast<float>(mTime - stain.mAge), textured ? 1.f : 0.f });
@@ -364,6 +418,7 @@ namespace MWRender
                 state->addUniform(mTimeUniform); state->addUniform(mLifetimeUniform);
                 if (mAtlas) state->setTextureAttributeAndModes(0, mAtlas, on);
                 chunk->mNode->setStateSet(state);
+                attachBloodLighting(*chunk->mNode, *mParent);
                 chunk->mNode->addDrawable(chunk->mGeometry);
                 mParent->addChild(chunk->mNode);
             }
@@ -457,15 +512,17 @@ namespace MWRender
         restoreState(state);
     }
 
-    BloodTrail::BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit)
+    BloodTrail::BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector)
         : mRoot(&root), mTransform(new osg::MatrixTransform)
         , mGeometry(geometry(new osg::Vec3Array, new osg::Vec3Array, new osg::Vec4Array))
-        , mRaycast(std::move(raycast)), mDeposit(std::move(deposit))
+        , mRaycast(std::move(raycast)), mProjector(std::move(projector)), mDeposit(std::move(deposit))
     {
         mTransform->setName("Brutal Morrowind ballistic blood");
         mTransform->setNodeMask(Mask_Effect);
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->setStateSet(createWetGoreState());
+        geode->getOrCreateStateSet()->addUniform(new osg::Uniform("brutalBloodWorldLighting", true));
+        attachBloodLighting(*geode, root);
         geode->addDrawable(mGeometry);
         mTransform->addChild(geode);
         root.addChild(mTransform);
@@ -512,6 +569,14 @@ namespace MWRender
         stamp.mRadius = radius * DecalScale * (.88f + .24f * random());
         radius = stamp.mRadius;
         stamp.mPool = pool;
+        if (mProjector)
+        {
+            stamp.mTriangles = mProjector(position, stamp.mNormal, radius);
+            if (validStamp(stamp)) mDeposit(stamp);
+            return;
+        }
+        // Ray-only compatibility for isolated callers. The game runtime uses
+        // actual visual triangles through the projector above.
         const osg::Vec3f up = stamp.mNormal.z() >= .7f ? osg::Vec3f(0, 1, 0) : osg::Vec3f(0, 0, 1);
         const auto v = unit(up - stamp.mNormal * (up * stamp.mNormal), { 0, 1, 0 });
         const auto u = unit(v ^ stamp.mNormal, { 1, 0, 0 });
@@ -545,27 +610,26 @@ namespace MWRender
     {
         if (!std::isfinite(duration) || duration <= 0) return;
         const float dt = std::min(duration, .1f);
+        const float launchScale = Ragdoll::bloodLaunchScale(amount);
+        const float spreadScale = Ragdoll::bloodSpreadScale(amount);
+        const float sizeScale = .85f + .15f * std::sqrt(Ragdoll::bloodAmountMultiplier(amount));
         amount = Ragdoll::bloodEmissionScale(amount);
-        mRemainders.resize(sources.size(), 0);
-        mPoolTimes.resize(sources.size(), 0);
-        for (std::size_t i = 0; i < sources.size(); ++i)
+        const auto sourceCount = std::min(sources.size(), MaxSources);
+        mRemainders.resize(sourceCount, 0);
+        mPoolTimes.resize(sourceCount, 0);
+        mPendingDrops.assign(sourceCount, 0);
+        unsigned pending = 0;
+        for (std::size_t i = 0; i < sourceCount; ++i)
         {
             const auto& source = sources[i];
             if (!std::isfinite(source.mPosition.length2()) || !std::isfinite(source.mDirection.length2())
                 || !std::isfinite(source.mPressure)) continue;
-            const float pulse = .55f + .45f * std::pow(std::max(0.f, std::sin(age * 11.f)), 2.f);
-            mRemainders[i] += dt * amount * (source.mNeck ? 60.f : 14.f);
-            int count = static_cast<int>(mRemainders[i]);
+            const float rate = source.mNeck ? NeckEmissionRate : source.mMajorWound ? MajorEmissionRate : NormalEmissionRate;
+            mRemainders[i] += dt * amount * rate;
+            const unsigned count = static_cast<unsigned>(mRemainders[i]);
             mRemainders[i] -= count;
-            for (int j = 0; j < count && mDrops.size() < 192; ++j)
-            {
-                const osg::Vec3f jitter(random() - .5f, random() - .5f, random() - .5f);
-                const auto direction = unit(source.mDirection + jitter * (source.mNeck ? .22f : .8f));
-                const float speed = source.mNeck ? (200.f + 170.f * pulse) : (55.f + random() * 100.f);
-                mDrops.push_back({ source.mPosition, direction * speed * std::clamp(source.mPressure, .15f, 1.f),
-                    0, .3f + random() * .55f });
-                ++mEmitted;
-            }
+            mPendingDrops[i] = count;
+            pending += count;
             // Slow dripping from a grounded wound grows a local pool. Each rim
             // point is projected independently, preventing stains across corners.
             mPoolTimes[i] += dt;
@@ -578,6 +642,27 @@ namespace MWRender
                     stamp(point, normal, std::min(28.f, (3.f + std::sqrt(std::max(0.f, age)) * 5.f) * std::sqrt(amount)), true);
             }
         }
+        // Share the finite particle budget between all open wounds. A neck or
+        // torso split must not permanently starve later sources in the list.
+        if (sourceCount) mNextSource %= sourceCount;
+        while (pending && mDrops.size() < MaxParticles)
+        {
+            const auto i = mNextSource;
+            mNextSource = (mNextSource + 1) % sourceCount;
+            if (!mPendingDrops[i]) continue;
+            --mPendingDrops[i]; --pending;
+            const auto& source = sources[i];
+            const float pulse = .55f + .45f * std::pow(std::max(0.f, std::sin(age * 11.f + i * .7f)), 2.f);
+            const float cone = source.mNeck ? .28f : source.mMajorWound ? .65f : .95f;
+            const osg::Vec3f jitter(random() - .5f, random() - .5f, random() - .5f);
+            const auto direction = unit(source.mDirection + jitter * cone * spreadScale);
+            const float speed = source.mNeck ? 240.f + 190.f * pulse
+                : source.mMajorWound ? 140.f + 140.f * pulse + random() * 40.f : 80.f + random() * 130.f;
+            const float width = (.65f + random() * .6f + (source.mNeck ? .55f : source.mMajorWound ? .35f : 0.f)) * sizeScale;
+            mDrops.push_back({ source.mPosition,
+                direction * speed * launchScale * std::clamp(source.mPressure, .15f, 1.f), 0, width });
+            ++mEmitted;
+        }
         // Sweep every ballistic segment; no blood travels through a wall between frames.
         unsigned splats = 0;
         for (auto& drop : mDrops)
@@ -588,7 +673,7 @@ namespace MWRender
             {
                 // A low frame rate must not turn hundreds of simultaneous
                 // impacts into thousands of perimeter raycasts in one update.
-                if (amount > 0 && splats++ < 8)
+                if (amount > 0 && splats++ < MaxImpactSplats)
                     stamp(point, normal, (1.f + random() * 3.2f) * std::sqrt(amount), false);
                 drop.mAge = 4;
             }
@@ -599,7 +684,7 @@ namespace MWRender
                 drop.mAge += dt;
             }
         }
-        mDrops.erase(std::remove_if(mDrops.begin(), mDrops.end(), [](const auto& p) { return p.mAge > 2.f; }), mDrops.end());
+        mDrops.erase(std::remove_if(mDrops.begin(), mDrops.end(), [](const auto& p) { return p.mAge > MaxDropAge; }), mDrops.end());
         auto* vertices = static_cast<osg::Vec3Array*>(mGeometry->getVertexArray());
         auto* normals = static_cast<osg::Vec3Array*>(mGeometry->getNormalArray());
         auto* colors = static_cast<osg::Vec4Array*>(mGeometry->getColorArray());
@@ -610,7 +695,10 @@ namespace MWRender
             const auto axis = unit(drop.mVelocity);
             const auto side = unit(axis ^ osg::Vec3f(0, 0, 1), { 1, 0, 0 }) * drop.mSize;
             const auto other = unit(axis ^ side) * drop.mSize;
-            const auto tip = drop.mPosition + axis * std::min(4.f, drop.mVelocity.length() * .009f);
+            // Elongated, wider teardrops remain visible while moving. Their
+            // vertex/particle budgets are unchanged; fast arterial drops join
+            // visually into a jet instead of sub-pixel pinpoints.
+            const auto tip = drop.mPosition + axis * std::min(16.f, drop.mVelocity.length() * .018f);
             const auto tail = drop.mPosition - axis * drop.mSize;
             for (const auto& edge : { std::pair(side, other), std::pair(other, -side), std::pair(-side, -other), std::pair(-other, side) })
                 for (const auto& triangle : { std::array<osg::Vec3f, 3>{ tip, drop.mPosition + edge.first, drop.mPosition + edge.second },

@@ -96,16 +96,33 @@ namespace MWRender
         // Linear footprint of newly projected stains; separate from the blood
         // amount slider, which controls emission and the existing pool growth.
         static constexpr float DecalScale = 1.75f;
+        static constexpr std::size_t MaxParticles = 192;
+        static constexpr std::size_t MaxSources = 32;
+        static constexpr unsigned MaxImpactSplats = 8;
+        static constexpr float MaxDropAge = 3.f;
+        static constexpr float NormalEmissionRate = 14.f;
+        static constexpr float NeckEmissionRate = 60.f;
+        static constexpr float MajorEmissionRate = 35.f;
         using Raycast = std::function<bool(const osg::Vec3f&, const osg::Vec3f&, osg::Vec3f&, osg::Vec3f&)>;
+        using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
+        struct Surface
+        {
+            Raycast mRaycast;
+            Projector mProjector;
+            explicit operator bool() const { return bool(mRaycast) && bool(mProjector); }
+        };
         using Deposit = std::function<void(const BloodStamp&)>;
         struct Source
         {
             osg::Vec3f mPosition, mDirection;
             float mPressure = 1;
             bool mNeck = false;
+            bool mMajorWound = false;
         };
-        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit);
+        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {});
         static Raycast collisionRaycast(const std::vector<osg::Vec3f>& triangles);
+        // Both callbacks share one immutable BVH of visible world triangles.
+        static Surface visualSurface(const std::vector<osg::Vec3f>& triangles);
         ~BloodTrail();
         void update(float duration, const std::vector<Source>& sources, float amount, float age);
         std::size_t particleCount() const { return mDrops.size(); }
@@ -117,9 +134,12 @@ namespace MWRender
         osg::ref_ptr<osg::MatrixTransform> mTransform;
         osg::ref_ptr<osg::Geometry> mGeometry;
         Raycast mRaycast;
+        Projector mProjector;
         Deposit mDeposit;
         std::vector<Drop> mDrops;
         std::vector<float> mRemainders, mPoolTimes;
+        std::vector<unsigned> mPendingDrops;
+        std::size_t mNextSource = 0;
         std::size_t mEmitted = 0;
         unsigned mRandom = 0x91a37u;
         float random();

@@ -24,6 +24,18 @@ namespace Ragdoll
         return 2.f * bloodAmountMultiplier(amount);
     }
 
+    // Raising the quantity also increases the physical footprint of a spray.
+    // At 100% the launch/cone multipliers are one; at 300% they are 1.8/1.6.
+    inline float bloodLaunchScale(float amount)
+    {
+        return .6f + .4f * bloodAmountMultiplier(amount);
+    }
+
+    inline float bloodSpreadScale(float amount)
+    {
+        return .7f + .3f * bloodAmountMultiplier(amount);
+    }
+
     // TES3 has no mechanical/no-blood record flag. Use canonical record and
     // mesh identifiers (including the original of a generated creature), never
     // localized display names. Flesh-bearing undead are intentionally allowed.

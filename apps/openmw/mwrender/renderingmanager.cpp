@@ -1,4 +1,6 @@
 #include "renderingmanager.hpp"
+#include "brutalbloodlighting.hpp"
+#include "bloodsurfacevisitor.hpp"
 
 #include <cstdlib>
 #include <limits>
@@ -50,6 +52,7 @@
 
 #include <components/esm3/loadcell.hpp>
 #include <components/esm3/loadcrea.hpp>
+#include <components/esm/util.hpp>
 #include <components/esm4/loadcell.hpp>
 
 #include <components/debug/debugdraw.hpp>
@@ -226,6 +229,12 @@ namespace MWRender
 
         // It is unnecessary to stop/start the viewer as no frames are being rendered yet.
         mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(globalDefines);
+        auto& bloodShaders = mResourceSystem->getSceneManager()->getShaderManager();
+        installNativeBloodLighting(*sceneRoot, Settings::shaders().mClassicFalloff,
+            Settings::shaders().mClampLighting, exponentialFog ? 2 : 1,
+            exponentialFog || Settings::fog().mRadialFog,
+            bloodShaders.getShader("brutalblood_shadow.vert").get(),
+            bloodShaders.getShader("brutalblood_shadow.frag", { { "useShadowDebugOverlay", "0" } }).get());
 
         mNavMesh = std::make_unique<NavMesh>(mRootNode, mWorkQueue, Settings::navigator().mEnableNavMeshRender,
             Settings::navigator().mNavMeshRenderMode);
@@ -558,6 +567,7 @@ namespace MWRender
 
     void RenderingManager::addCell(const MWWorld::CellStore* store)
     {
+        invalidateBloodSurfaces(nullptr, store);
         mBloodDecals->setCellActive(store->getCell()->getId().serializeText(), true);
         mPathgrid->addCell(store);
 
@@ -571,6 +581,7 @@ namespace MWRender
     }
     void RenderingManager::removeCell(const MWWorld::CellStore* store)
     {
+        invalidateBloodSurfaces(nullptr, store);
         const auto bloodCell = store->getCell()->getId().serializeText();
         std::erase_if(mBloodBursts, [&](const auto& burst) { return burst.mCell == bloodCell; });
         mBloodDecals->setCellActive(store->getCell()->getId().serializeText(), false);
@@ -691,6 +702,7 @@ namespace MWRender
         mWater->update(dt, paused);
         if (!paused)
         {
+            mBloodSurfaceTime += std::max(0.f, dt);
             mEffectManager->update(dt);
             mBloodDecals->update(dt, Settings::ragdoll().mBloodLifetime.get());
             unsigned bloodSnapshots = 0;
@@ -707,28 +719,29 @@ namespace MWRender
                         if (animation->getRagdollPosition(corpsePosition))
                             burst.mSource.mPosition = corpsePosition;
                     }
-                    // Follow a thrown corpse without re-querying world geometry
-                    // at every wound/frame. No more than two snapshots per frame.
-                    burst.mSinceSnapshot += dt;
-                    if (bloodSnapshots < 2 && burst.mSinceSnapshot >= .5f
-                        && (burst.mSource.mPosition - burst.mSnapshotCenter).length2() > 128.f * 128.f)
+                }
+                // Reuse nearby shared geometry, refreshing at most twice per
+                // frame globally (the same budget is used by corpse wounds).
+                // Keep refreshing after emission stops until flying drops land.
+                burst.mSinceSnapshot += dt;
+                if (bloodSnapshots < 2 && burst.mSinceSnapshot >= .5f)
+                {
+                    ++bloodSnapshots;
+                    const float radius = 768.f * std::max(1.f,
+                        Ragdoll::bloodLaunchScale(Settings::ragdoll().mBloodAmount.get()));
+                    auto surface = getBloodSurface(burst.mReceiverCell, burst.mSource.mPosition, radius);
+                    if (surface)
                     {
-                        ++bloodSnapshots;
+                        *burst.mSurface = std::move(surface);
+                        burst.mSnapshotCenter = burst.mSource.mPosition;
                         burst.mSinceSnapshot = 0;
-                        auto ray = BloodTrail::collisionRaycast(MWBase::Environment::get().getWorld()
-                            ->getRagdollCollisionTriangles(burst.mSource.mPosition, 256));
-                        if (ray)
-                        {
-                            *burst.mRaycast = std::move(ray);
-                            burst.mSnapshotCenter = burst.mSource.mPosition;
-                        }
                     }
                 }
                 const std::vector<BloodTrail::Source> source = burst.mAge < burst.mEmissionDuration
                     ? std::vector<BloodTrail::Source>{ burst.mSource } : std::vector<BloodTrail::Source>{};
                 burst.mTrail->update(dt, source, Settings::ragdoll().mBloodAmount.get(), burst.mAge);
             }
-            std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > burst.mEmissionDuration + 2.5f; });
+            std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > burst.mEmissionDuration + 3.25f; });
             mSky->update(dt);
 
             const MWWorld::Ptr& player = mPlayerAnimation->getPtr();
@@ -792,22 +805,31 @@ namespace MWRender
 
     void RenderingManager::rotateObject(const MWWorld::Ptr& ptr, const osg::Quat& rot)
     {
+        const bool receiverChanged = !ptr.getClass().isActor() && ptr.getRefData().getBaseNode()->getAttitude() != rot;
+        if (receiverChanged) invalidateBloodSurfaces(&ptr);
         if (ptr == mCamera->getTrackingPtr() && !mCamera->isVanityOrPreviewModeEnabled())
         {
             mCamera->rotateCameraToTrackingPtr();
         }
 
         ptr.getRefData().getBaseNode()->setAttitude(rot);
+        if (receiverChanged) invalidateBloodSurfaces(&ptr);
     }
 
     void RenderingManager::moveObject(const MWWorld::Ptr& ptr, const osg::Vec3f& pos)
     {
+        const bool receiverChanged = !ptr.getClass().isActor() && ptr.getRefData().getBaseNode()->getPosition() != pos;
+        if (receiverChanged) invalidateBloodSurfaces(&ptr);
         ptr.getRefData().getBaseNode()->setPosition(pos);
+        if (receiverChanged) invalidateBloodSurfaces(&ptr);
     }
 
     void RenderingManager::scaleObject(const MWWorld::Ptr& ptr, const osg::Vec3f& scale)
     {
+        const bool receiverChanged = !ptr.getClass().isActor() && ptr.getRefData().getBaseNode()->getScale() != scale;
+        if (receiverChanged) invalidateBloodSurfaces(&ptr);
         ptr.getRefData().getBaseNode()->setScale(scale);
+        if (receiverChanged) invalidateBloodSurfaces(&ptr);
 
         if (ptr == mCamera->getTrackingPtr()) // update height of camera
             mCamera->processViewChange();
@@ -815,6 +837,7 @@ namespace MWRender
 
     void RenderingManager::removeObject(const MWWorld::Ptr& ptr)
     {
+        if (!ptr.getClass().isActor()) invalidateBloodSurfaces(&ptr);
         std::erase_if(mBloodBursts, [&](const auto& burst) { return burst.mVictim == ptr; });
         mActorsPaths->remove(ptr);
         mObjects->removeObject(ptr);
@@ -1079,6 +1102,7 @@ namespace MWRender
                 burst.mVictim = updated;
                 if (updated.isInCell())
                 {
+                    burst.mReceiverCell = updated.getCell();
                     burst.mCell = updated.getCell()->getCell()->getId().serializeText();
                     if (burst.mDepositCell)
                         *burst.mDepositCell = burst.mCell;
@@ -1114,6 +1138,109 @@ namespace MWRender
         mEffectManager->removeEffect(effectId);
     }
 
+    void RenderingManager::invalidateBloodSurfaces(const MWWorld::Ptr* receiver, const MWWorld::CellStore* cell)
+    {
+        osg::Vec3f center;
+        float radius = 0;
+        if (receiver && !receiver->isEmpty())
+        {
+            const auto* node = receiver->getRefData().getBaseNode();
+            if (node && node->getBound().valid())
+            {
+                center = node->getBound().center();
+                radius = node->getBound().radius();
+            }
+            else center = receiver->getRefData().getPosition().asVec3();
+        }
+        for (auto it = mBloodSurfaceSnapshots.begin(); it != mBloodSurfaceSnapshots.end();)
+        {
+            if (cell && it->mCell != cell)
+            {
+                if (!cell->isExterior() || !it->mCell || !it->mCell->isExterior()
+                    || cell->getCell()->getWorldSpace() != it->mCell->getCell()->getWorldSpace())
+                { ++it; continue; }
+                const float size = ESM::getCellSize(cell->getCell()->getWorldSpace());
+                const float x = cell->getCell()->getGridX() * size, y = cell->getCell()->getGridY() * size;
+                const float dx = it->mCenter.x() - std::clamp(it->mCenter.x(), x, x + size);
+                const float dy = it->mCenter.y() - std::clamp(it->mCenter.y(), y, y + size);
+                if (dx * dx + dy * dy > it->mRadius * it->mRadius) { ++it; continue; }
+            }
+            if (receiver)
+            {
+                if (!receiver->isInCell()) { ++it; continue; }
+                if (it->mCell != receiver->getCell()
+                    && (!it->mCell || !it->mCell->isExterior() || !receiver->getCell()->isExterior()))
+                { ++it; continue; }
+                const float reach = it->mRadius + radius;
+                if ((it->mCenter - center).length2() > reach * reach) { ++it; continue; }
+            }
+            // All active users hold a wrapper of this slot. Invalidating it
+            // immediately prevents projecting onto a moved/deleted receiver.
+            *it->mSurface = {};
+            it = mBloodSurfaceSnapshots.erase(it);
+        }
+    }
+
+    BloodTrail::Surface RenderingManager::getBloodSurface(const MWWorld::CellStore* cell,
+        const osg::Vec3f& center, float radius)
+    {
+        if (!cell || !std::isfinite(center.length2()) || !std::isfinite(radius)) return {};
+        radius = std::clamp(radius, 128.f, 1536.f);
+        const unsigned frame = mViewer->getFrameStamp() ? mViewer->getFrameStamp()->getFrameNumber() : 0;
+        if (mBloodSurfaceFrame != frame)
+        {
+            mBloodSurfaceFrame = frame;
+            mBloodSurfacesBuilt = 0;
+        }
+        const auto wrap = [](const std::shared_ptr<BloodTrail::Surface>& slot) {
+            return BloodTrail::Surface{
+                [slot](const auto& from, const auto& to, auto& point, auto& normal) {
+                    return slot->mRaycast && slot->mRaycast(from, to, point, normal);
+                },
+                [slot](const auto& point, const auto& normal, float size) {
+                    return slot->mProjector ? slot->mProjector(point, normal, size) : std::vector<osg::Vec3f>{};
+                }
+            };
+        };
+        for (auto it = mBloodSurfaceSnapshots.begin(); it != mBloodSurfaceSnapshots.end(); ++it)
+        {
+            const float distance = (it->mCenter - center).length();
+            if (it->mCell == cell && mBloodSurfaceTime - it->mTime < .5
+                && distance + radius <= it->mRadius)
+            {
+                const auto result = wrap(it->mSurface);
+                auto recent = std::move(*it);
+                mBloodSurfaceSnapshots.erase(it);
+                mBloodSurfaceSnapshots.push_back(std::move(recent));
+                return result;
+            }
+        }
+        if (mBloodSurfacesBuilt >= 2) return {};
+        ++mBloodSurfacesBuilt;
+        const auto filter = [cell](const osg::Node& node) {
+            if (cell->isExterior()) return true;
+            const auto* data = node.getUserDataContainer();
+            if (!data) return true;
+            for (unsigned i = 0; i < data->getNumUserObjects(); ++i)
+                if (const auto* holder = dynamic_cast<const PtrHolder*>(data->getUserObject(i)))
+                    if (!holder->mPtr.isEmpty() && holder->mPtr.isInCell() && holder->mPtr.getCell() != cell)
+                        return false;
+            return true;
+        };
+        const float captureRadius = radius + 128.f;
+        auto surface = BloodTrail::visualSurface(collectBloodSurfaceTriangles(
+            *mSceneRoot, center, captureRadius, filter, mViewer->getFrameStamp()));
+        if (!surface) return {};
+        auto slot = std::make_shared<BloodTrail::Surface>(std::move(surface));
+        if (mBloodSurfaceSnapshots.size() >= 16)
+        {
+            *mBloodSurfaceSnapshots.front().mSurface = {};
+            mBloodSurfaceSnapshots.pop_front();
+        }
+        mBloodSurfaceSnapshots.push_back({ cell, center, captureRadius, mBloodSurfaceTime, slot });
+        return wrap(slot);
+    }
+
     void RenderingManager::addBloodDecal(const std::string& cell, const BloodStamp& stamp)
     {
         mBloodDecals->add(cell, stamp);
@@ -1138,13 +1265,21 @@ namespace MWRender
             && std::none_of(mBloodBursts.begin(), mBloodBursts.end(), [](const auto& b) { return b.mVictim.isEmpty(); }))
             return;
         const auto cell = victim.getCell()->getCell()->getId().serializeText();
-        auto ray = BloodTrail::collisionRaycast(world->getRagdollCollisionTriangles(hit.mWeaponPosition, 256));
-        if (!ray) return;
         BloodBurst burst;
         burst.mCell = cell;
+        burst.mReceiverCell = victim.getCell();
         burst.mSource = { hit.mWeaponPosition, -hit.mWeaponDirection, 1, false };
-        burst.mTrail = std::make_unique<BloodTrail>(*mSceneRoot, std::move(ray),
-            [this, cell](const auto& stamp) { mBloodDecals->add(cell, stamp); });
+        const float radius = 768.f * std::max(1.f, Ragdoll::bloodLaunchScale(Settings::ragdoll().mBloodAmount.get()));
+        auto surface = getBloodSurface(burst.mReceiverCell, burst.mSource.mPosition, radius);
+        burst.mSinceSnapshot = surface ? 0.f : .5f;
+        burst.mSurface = std::make_shared<BloodTrail::Surface>(std::move(surface));
+        burst.mTrail = std::make_unique<BloodTrail>(*mSceneRoot,
+            [surface = burst.mSurface](const auto& a, const auto& b, auto& p, auto& n) {
+                return surface->mRaycast && surface->mRaycast(a, b, p, n);
+            }, [this, cell](const auto& stamp) { mBloodDecals->add(cell, stamp); },
+            [surface = burst.mSurface](const auto& p, const auto& n, float r) {
+                return surface->mProjector ? surface->mProjector(p, n, r) : std::vector<osg::Vec3f>{};
+            });
         if (mBloodBursts.size() >= 32)
         {
             const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),
@@ -1170,21 +1305,26 @@ namespace MWRender
         BloodBurst burst;
         burst.mCell = victim.getCell()->getCell()->getId().serializeText();
         burst.mVictim = victim;
+        burst.mReceiverCell = victim.getCell();
         burst.mBodyHeight = std::clamp(world->getHalfExtents(victim, true).z(), 2.f, 256.f);
         burst.mSource = { victim.getRefData().getPosition().asVec3() + osg::Vec3f(0, 0, burst.mBodyHeight),
             osg::Vec3f(0, 0, 1), 1.f, true };
         if (!std::isfinite(burst.mSource.mPosition.length2()))
             return;
         burst.mEmissionDuration = 10.f * Settings::ragdoll().mStatusDurationScale.get();
-        auto ray = BloodTrail::collisionRaycast(world->getRagdollCollisionTriangles(burst.mSource.mPosition, 256));
-        if (!ray)
-            return;
-        burst.mRaycast = std::make_shared<BloodTrail::Raycast>(std::move(ray));
+        const float radius = 768.f * std::max(1.f, Ragdoll::bloodLaunchScale(Settings::ragdoll().mBloodAmount.get()));
+        auto surface = getBloodSurface(burst.mReceiverCell, burst.mSource.mPosition, radius);
+        burst.mSinceSnapshot = surface ? 0.f : .5f;
+        burst.mSurface = std::make_shared<BloodTrail::Surface>(std::move(surface));
         burst.mSnapshotCenter = burst.mSource.mPosition;
         burst.mDepositCell = std::make_shared<std::string>(burst.mCell);
         burst.mTrail = std::make_unique<BloodTrail>(*mSceneRoot,
-            [ray = burst.mRaycast](const auto& a, const auto& b, auto& p, auto& n) { return (*ray)(a, b, p, n); },
-            [this, cell = burst.mDepositCell](const auto& stamp) { mBloodDecals->add(*cell, stamp); });
+            [surface = burst.mSurface](const auto& a, const auto& b, auto& p, auto& n) {
+                return surface->mRaycast && surface->mRaycast(a, b, p, n);
+            }, [this, cell = burst.mDepositCell](const auto& stamp) { mBloodDecals->add(*cell, stamp); },
+            [surface = burst.mSurface](const auto& p, const auto& n, float r) {
+                return surface->mProjector ? surface->mProjector(p, n, r) : std::vector<osg::Vec3f>{};
+            });
         if (mBloodBursts.size() >= 32)
         {
             const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),
@@ -1209,6 +1349,7 @@ namespace MWRender
 
     void RenderingManager::notifyWorldSpaceChanged()
     {
+        invalidateBloodSurfaces();
         mEffectManager->clear();
         mWater->clearRipples();
     }

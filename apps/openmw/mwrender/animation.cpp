@@ -1562,9 +1562,14 @@ namespace MWRender
                 config.mBloodAmount = settings.mBloodAmount.get();
                 if (mPtr.isInCell())
                 {
-                    const auto cellId = mPtr.getCell()->getCell()->getId().serializeText();
-                    config.mBloodDeposit = [cellId](const BloodStamp& stamp) {
+                    config.mBloodDeposit = [this](const BloodStamp& stamp) {
+                        if (!mPtr.isInCell()) return;
+                        const auto cellId = mPtr.getCell()->getCell()->getId().serializeText();
                         MWBase::Environment::get().getWorld()->getRenderingManager()->addBloodDecal(cellId, stamp);
+                    };
+                    config.mBloodSurface = [this](const osg::Vec3f& center, float radius) {
+                        if (!mPtr.isInCell()) return BloodTrail::Surface{};
+                        return MWBase::Environment::get().getWorld()->getRenderingManager()->getBloodSurface(mPtr.getCell(), center, radius);
                     };
                 }
                 const int bloodType = config.mNpc ? mPtr.get<ESM::NPC>()->mBase->mBloodType : 0;

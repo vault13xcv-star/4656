@@ -2,6 +2,8 @@
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalgore.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
+#include <apps/openmw/mwrender/bloodsurfacevisitor.hpp>
+#include <apps/openmw/mwrender/vismask.hpp>
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
 #include <btBulletDynamicsCommon.h>
 #include <chrono>
@@ -17,6 +19,7 @@
 
 #include <osg/FrameStamp>
 #include <osg/Billboard>
+#include <osg/BoundingBox>
 #include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/Image>
@@ -259,6 +262,246 @@ namespace
             stamp.mCenter + right + up, stamp.mCenter - right - up,
             stamp.mCenter + right + up, stamp.mCenter - right + up };
         return stamp;
+    }
+
+    void bloodLaunchRangeAndVisibleWounds()
+    {
+        struct Envelope
+        {
+            float mForward = 0, mWidth = 0, mSize = 0;
+            std::size_t mEmitted = 0, mParticles = 0;
+        };
+        const auto measure = [](float amount, bool neck, bool major) {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            MWRender::BloodTrail trail(*root, {}, {});
+            const std::vector<MWRender::BloodTrail::Source> source{
+                { { 0, 0, 1000 }, { 1, 0, 0 }, 1, neck, major }
+            };
+            Envelope result;
+            float minY = 0, maxY = 0;
+            auto* mesh = root->getChild(0)->asGroup()->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+            for (int frame = 0; frame < 40; ++frame)
+            {
+                trail.update(.01f, source, amount, frame * .01f);
+                const auto* vertices = static_cast<const osg::Vec3Array*>(mesh->getVertexArray());
+                for (const auto& vertex : *vertices)
+                {
+                    require(std::isfinite(vertex.length2()), "A blood spray emitted nonfinite visible geometry");
+                    result.mForward = std::max(result.mForward, vertex.x());
+                    minY = std::min(minY, vertex.y()); maxY = std::max(maxY, vertex.y());
+                }
+                // Each drop has a persistent, visible eight-triangle mesh.
+                for (std::size_t i = 0; i + 23 < vertices->size(); i += 24)
+                {
+                    osg::BoundingBox bounds;
+                    for (std::size_t j = i; j < i + 24; ++j) bounds.expandBy((*vertices)[j]);
+                    result.mSize = std::max(result.mSize, std::min(bounds.xMax() - bounds.xMin(),
+                        std::min(bounds.yMax() - bounds.yMin(), bounds.zMax() - bounds.zMin())));
+                }
+            }
+            result.mWidth = maxY - minY;
+            result.mEmitted = trail.emittedCount(); result.mParticles = trail.particleCount();
+            require(result.mParticles <= 192, "Stronger blood sprays exceeded their live droplet budget");
+            return result;
+        };
+        const auto normal = measure(1, false, false), high = measure(3, false, false);
+        require(high.mEmitted >= normal.mEmitted * 2, "Maximum blood failed to increase actual visible droplet count");
+        require(high.mForward > normal.mForward * 1.4f,
+            "Blood slider only increased concentration, without increasing launch distance");
+        require(high.mWidth > normal.mWidth * 1.5f,
+            "Blood slider only increased concentration, without widening the spray");
+        const auto neck = measure(1, true, false), major = measure(1, false, true);
+        require(neck.mEmitted > major.mEmitted && major.mEmitted > normal.mEmitted,
+            "Severed neck and torso cuts did not emit stronger streams than ordinary wounds");
+        require(neck.mForward > normal.mForward * 1.4f && major.mForward > normal.mForward * 1.2f,
+            "Severed head/torso blood lacked a stronger physical launch");
+        require(normal.mSize > .8f && neck.mSize > normal.mSize,
+            "Airborne blood remained pin-sized or neck drops lost their visible volume");
+        {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            const auto floor = MWRender::BloodTrail::visualSurface(floorSnapshot({}, 1000));
+            unsigned deposits = 0;
+            MWRender::BloodTrail fountain(*root, floor.mRaycast, [&](const auto&) { ++deposits; }, floor.mProjector);
+            const std::vector<MWRender::BloodTrail::Source> source{ { { 0, 0, 20 }, { 0, 0, 1 }, 1, true } };
+            for (int frame = 0; frame < 5; ++frame) fountain.update(.01f, source, 3, .14f + frame * .01f);
+            for (int frame = 0; frame < 325; ++frame) fountain.update(.01f, {}, 3, .19f + frame * .01f);
+            require(deposits > 0, "Strong maximum-slider neck droplets expired before their ballistic return to the floor");
+            require(fountain.particleCount() == 0, "Stopped blood fountain leaked airborne droplets past their lifetime");
+        }
+        std::cout << "PASS slider-dependent spray distance/spread, stronger visible neck/torso jets and bounded droplets\n";
+    }
+
+    void bloodVisibleMeshReceiversAndProjection()
+    {
+        const auto quad = [](std::vector<osg::Vec3f>& triangles, const osg::Vec3f& a,
+            const osg::Vec3f& b, const osg::Vec3f& c, const osg::Vec3f& d) {
+            triangles.insert(triangles.end(), { a, b, c, a, c, d });
+        };
+        const auto node = [](const std::vector<osg::Vec3f>& triangles, unsigned mask) {
+            osg::ref_ptr<osg::Geometry> mesh = new osg::Geometry;
+            mesh->setVertexArray(new osg::Vec3Array(triangles.begin(), triangles.end()));
+            mesh->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, triangles.size()));
+            osg::ref_ptr<osg::Geode> result = new osg::Geode;
+            result->setNodeMask(mask); result->addDrawable(mesh); return result;
+        };
+        osg::ref_ptr<osg::Group> scene = new osg::Group;
+        std::vector<osg::Vec3f> stairs;
+        for (int step = 0; step < 3; ++step)
+        {
+            const float x = -30.f + step * 20, z = step * 8.f;
+            quad(stairs, { x, -30, z }, { x + 20, -30, z }, { x + 20, 30, z }, { x, 30, z });
+            if (step)
+                quad(stairs, { x, -30, z - 8 }, { x, -30, z }, { x, 30, z }, { x, 30, z - 8 });
+        }
+        scene->addChild(node(stairs, MWRender::Mask_Static));
+        std::vector<osg::Vec3f> flat;
+        quad(flat, { -8, -8, 0 }, { 8, -8, 0 }, { 8, 8, 0 }, { -8, 8, 0 });
+        const auto placed = [&](const osg::Vec3f& position, unsigned mask, unsigned drawableMask = ~0u) {
+            osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform;
+            transform->setNodeMask(mask);
+            transform->setMatrix(osg::Matrixf::translate(position));
+            transform->addChild(node(flat, drawableMask)); scene->addChild(transform);
+        };
+        // A collision-inactive NIF uses Mask_Effect below its world-object
+        // ancestor, although its visible carpet triangles still receive blood.
+        placed({ 50, 0, 5 }, MWRender::Mask_Object, MWRender::Mask_Effect);
+        placed({ -50, 0, 20 }, MWRender::Mask_Object); // A furniture top, above the architectural floor.
+        placed({ 80, 0, 40 }, MWRender::Mask_Actor);
+        placed({ 100, 0, 50 }, MWRender::Mask_Effect);
+        placed({ 65, 0, 10 }, 0);
+        const auto visible = MWRender::collectBloodSurfaceTriangles(*scene, { 0, 0, 10 }, 128);
+        const auto surface = MWRender::BloodTrail::visualSurface(visible);
+        require(bool(surface), "Visible furniture/carpet/stair geometry did not create a blood receiver snapshot");
+        osg::Vec3f point, normal;
+        require(surface.mRaycast({ -15, 0, 100 }, { -15, 0, -20 }, point, normal)
+            && std::abs(point.z()) < .001f, "Blood used a smooth stair collision ramp instead of the rendered tread");
+        // The deliberately different collision mesh must never be queried by
+        // the visible-surface path. It would report z=4 at this same position.
+        std::vector<osg::Vec3f> collisionRamp;
+        quad(collisionRamp, { -30, -30, 0 }, { 30, -30, 16 }, { 30, 30, 16 }, { -30, 30, 0 });
+        const auto physics = MWRender::BloodTrail::collisionRaycast(collisionRamp);
+        require(physics({ -15, 0, 100 }, { -15, 0, -20 }, point, normal) && std::abs(point.z() - 4) < .001f,
+            "Stair regression fixture did not differ from the visible model");
+        for (const auto& receiver : { osg::Vec3f(50, 0, 5), osg::Vec3f(-50, 0, 20) })
+            require(surface.mRaycast(receiver + osg::Vec3f(0, 0, 30), receiver - osg::Vec3f(0, 0, 10), point, normal)
+                && (point - receiver).length() < .001f,
+                "Render-only carpet or furniture was skipped or its world transform was lost");
+        for (const float x : { 65.f, 80.f, 100.f })
+            require(!surface.mRaycast({ x, 0, 100 }, { x, 0, -20 }, point, normal),
+                "Hidden objects, actors or effects leaked into static blood receivers");
+
+        // Every output triangle must remain on one real source face. Checking
+        // all three vertices rejects a centre/rim fan that bridges stairs or
+        // chords across a cylindrical column even when the rim itself hits.
+        const auto onSourceFace = [](const std::array<osg::Vec3f, 3>& output,
+            const std::vector<osg::Vec3f>& original) {
+            for (std::size_t i = 0; i + 2 < original.size(); i += 3)
+            {
+                const auto edge0 = original[i + 1] - original[i], edge1 = original[i + 2] - original[i];
+                auto normal = edge0 ^ edge1;
+                if (normal.normalize() < .001f) continue;
+                const float d00 = edge0 * edge0, d01 = edge0 * edge1, d11 = edge1 * edge1;
+                const float denominator = d00 * d11 - d01 * d01;
+                bool inside = denominator > .00001f;
+                for (const auto& point : output)
+                {
+                    const auto relative = point - original[i];
+                    const float height = relative * normal;
+                    const float u = (d11 * (relative * edge0) - d01 * (relative * edge1)) / denominator;
+                    const float v = (d00 * (relative * edge1) - d01 * (relative * edge0)) / denominator;
+                    inside &= std::abs(height) <= .081f && u >= -.001f && v >= -.001f && u + v <= 1.001f;
+                }
+                if (inside) return true;
+            }
+            return false;
+        };
+        const auto checkProjection = [&](const MWRender::BloodTrail::Surface& receiver,
+            const std::vector<osg::Vec3f>& mesh, const osg::Vec3f& center, const osg::Vec3f& normal, float radius) {
+            const auto projected = receiver.mProjector(center, normal, radius);
+            require(!projected.empty() && projected.size() % 3 == 0
+                && projected.size() <= ESM::BrutalBloodState::MaxVerticesPerStain,
+                "Visible blood projection was empty, malformed or exceeded its vertex budget");
+            for (std::size_t i = 0; i < projected.size(); i += 3)
+            {
+                for (std::size_t j = i; j < i + 3; ++j)
+                    require(std::isfinite(projected[j].length2()), "Visible blood projection emitted nonfinite vertices");
+                require(onSourceFace({ projected[i], projected[i + 1], projected[i + 2] }, mesh),
+                    "Blood projection bridged source faces instead of clipping directly onto the visible model");
+            }
+            return projected;
+        };
+        const auto stairProjection = checkProjection(surface, visible, { 0, 0, 8 }, { 0, 0, 1 }, 28);
+        std::set<int> heights;
+        for (const auto& p : stairProjection) heights.insert(int(std::round(p.z())));
+        require(heights.size() > 1, "Visible stair projection stayed on one invisible flat ramp");
+        checkProjection(surface, visible, { 50, 0, 5 }, { 0, 0, 1 }, 6);
+        checkProjection(surface, visible, { -50, 0, 20 }, { 0, 0, 1 }, 6);
+
+        std::vector<osg::Vec3f> column;
+        for (int slice = 0; slice < 32; ++slice)
+        {
+            const float a = slice * 6.2831853f / 32, b = (slice + 1) * 6.2831853f / 32;
+            const osg::Vec3f bottomA(std::cos(a) * 20, std::sin(a) * 20, -25);
+            const osg::Vec3f bottomB(std::cos(b) * 20, std::sin(b) * 20, -25);
+            quad(column, bottomA, bottomB, bottomB + osg::Vec3f(0, 0, 50), bottomA + osg::Vec3f(0, 0, 50));
+        }
+        const auto columnSurface = MWRender::BloodTrail::visualSurface(column);
+        const auto cylindrical = checkProjection(columnSurface, column, { 20, 0, 0 }, { 1, 0, 0 }, 12);
+        float minimumX = 20;
+        for (const auto& p : cylindrical) minimumX = std::min(minimumX, p.x());
+        require(minimumX < 19, "Column blood remained a floating plane instead of following curved facets");
+        {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            MWRender::BloodDecals decals(*root);
+            MWRender::BloodStamp stamp;
+            stamp.mCenter = { 20, 0, 0 }; stamp.mNormal = { 1, 0, 0 }; stamp.mRadius = 12;
+            stamp.mTriangles = cylindrical;
+            decals.setCellActive("column", true); decals.add("column", stamp); decals.update(.1f, 1200);
+            const auto* mesh = root->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+            const auto* normals = static_cast<const osg::Vec3Array*>(mesh->getNormalArray());
+            require(normals && normals->size() == cylindrical.size(), "Projected column blood lost its surface normals");
+            for (std::size_t i = 0; i < cylindrical.size(); i += 3)
+            {
+                auto normal = (cylindrical[i + 1] - cylindrical[i]) ^ (cylindrical[i + 2] - cylindrical[i]);
+                normal.normalize();
+                require(std::abs((*normals)[i] * normal) > .999f,
+                    "Blood lighting used one flat normal across a curved visible receiver");
+            }
+            const auto record = decals.getSaveRecord();
+            decals.loadSaveRecord(record);
+            require(decals.saveState().front().mStamp.mTriangles == cylindrical,
+                "Saving projected blood lost the fitted stair/column geometry");
+        }
+        std::vector<osg::Vec3f> dense;
+        for (int x = -16; x < 16; ++x) for (int y = -16; y < 16; ++y)
+            quad(dense, { float(x), float(y), 0 }, { float(x + 1), float(y), 0 },
+                { float(x + 1), float(y + 1), 0 }, { float(x), float(y + 1), 0 });
+        const auto denseSurface = MWRender::BloodTrail::visualSurface(dense);
+        checkProjection(denseSurface, dense, {}, { 0, 0, 1 }, 12);
+        std::vector<osg::Vec3f> parallel;
+        for (const float z : { 0.f, -2.f, 30.f })
+            quad(parallel, { -20, -20, z }, { 20, -20, z }, { 20, 20, z }, { -20, 20, z });
+        const auto parallelSurface = MWRender::BloodTrail::visualSurface(parallel);
+        const auto frontOnly = checkProjection(parallelSurface, parallel, {}, { 0, 0, 1 }, 10);
+        for (const auto& p : frontOnly)
+            require(std::abs(p.z()) < .1f,
+                "Blood jumped to overhead furniture or projected through a visible surface onto hidden geometry");
+        std::vector<osg::Vec3f> carpet;
+        for (const float z : { 0.f, .01f })
+            quad(carpet, { -20, -20, z }, { 20, -20, z }, { 20, 20, z }, { -20, 20, z });
+        const auto carpetSurface = MWRender::BloodTrail::visualSurface(carpet);
+        const auto carpetOnly = checkProjection(carpetSurface, carpet, { 0, 0, .01f }, { 0, 0, 1 }, 10);
+        for (const auto& p : carpetOnly)
+            require(std::abs(p.z() - .04f) < .001f,
+                "Blood duplicated its patch on the hidden floor directly below a thin carpet");
+        require(columnSurface.mProjector({ 20, 0, 0 }, {}, 12).empty()
+            && columnSurface.mProjector({ 20, 0, 0 }, { 1, 0, 0 }, std::numeric_limits<float>::quiet_NaN()).empty(),
+            "Invalid visual decal normal/radius was not rejected");
+        auto invalid = column; invalid.front().x() = std::numeric_limits<float>::quiet_NaN();
+        require(!MWRender::BloodTrail::visualSurface(invalid), "Nonfinite visual receiver mesh was accepted");
+        require(!MWRender::BloodTrail::visualSurface(std::vector<osg::Vec3f>(6)),
+            "A degenerate visible receiver mesh created an unusable blood surface");
+        std::cout << "PASS rendered stairs/cylinders, visual-only carpet/furniture, transform/mask filtering and bounded face-clipped blood\n";
     }
 
     void bloodTexturesAndVisualIdentity()
@@ -1128,6 +1371,32 @@ namespace
         osg::ref_ptr<osg::Group> scene = new osg::Group;
         MWRender::BloodDecals decals(*scene);
         decals.setCellActive("arena", true);
+        // This is deliberately separate from the flat Bullet floor used by
+        // corpse physics. Blood exercises the actual visual collector, shared
+        // BVH and face clipping under the same ten-corpse load as the runtime.
+        osg::ref_ptr<osg::Geode> receiver = new osg::Geode;
+        receiver->setNodeMask(MWRender::Mask_Static);
+        osg::ref_ptr<osg::Vec3Array> receiverVertices = new osg::Vec3Array;
+        const auto receiverQuad = [&](const osg::Vec3f& a, const osg::Vec3f& b,
+            const osg::Vec3f& c, const osg::Vec3f& d) {
+            for (const auto& vertex : { a, b, c, a, c, d }) receiverVertices->push_back(vertex);
+        };
+        for (int x = -1000; x < 1000; x += 40) for (int y = -1000; y < 1000; y += 40)
+            receiverQuad({ float(x), float(y), 0 }, { float(x + 40), float(y), 0 },
+                { float(x + 40), float(y + 40), 0 }, { float(x), float(y + 40), 0 });
+        for (int step = 0; step < 5; ++step)
+        {
+            const float y = 100.f + step * 20, z = 8.f + step * 8;
+            receiverQuad({ -600, y, z }, { 600, y, z }, { 600, y + 20, z }, { -600, y + 20, z });
+        }
+        osg::ref_ptr<osg::Geometry> receiverMesh = new osg::Geometry;
+        receiverMesh->setVertexArray(receiverVertices);
+        receiverMesh->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, receiverVertices->size()));
+        receiver->addDrawable(receiverMesh);
+        const auto receiverSurface = MWRender::BloodTrail::visualSurface(
+            MWRender::collectBloodSurfaceTriangles(*receiver, {}, 1500));
+        require(bool(receiverSurface), "Concurrent gore failed to build its real visible-surface blood snapshot");
+        unsigned surfaceRequests = 0;
         std::vector<std::unique_ptr<SkeletonFixture>> fixtures;
         std::vector<std::unique_ptr<MWRender::RagdollController>> corpses;
         struct Tube
@@ -1151,6 +1420,9 @@ namespace
                 MWRender::RagdollController::Settings config;
                 config.mNpc = true; config.mWoundRoll = 0; config.mWoundChance = 1;
                 config.mBloodAmount = 3;
+                config.mBloodSurface = [&, receiverSurface](const auto&, float) {
+                    ++surfaceRequests; return receiverSurface;
+                };
                 config.mBloodDeposit = [&](const auto& stamp) { decals.add("arena", stamp); };
                 config.mBloodEffect = [&](const auto&) { ++sprites; };
                 Ragdoll::Impact hit;
@@ -1195,11 +1467,13 @@ namespace
             {
                 if (benchmark)
                     std::cout << "GORE frame=" << frame + 1 << " corpses=" << corpses.size()
-                              << " stains=" << decals.size() << " mean_ms=" << total / 60 << " max_ms=" << maximum << std::endl;
+                              << " stains=" << decals.size() << " surface_requests=" << surfaceRequests
+                              << " mean_ms=" << total / 60 << " max_ms=" << maximum << std::endl;
                 total = maximum = 0;
             }
         }
         require(tubes.size() == 20, "Concurrent waist/longitudinal/hammer deaths lost their physical intestines");
+        require(surfaceRequests >= corpses.size(), "Concurrent gore stress bypassed the visual blood-surface callbacks");
         for (auto& corpse : corpses)
         {
             corpse->update(20);
@@ -2033,6 +2307,8 @@ int main(int argc, char** argv)
         }
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
+        bloodLaunchRangeAndVisibleWounds();
+        bloodVisibleMeshReceiversAndProjection();
         bloodTexturesAndVisualIdentity();
         organicCreatureBloodAndDeathTrigger();
         bloodGeometryBudget();

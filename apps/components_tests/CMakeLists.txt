@@ -89,6 +89,7 @@ file(GLOB UNITTEST_SRC_FILES
     vfs/testpathutil.cpp
 
     sceneutil/osgacontroller.cpp
+    sceneutil/testbloodlighting.cpp
 
     bsa/testbsafile.cpp
     bsa/testcompressedbsafile.cpp
@@ -106,6 +107,25 @@ target_link_libraries(components-tests
     GMock::GMock
     components
 )
+
+# The normal component suite remains usable without a display or EGL. Enable
+# this separately to compile and draw the real ShaderManager blood/shadow
+# programs against a surfaceless desktop OpenGL context on Linux.
+option(BRUTAL_TEST_NATIVE_GL "Test native blood/shadow shader linkage with Linux EGL" OFF)
+if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
+    add_executable(blood-native-gl-tests
+        sceneutil/bloodshaders_gl.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalblood.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp)
+    target_compile_features(blood-native-gl-tests PRIVATE cxx_std_20)
+    set_target_properties(blood-native-gl-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    target_compile_definitions(blood-native-gl-tests PRIVATE BT_USE_DOUBLE_PRECISION
+        OPENMW_PROJECT_SOURCE_DIR=u8"${PROJECT_SOURCE_DIR}")
+    target_include_directories(blood-native-gl-tests PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(blood-native-gl-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS})
+    target_link_libraries(blood-native-gl-tests PRIVATE components OpenGL::GL OpenGL::EGL)
+endif()
 
 if (WIN32)
     target_sources(components-tests PRIVATE ${CMAKE_SOURCE_DIR}/files/windows/other-apps.manifest)

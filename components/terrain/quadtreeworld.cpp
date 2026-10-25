@@ -6,6 +6,7 @@
 #include <osgUtil/CullVisitor>
 
 #include <limits>
+#include <cmath>
 
 #include <components/esm/util.hpp>
 #include <components/loadinglistener/reporter.hpp>
@@ -489,10 +490,27 @@ namespace Terrain
         }
 
         const float cellWorldSize = static_cast<float>(ESM::getCellSize(mWorldspace));
+        float receiverRadius = 0;
+        const bool boundedReceiver = !isCullVisitor
+            && nv.getUserValue("brutalBloodReceiverRadius", receiverRadius)
+            && std::isfinite(receiverRadius) && receiverRadius > 0;
 
         for (unsigned int i = 0; i < vd->getNumEntries(); ++i)
         {
             ViewDataEntry& entry = vd->getEntry(i);
+            if (boundedReceiver)
+            {
+                // A blood receiver snapshot must not synchronously construct
+                // terrain and paged-object render chunks across the whole view
+                // distance before its local intersection visitor can reject them.
+                const auto center = entry.mNode->getCenter() * cellWorldSize;
+                const float halfSize = entry.mNode->getSize() * cellWorldSize * .5f;
+                if (center.x() + halfSize < viewPoint.x() - receiverRadius
+                    || center.x() - halfSize > viewPoint.x() + receiverRadius
+                    || center.y() + halfSize < viewPoint.y() - receiverRadius
+                    || center.y() - halfSize > viewPoint.y() + receiverRadius)
+                    continue;
+            }
             loadRenderingNode(entry, vd, cellWorldSize, mActiveGrid, false);
             entry.mRenderingNode->accept(nv);
         }

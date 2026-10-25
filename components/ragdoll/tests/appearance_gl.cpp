@@ -3,6 +3,7 @@
 #include <EGL/eglext.h>
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
+#include <apps/openmw/mwrender/brutalbloodlightingbase.hpp>
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -10,10 +11,13 @@
 #include <iostream>
 #include <memory>
 #include <osg/AlphaFunc>
+#include <osg/Fog>
 #include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/Group>
 #include <osg/Image>
+#include <osg/Light>
+#include <osg/LightModel>
 #include <osg/Program>
 #include <osg/ShapeDrawable>
 #include <osg/Shader>
@@ -69,6 +73,13 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Group> root = new osg::Group;
         auto* state = root->getOrCreateStateSet();
         state->addUniform(new osg::Uniform("projectionMatrix", osg::Matrixf(renderProjection)));
+        if (effect.rfind("blood", 0) == 0)
+        {
+            state->merge(*MWRender::createBloodLightingState());
+            osg::ref_ptr<osg::LightModel> lightModel = new osg::LightModel;
+            lightModel->setAmbientIntensity({ .8f, .8f, .8f, 1 });
+            state->setAttributeAndModes(lightModel, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+        }
         state->setAttributeAndModes(new SceneUtil::AutoDepth, osg::StateAttribute::ON);
         // NPC materials may enable alpha testing and override their shader.
         state->setAttributeAndModes(new osg::AlphaFunc(osg::AlphaFunc::GREATER, 0.95f), osg::StateAttribute::ON);
@@ -85,6 +96,108 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->addDrawable(wall); root->addChild(geode);
         viewer.setSceneData(root); viewer.realize();
+        if (effect == "blood-lighting")
+        {
+            root->removeChild(geode);
+            camera->setClearColor({ 0, 0, 0, 1 });
+            auto* ambient = static_cast<osg::LightModel*>(state->getAttribute(osg::StateAttribute::LIGHTMODEL));
+            check(ambient, "Blood lighting fixture did not use the actual OpenGL light-model ambient state");
+            osg::ref_ptr<osg::Image> image = new osg::Image;
+            image->allocateImage(1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+            image->setColor({ 1, 0, 0, 1 }, 0, 0);
+            // Exercise the same library replacement used by ShaderManager's
+            // cascade shaders, with deterministic shadow visibility for pixels.
+            osg::ref_ptr<osg::Shader> shadowVertex = new osg::Shader(osg::Shader::VERTEX,
+                "#version 120\nvoid setupShadowCoords(vec4 viewPos,vec3 viewNormal){}");
+            osg::ref_ptr<osg::Shader> shadowFragment = new osg::Shader(osg::Shader::FRAGMENT,
+                "#version 120\nuniform float testSunVisibility;float unshadowedLightRatio(float distance){return testSunVisibility;}");
+            MWRender::setBloodLightingRoot(*root, {}, shadowVertex, shadowFragment);
+            state->addUniform(new osg::Uniform("testSunVisibility", 1.f));
+            MWRender::BloodDecals blood(*root);
+            blood.setTextures({ image }, { image }); blood.setCellActive("lighting", true);
+            MWRender::BloodStamp stamp;
+            stamp.mCenter = { -30, 0, 40 }; stamp.mNormal = { 0, -1, 0 }; stamp.mRadius = 20; stamp.mVisualSeed = 8;
+            stamp.mTriangles = { { -50, 0, 20 }, { -10, 0, 20 }, { -10, 0, 60 },
+                { -50, 0, 20 }, { -10, 0, 60 }, { -50, 0, 60 } };
+            blood.add("lighting", stamp); blood.update(.1f, 1200);
+            const auto sample = [&] {
+                viewer.frame(); glFinish();
+                const auto window = stamp.mCenter * camera->getViewMatrix() * camera->getProjectionMatrix()
+                    * camera->getViewport()->computeWindowMatrix();
+                std::array<unsigned char, 3> pixel{};
+                glReadPixels(int(window.x()), int(window.y()), 1, 1, GL_RGB, GL_UNSIGNED_BYTE, pixel.data());
+                check(glGetError() == GL_NO_ERROR, "OpenGL world-lit blood error");
+                return osg::Vec3f(pixel[0], pixel[1], pixel[2]);
+            };
+            ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+            const auto dark = sample();
+            check(dark.length() <= 2, "Blood emitted light in an unlit room with zero ambient illumination");
+            ambient->setAmbientIntensity({ .8f, .8f, .8f, 1 });
+            const auto lit = sample();
+            check(lit.x() > dark.x() + 70 && lit.x() > lit.y() + 40,
+                "Blood did not brighten with the real world ambient light");
+            ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+            check((sample() - dark).length() <= 2, "Existing blood did not darken after ambient lighting changed");
+            osg::ref_ptr<osg::Light> sun = new osg::Light;
+            sun->setPosition({ 0, -1, 0, 0 }); sun->setDiffuse({ .8f, .8f, .8f, 1 });
+            MWRender::setBloodSunLight(*state, *sun, osg::Matrixf(camera->getViewMatrix()));
+            check(sample().x() > dark.x() + 50, "Blood ignored the native directional sunlight state");
+            state->getUniform("testSunVisibility")->set(0.f);
+            check(sample().length() <= 3, "Blood ignored the linked world-shadow visibility shader");
+            ambient->setAmbientIntensity({ .2f, .2f, .2f, 1 });
+            check(sample().x() > 10, "A direct-sun shadow incorrectly removed ambient illumination from blood");
+            ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+            sun->setDiffuse({ 0, 0, 0, 1 });
+            MWRender::setBloodSunLight(*state, *sun, osg::Matrixf(camera->getViewMatrix()));
+            osg::ref_ptr<osg::Light> torch = new osg::Light;
+            torch->setPosition({ -30, -30, 40, 1 }); torch->setDiffuse({ 1, .65f, .35f, 1 });
+            torch->setAmbient({ 0, 0, 0, 1 }); torch->setConstantAttenuation(1);
+            torch->setLinearAttenuation(.01f); torch->setQuadraticAttenuation(0);
+            MWRender::setBloodPointLight(*state, 0, *torch, 100, osg::Matrixf(camera->getViewMatrix()));
+            const auto torchLit = sample();
+            check(torchLit.x() > dark.x() + 40, "Blood ignored a nearby native point light");
+            torch->setPosition({ 500, -30, 40, 1 });
+            MWRender::setBloodPointLight(*state, 0, *torch, 100, osg::Matrixf(camera->getViewMatrix()));
+            check(sample().length() <= 3, "A distant point light illuminated blood outside its radius");
+            {
+                state->getUniform("brutalBloodPointCount")->set(0);
+                MWRender::BloodTrail airborne(*root, {}, {});
+                airborne.update(.1f, { { { 30, 0, 40 }, { 1, 0, 0 }, 1, true } }, 1, .14f);
+                const auto countVisibleDrops = [&] {
+                    viewer.frame(); glFinish();
+                    std::vector<unsigned char> pixels(width * height * 3);
+                    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+                    check(glGetError() == GL_NO_ERROR, "OpenGL world-lit airborne blood error");
+                    unsigned visible = 0;
+                    for (int y = 0; y < height; ++y) for (int x = width / 2; x < width; ++x)
+                    {
+                        const auto offset = (y * width + x) * 3;
+                        visible += pixels[offset] > 5 || pixels[offset + 1] > 5 || pixels[offset + 2] > 5;
+                    }
+                    return visible;
+                };
+                ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+                check(countVisibleDrops() == 0, "Airborne droplets glowed despite zero scene illumination");
+                ambient->setAmbientIntensity({ .8f, .8f, .8f, 1 });
+                check(countVisibleDrops() > 10, "World-lit airborne droplets were not visibly rendered in the light");
+                ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+            }
+            torch->setPosition({ -30, -30, 40, 1 });
+            camera->setViewMatrixAsLookAt({ -65, -170, 65 }, { -30, 0, 40 }, { 0, 0, 1 });
+            MWRender::setBloodSunLight(*state, *sun, osg::Matrixf(camera->getViewMatrix()));
+            MWRender::setBloodPointLight(*state, 0, *torch, 100, osg::Matrixf(camera->getViewMatrix()));
+            check((sample() - torchLit).length() <= 4,
+                "Blood lighting changed with the camera instead of following the world-space light");
+            osg::ref_ptr<osg::Fog> fog = new osg::Fog;
+            fog->setMode(osg::Fog::LINEAR); fog->setStart(0); fog->setEnd(1); fog->setColor({ .1f, .2f, .3f, 1 });
+            state->setAttributeAndModes(fog, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            state->getUniform("brutalBloodFogMode")->set(1);
+            const auto fogged = sample();
+            check(fogged.z() > fogged.x() + 25 && fogged.y() > fogged.x() + 10,
+                "Blood ignored the native world fog instead of fading into the surrounding scene");
+            std::cout << "PASS real ambient/directional/point blood lighting, darkness, shadow links, fog, radius falloff and camera-independent illumination\n";
+            return 0;
+        }
         if (effect == "blood-atlas")
         {
             const auto read = [&] {

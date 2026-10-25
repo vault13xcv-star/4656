@@ -1,8 +1,38 @@
-# Brutal Morrowind 0.7.0-preview.4
+# Brutal Morrowind 0.7.0-preview.5
 
 This blood update starts from the exact stable preview.2 source revision
 `a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
 experimental changes from other branches. Combat calculations are unchanged.
+
+## World surfaces, lighting and stronger sprays
+
+Preview.5 replaces physics collision receivers with a bounded snapshot of the
+visible world meshes. Stains are clipped against their actual triangles: stair
+treads remain separate surfaces and curved columns retain their shape. Hidden
+parallel surfaces are rejected. Furniture and visible NIF geometry without a
+collision mesh, including carpets, can receive blood. Actors, water, particles
+and collision-only nodes are excluded from this surface snapshot.
+
+Nearby blood effects share cached mesh/BVH snapshots, with at most two fresh
+snapshots per rendered frame and a bounded sixteen-entry cache. Moving or
+removed receivers invalidate only nearby snapshots. Each stain has a maximum
+of 192 projected vertices, and the existing global geometry limit still applies.
+Deposited blood remains world-space geometry; it does not follow moving doors
+or inventory objects. Existing saved stains retain their old projected shape;
+the corrected projection applies to new deposits.
+
+Blood uses the scene's current ambient, sun and nearby point lights, with native
+attenuation and fog. Native shader shadow libraries handle the sun's shadow
+maps. Both stains and airborne droplets respond to lighting without a fixed
+brightness floor. Burgundy pigment and stable per-stain shade variation remain.
+
+The Blood amount slider increases launch speed and spread as well as emission.
+At 300%, launch speed is 1.8 times and cone width 1.6 times their 100% values.
+Droplets are wider and stretch along their velocity. Neck and major body cuts
+produce stronger jets; longitudinal separation has six sources following the
+moving cut faces. Droplets live up to three seconds so higher sprays can land.
+The 192-droplet and eight-impact-projection per-trail budgets remain bounded,
+and emission is shared fairly between wound sources.
 
 ## New blood decals and creature bleeding
 
@@ -41,7 +71,7 @@ their original IDs and mesh paths, not localized display names. Unusually named
 custom models may require extending this classification.
 
 The cache holds up to 32768 stains while retaining preview.2's aggregate geometry
-budget of 1572864 vertices. New stamps use at most 24 vertices, dirty batches
+budget of 1572864 vertices. New stamps use at most 192 vertices, dirty batches
 are rebuilt in one cache pass, and pool merging examines a bounded recent window.
 Hit/death sprays, droplets and intestinal physics retain explicit work budgets.
 
@@ -72,7 +102,7 @@ Legacy blood sprites rotate between wounds with at most two NIF particle systems
 per pulse, rather than spawning another system at every end of every severed
 joint. Ballistic blood still comes from every wound. Pool growth is sampled at
 most four times per second per wound; at most eight droplet impacts per trail per
-update project a splat perimeter. These bounds prevent a slow frame from
+update project a stain. These bounds prevent a slow frame from
 amplifying the next frame's blood work. Blood quantity, stain lifetime, existing
 physical wounds, inventories and saved blood remain supported.
 
@@ -82,8 +112,8 @@ Successful physical health hits on NPCs and organic creatures emit ballistic dro
 continue to spray and drip for the configured status duration (ten seconds at
 defaults). The exposed neck has a stronger, pulsing arterial fountain. Droplets
 follow gravity, sweep against collision triangles and stop at walls/floors.
-Each stain's perimeter is projected onto the contacted surface, so a splat does
-not simply float across a corner. Grounded wounds gradually form larger pools.
+Each stain is clipped against visible receiver triangles, so a splat does not
+float across a corner. Grounded wounds gradually form larger pools.
 Wet blood darkens as it dries; stains fade during their last ten seconds.
 
 Esc > Settings > Physics adds two English controls:
@@ -158,7 +188,7 @@ installed executable with `--version`, and checks ZIP integrity.
 
 The stall regression exercises ten concurrent waist/longitudinal/hammer deaths
 at maximum blood, stable intestinal buffers, bounded legacy sprite spawning and
-cleanup. It also fills and overflows all 8192 stain slots, verifies that idle
+cleanup. It also fills and overflows all 32768 stain slots, verifies that idle
 aging does not reupload geometry, restores a full saved cache and expires it.
 Both GL depth modes draw a full cache with eight simultaneous blood trails.
 In the same debug CPU-only ten-hammer-death benchmark, the tenth second fell from

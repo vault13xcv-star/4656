@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.7.0-preview.4'
+$ragdollVersion = '0.7.0-preview.5'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -154,6 +154,13 @@ switch ($Phase) {
             $packaged = Join-Path $install "resources/vfs/textures/brutal/blood/$decal"
             if (-not (Test-Path $packaged) -or (Get-FileHash $original -Algorithm SHA256).Hash -ne (Get-FileHash $packaged -Algorithm SHA256).Hash) {
                 throw "Missing or modified blood decal in package: $decal"
+            }
+        }
+        foreach ($shader in @('brutalblood_shadow.vert', 'brutalblood_shadow.frag')) {
+            $original = Join-Path $source "files/shaders/compatibility/$shader"
+            $packaged = Join-Path $install "resources/shaders/compatibility/$shader"
+            if (-not (Test-Path $packaged) -or (Get-FileHash $original -Algorithm SHA256).Hash -ne (Get-FileHash $packaged -Algorithm SHA256).Hash) {
+                throw "Missing or modified blood shadow shader in package: $shader"
             }
         }
         foreach ($required in @('openmw.exe', 'defaults.bin', 'openmw.cfg', 'resources', 'LICENSE.txt', 'SDL2.dll', 'MyGUIEngine.dll')) {
