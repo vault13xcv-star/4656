@@ -630,7 +630,7 @@ namespace MWRender
                             refreshBloodSurface(mBodyMatrices.front().getTrans());
                             return mBloodSurface.mProjector ? mBloodSurface.mProjector(point, normal, radius)
                                 : std::vector<osg::Vec3f>{};
-                        } } : BloodTrail::Projector{});
+                        } } : BloodTrail::Projector{}, bool(mSettings.mBloodSurface));
             if (mBlood)
             {
                 std::vector<BloodTrail::Source> sources;

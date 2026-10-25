@@ -1279,7 +1279,7 @@ namespace MWRender
             }, [this, cell](const auto& stamp) { mBloodDecals->add(cell, stamp); },
             [surface = burst.mSurface](const auto& p, const auto& n, float r) {
                 return surface->mProjector ? surface->mProjector(p, n, r) : std::vector<osg::Vec3f>{};
-            });
+            }, true);
         if (mBloodBursts.size() >= 32)
         {
             const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),
@@ -1324,7 +1324,7 @@ namespace MWRender
             }, [this, cell = burst.mDepositCell](const auto& stamp) { mBloodDecals->add(*cell, stamp); },
             [surface = burst.mSurface](const auto& p, const auto& n, float r) {
                 return surface->mProjector ? surface->mProjector(p, n, r) : std::vector<osg::Vec3f>{};
-            });
+            }, true);
         if (mBloodBursts.size() >= 32)
         {
             const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),

@@ -2,6 +2,7 @@
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalgore.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
+#include <apps/openmw/mwrender/bloodcoverage.hpp>
 #include <apps/openmw/mwrender/bloodsurfacevisitor.hpp>
 #include <apps/openmw/mwrender/vismask.hpp>
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
@@ -47,6 +48,23 @@ namespace
     {
         if (!condition)
             throw std::runtime_error(message);
+    }
+
+    osg::Geode* bloodGeode(osg::Node& node)
+    {
+        if (auto* geode = node.asGeode(); geode && geode->getName() == "Brutal Morrowind blood stains")
+            return geode;
+        if (auto* group = node.asGroup())
+            for (unsigned child = 0; child < group->getNumChildren(); ++child)
+                if (auto* result = bloodGeode(*group->getChild(child))) return result;
+        return nullptr;
+    }
+
+    osg::Geometry* bloodMesh(osg::Node& node)
+    {
+        auto* geode = bloodGeode(node);
+        require(geode && geode->getNumDrawables() > 0, "Blood batch did not contain a stain geometry node");
+        return geode->getDrawable(0)->asGeometry();
     }
 
     bool near(const osg::Matrixf& a, const osg::Matrixf& b, float tolerance = 0.001f)
@@ -229,8 +247,8 @@ namespace
         decals.setCellActive("interior:b", true);
         decals.update(.5f, 600);
         for (unsigned i = 0; i < root->getNumChildren(); ++i)
-            if (root->getChild(i)->getName() == "Brutal Morrowind blood stains")
-                require(root->getChild(i)->getNodeMask() == 0, "Blood leaked between overlapping interior coordinates");
+            if (auto* geode = bloodGeode(*root->getChild(i)))
+                require(geode->getNodeMask() == 0, "Blood leaked between overlapping interior coordinates");
         decals.update(.5f, 600);
         require(decals.size() == 0, "Blood persisted past its configured lifetime");
         std::cout << "PASS ballistic neck spray, doubled base at 100%, scaling to 300%, enlarged projected pools, ten-minute lifetime, cell isolation and saved age\n";
@@ -264,6 +282,245 @@ namespace
         return stamp;
     }
 
+    unsigned bloodLayersAt(const std::vector<MWRender::BloodStainState>& states,
+        const std::string& cell, const osg::Vec3f& point)
+    {
+        unsigned layers = 0;
+        for (const auto& stain : states)
+        {
+            if (stain.mCell != cell) continue;
+            bool covered = false;
+            for (std::size_t corner = 0; corner + 2 < stain.mStamp.mTriangles.size(); corner += 3)
+            {
+                const auto& a = stain.mStamp.mTriangles[corner];
+                const auto& b = stain.mStamp.mTriangles[corner + 1];
+                const auto& c = stain.mStamp.mTriangles[corner + 2];
+                auto normal = (b - a) ^ (c - a);
+                if (normal.normalize() < .000001f || std::abs((point - a) * normal) > .04f) continue;
+                const auto edge0 = b - a, edge1 = c - a, relative = point - a;
+                const float aa = edge0 * edge0, ab = edge0 * edge1, bb = edge1 * edge1;
+                const float ar = edge0 * relative, br = edge1 * relative, determinant = aa * bb - ab * ab;
+                if (std::abs(determinant) < .0000001f) continue;
+                const float u = (bb * ar - ab * br) / determinant;
+                const float v = (aa * br - ab * ar) / determinant;
+                if (u >= -.00001f && v >= -.00001f && u + v <= 1.00001f) { covered = true; break; }
+            }
+            layers += covered;
+        }
+        return layers;
+    }
+
+    void bloodLayerBudgetAndGrowingPools()
+    {
+        {
+            const auto first = bloodQuad(true, 0, 8), second = bloodQuad(true, 6, 9);
+            auto third = bloodQuad(true, 12, 10);
+            third.mTriangles = MWRender::clipBloodCoverage(third, { &first, &second });
+            require(!third.mTriangles.empty(), "Overlap clipping discarded a third stain's uncovered perimeter");
+            const std::vector<MWRender::BloodStainState> three{
+                { "clipped", first, 0 }, { "clipped", second, 0 }, { "clipped", third, 0 }
+            };
+            require(bloodLayersAt(three, "clipped", { 5, .3f, 0 }) == 2
+                && bloodLayersAt(three, "clipped", { 12, .3f, 0 }) == 2
+                && bloodLayersAt(three, "clipped", { 20, .3f, 0 }) == 1,
+                "A partially overlapping third blood decal was not clipped to the two-layer geometry budget");
+        }
+        osg::ref_ptr<osg::Group> scene = new osg::Group;
+        MWRender::BloodDecals decals(*scene);
+        decals.setCellActive("hotspot", true);
+        const auto surface = MWRender::BloodTrail::visualSurface(floorSnapshot({}, 1000));
+        const auto stampAt = [&](const osg::Vec3f& center, float radius, bool pool) {
+            MWRender::BloodStamp stamp;
+            stamp.mCenter = center; stamp.mNormal = { 0, 0, 1 }; stamp.mRadius = radius;
+            stamp.mPool = pool;
+            stamp.mProjector = surface.mProjector;
+            stamp.mTriangles = surface.mProjector(center, stamp.mNormal, radius);
+            return stamp;
+        };
+        auto firstPool = stampAt({}, 6, true);
+        firstPool.mVisualSeed = 36;
+        decals.add("hotspot", firstPool);
+        const auto original = decals.saveState();
+        require(original.size() == 1, "Initial wound pool failed to enter the blood cache");
+        const auto originalSeed = original.front().mStamp.mVisualSeed;
+        // Three nearby stationary wounds keep bleeding into the same floor
+        // footprint, alternating direct pools and ballistic impact deposits.
+        for (int pulse = 0; pulse < 600; ++pulse)
+        {
+            const float angle = pulse * 2.399963f;
+            const osg::Vec3f center(std::cos(angle) * (pulse % 4), std::sin(angle) * (pulse % 4), 0);
+            decals.add("hotspot", stampAt(center, 2.5f + (pulse % 3), pulse % 4 == 0));
+            decals.update(.05f, 1200);
+        }
+        const auto states = decals.saveState();
+        float largest = 0;
+        for (const auto& state : states) largest = std::max(largest, state.mStamp.mRadius);
+        require(largest > 12, "A prolonged stationary fountain stacked impacts without growing its floor pool");
+        require(states.size() < 40, "Three stationary wounds retained dozens of coincident floor decals");
+        unsigned covered = 0;
+        for (float x = -105.37f; x < 106; x += 2.31f)
+            for (float y = -105.19f; y < 106; y += 2.27f)
+            {
+                const auto layers = bloodLayersAt(states, "hotspot", { x, y, .03f });
+                require(layers <= 2, "A stationary blood pool exceeded the two-layer fragment budget");
+                covered += layers > 0;
+            }
+        require(covered > 50, "A large pool was reduced to a tiny spot to satisfy its overlap budget");
+        require(std::any_of(states.begin(), states.end(), [&](const auto& state) {
+            return state.mStamp.mVisualSeed == originalSeed;
+        }), "Growing a blood pool rerolled its saved texture identity");
+        // Distant perimeter splashes remain visible; they are not discarded by
+        // a global per-cell stain count or merged into a floor in another cell.
+        decals.add("hotspot", stampAt({ 150, 40, 0 }, 4, false));
+        decals.add("other-interior", stampAt({}, 4, false));
+        auto upstairs = bloodQuad(true, 0, 8);
+        upstairs.mCenter.z() = 80;
+        for (auto& vertex : upstairs.mTriangles) vertex.z() = 80;
+        decals.add("hotspot", upstairs);
+        decals.add("hotspot", bloodQuad(false, 0, 8));
+        const auto withPerimeter = decals.saveState();
+        require(bloodLayersAt(withPerimeter, "hotspot", { 150.1f, 40.1f, .03f }) > 0,
+            "The overlap budget suppressed independent perimeter splashes");
+        require(bloodLayersAt(withPerimeter, "other-interior", { .1f, .1f, .03f }) > 0,
+            "Coincident world coordinates in different interiors shared an overlap budget");
+        require(bloodLayersAt(withPerimeter, "hotspot", { .1f, .1f, 80 }) == 1,
+            "A blood pool suppressed a different storey above the same world XY coordinates");
+        require(bloodLayersAt(withPerimeter, "hotspot", { 1, 0, 5 }) == 1,
+            "The floor overlap budget incorrectly suppressed an intersecting wall stain");
+
+        {
+            osg::ref_ptr<osg::Group> exteriorScene = new osg::Group;
+            MWRender::BloodDecals exterior(*exteriorScene);
+            const std::string west = "Esm3ExteriorCell:-6:-4", east = "Esm3ExteriorCell:-5:-4";
+            constexpr float border = -40960;
+            exterior.add(west, bloodQuad(true, border, 8));
+            exterior.add(east, bloodQuad(true, border + 2, 9));
+            exterior.add(west, bloodQuad(true, border + 1, 10));
+            const auto borderStates = exterior.saveState();
+            const osg::Vec3f point(border + 1.3f, .7f, 0);
+            require(bloodLayersAt(borderStates, west, point) + bloodLayersAt(borderStates, east, point) == 2,
+                "Adjacent exterior cells admitted a third blood layer at the same visible world point");
+            exterior.add("private-interior", bloodQuad(true, border, 11));
+            exterior.add("Esm3ExteriorCell:-5:-4:invalid", bloodQuad(true, border, 12));
+            const auto isolated = exterior.saveState();
+            require(bloodLayersAt(isolated, "private-interior", point) == 1
+                && bloodLayersAt(isolated, "Esm3ExteriorCell:-5:-4:invalid", point) == 1,
+                "Exterior coverage canonicalization leaked into unrelated or malformed interior identifiers");
+            exterior.restoreState(isolated);
+            const auto loaded = exterior.saveState();
+            require(bloodLayersAt(loaded, west, point) + bloodLayersAt(loaded, east, point) == 2,
+                "Loading blood reset the shared exterior-cell overlap budget");
+        }
+
+        std::vector<MWRender::BloodStainState> legacy;
+        const auto duplicate = stampAt({}, 8, false);
+        for (int i = 0; i < 8192; ++i)
+            legacy.push_back({ "old-save", duplicate, 100.f + (i % 70) });
+        legacy.push_back({ "other-floor", duplicate, 300 });
+        decals.restoreState(legacy);
+        const auto compacted = decals.saveState();
+        require(bloodLayersAt(compacted, "old-save", { .3f, .7f, .03f }) <= 2 && compacted.size() < 10,
+            "Loading an old save preserved thousands of coincident blood layers");
+        for (const auto& state : compacted)
+        {
+            require(state.mAge >= 100, "Compacting old blood reset its saved lifetime");
+            require(!state.mStamp.mProjector, "A saved stain retained its runtime world-snapshot callback");
+        }
+        decals.update(1200, 1200);
+        require(decals.size() == 0, "Expired compacted stains remained in the overlap index");
+        decals.add("old-save", stampAt({}, 8, false));
+        require(decals.size() == 1 && bloodLayersAt(decals.saveState(), "old-save", { .3f, .7f, .03f }) == 1,
+            "The overlap index still blocked fresh blood after old stains expired");
+        decals.clear();
+        require(scene->getNumChildren() == 0, "Overlap compaction leaked scene chunks after clear");
+        std::cout << "PASS two-layer blood budget, growing stationary pools, perimeter splashes, old-save compaction and index cleanup\n";
+    }
+
+    void bloodPoolHolesRemainEligibleForNewHits()
+    {
+        const auto quad = [](const osg::Vec3f& center, float radius) {
+            auto stamp = bloodQuad(true, 0, 24);
+            for (auto& vertex : stamp.mTriangles) vertex = center + vertex * (radius / 10.f);
+            stamp.mCenter = center; stamp.mRadius = radius;
+            return stamp;
+        };
+        auto pool = quad({}, 20);
+        pool.mPool = true;
+        const auto formerFirst = quad({ 5, 0, 0 }, 15), formerSecond = quad({ 5, 0, 0 }, 15);
+        pool.mTriangles = MWRender::clipBloodCoverage(pool, { &formerFirst, &formerSecond });
+        require(!pool.mTriangles.empty(), "A partially clipped pool fixture lost its whole retained perimeter");
+        const osg::Vec3f dryPoint(.3f, .7f, 0);
+
+        for (int mode = 0; mode < 4; ++mode)
+        {
+            osg::ref_ptr<osg::Group> scene = new osg::Group;
+            MWRender::BloodDecals decals(*scene);
+            std::vector<MWRender::BloodStainState> saved{ { "hole", pool, 100 } };
+            if (mode == 3)
+                for (int i = 0; i < 10; ++i)
+                {
+                    auto farPool = quad({ 100.f + i * 100, 0, 0 }, 5);
+                    farPool.mPool = true;
+                    saved.push_back({ "hole", farPool, 100 });
+                }
+            // The stains that originally cut this hole have expired. A nominal
+            // pool radius must not claim their now-uncovered floor pixels.
+            decals.restoreState(saved);
+            require(bloodLayersAt(decals.saveState(), "hole", dryPoint) == 0,
+                "The clipped-pool fixture did not leave an uncovered floor point");
+            if (mode != 0) decals.update(.3f, 1200);
+
+            if (mode == 2)
+            {
+                unsigned projections = 0;
+                for (int i = 0; i < 256; ++i)
+                {
+                    auto deferred = quad({ 2000.f + i * 40, 1000, 0 }, 2);
+                    deferred.mTriangles.clear();
+                    deferred.mProjector = [&](const auto& center, const auto&, float radius) {
+                        ++projections; return quad(center, radius).mTriangles;
+                    };
+                    decals.add("projection-work", deferred);
+                }
+                require(projections > 0 && projections < 256,
+                    "The native per-update projector budget did not bound deferred work");
+            }
+            else if (mode == 3)
+            {
+                unsigned growths = 0;
+                for (int i = 0; i < 10; ++i)
+                {
+                    auto feeding = quad({ 100.f + i * 100, 0, 0 }, 20);
+                    feeding.mPool = true;
+                    feeding.mTriangles.clear();
+                    feeding.mProjector = [&](const auto& center, const auto&, float radius) {
+                        ++growths; return quad(center, radius).mTriangles;
+                    };
+                    decals.add("hole", feeding);
+                }
+                require(growths > 0 && growths < 10,
+                    "The native per-update pool growth budget did not bound independent wounds");
+            }
+
+            auto hit = quad({}, mode == 1 ? 24.f : 2.f);
+            hit.mPool = mode == 1;
+            unsigned failedGrowths = 0;
+            hit.mProjector = [&](const auto&, const auto&, float) {
+                ++failedGrowths; return std::vector<osg::Vec3f>{};
+            };
+            // The impact's fitted geometry is already available. The pool may
+            // be cooling down, unable to reproject, or out of work budget: none
+            // of those states makes its retained mesh cover this empty point.
+            decals.add("hole", hit);
+            const auto layers = bloodLayersAt(decals.saveState(), "hole", dryPoint);
+            require(layers > 0 && layers <= 2,
+                "A clipped pool swallowed an uncovered hit when growth was skipped or failed");
+            require(mode != 1 || failedGrowths > 0,
+                "Failed pool reprojection regression did not exercise the failing world projector");
+        }
+        std::cout << "PASS partial pool holes accept visible new hits during cooldown, failed reprojection and exhausted native budgets\n";
+    }
+
     void bloodLaunchRangeAndVisibleWounds()
     {
         struct Envelope
@@ -290,13 +547,19 @@ namespace
                     result.mForward = std::max(result.mForward, vertex.x());
                     minY = std::min(minY, vertex.y()); maxY = std::max(maxY, vertex.y());
                 }
-                // Each drop has a persistent, visible eight-triangle mesh.
-                for (std::size_t i = 0; i + 23 < vertices->size(); i += 24)
+                const auto* sizes = static_cast<const osg::Vec2Array*>(mesh->getTexCoordArray(1));
+                require(vertices->size() == trail.particleCount() * MWRender::BloodTrail::SpriteVertices
+                    && mesh->getPrimitiveSet(0)->getNumIndices() == trail.particleCount() * MWRender::BloodTrail::SpriteIndices,
+                    "Airborne blood still used a 3D droplet mesh instead of batched sprite quads");
+                require(sizes && sizes->size() == vertices->size(), "Blood sprites lost their GPU billboard size attributes");
+                for (std::size_t i = 0; i < vertices->size(); i += MWRender::BloodTrail::SpriteVertices)
                 {
-                    osg::BoundingBox bounds;
-                    for (std::size_t j = i; j < i + 24; ++j) bounds.expandBy((*vertices)[j]);
-                    result.mSize = std::max(result.mSize, std::min(bounds.xMax() - bounds.xMin(),
-                        std::min(bounds.yMax() - bounds.yMin(), bounds.zMax() - bounds.zMin())));
+                    for (std::size_t corner = 1; corner < MWRender::BloodTrail::SpriteVertices; ++corner)
+                        require((*vertices)[i + corner] == (*vertices)[i],
+                            "Blood sprites expanded into world-space solids on the CPU");
+                    result.mSize = std::max(result.mSize, (*sizes)[i].x() * 2.f);
+                    require((*sizes)[i].x() > 0 && (*sizes)[i].y() > 0 && std::isfinite((*sizes)[i].length2()),
+                        "Blood sprites emitted a nonfinite or invisible billboard size");
                 }
             }
             result.mWidth = maxY - minY;
@@ -329,6 +592,80 @@ namespace
             require(fountain.particleCount() == 0, "Stopped blood fountain leaked airborne droplets past their lifetime");
         }
         std::cout << "PASS slider-dependent spray distance/spread, stronger visible neck/torso jets and bounded droplets\n";
+    }
+
+    void bloodGroundPoolParity()
+    {
+        const std::vector<osg::Vec3f> hillside{
+            { -1000, -1000, -150 }, { 1000, -1000, 50 }, { 1000, 1000, 150 },
+            { -1000, -1000, -150 }, { 1000, 1000, 150 }, { -1000, 1000, -50 }
+        };
+        const auto flat = MWRender::BloodTrail::visualSurface(floorSnapshot({}, 1000));
+        const auto slope = MWRender::BloodTrail::visualSurface(hillside);
+        const auto poolsAtHeight = [](const MWRender::BloodTrail::Surface& surface, float height) {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            unsigned pools = 0;
+            MWRender::BloodTrail trail(*root, surface.mRaycast, [&](const auto& stamp) {
+                if (!stamp.mPool) return;
+                ++pools;
+                require(stamp.mNormal.z() > .65f && !stamp.mTriangles.empty(),
+                    "An exterior pool lost its actual fitted ground receiver");
+            }, surface.mProjector);
+            const std::vector<MWRender::BloodTrail::Source> source{ { { 0, 0, height }, { 0, 0, 1 }, 1, true } };
+            for (int frame = 0; frame < 4; ++frame) trail.update(.1f, source, 1, frame * .1f);
+            return pools;
+        };
+        const auto interiorPools = poolsAtHeight(flat, 32);
+        const auto exteriorPools = poolsAtHeight(slope, 32);
+        require(interiorPools > 0 && exteriorPools == interiorPools,
+            "A lying wound above sloped exterior terrain formed fewer ground pools than a flat interior");
+        require(poolsAtHeight(slope, MWRender::BloodTrail::GroundPoolProbe + 32) == 0,
+            "The bounded ground-pool probe reached arbitrarily distant floors before airborne blood landed");
+        const auto restingWounds = [](const MWRender::BloodTrail::Surface& surface, bool outdoors) {
+            osg::ref_ptr<osg::Group> scene = new osg::Group;
+            MWRender::BloodDecals decals(*scene);
+            decals.setCellActive("battle", true);
+            std::vector<std::unique_ptr<MWRender::BloodTrail>> trails;
+            std::vector<osg::Vec3f> groundPoints;
+            unsigned projections = 0;
+            const auto projector = [&](const auto& point, const auto& normal, float radius) {
+                ++projections; return surface.mProjector(point, normal, radius);
+            };
+            for (int wound = 0; wound < 10; ++wound)
+            {
+                const float x = (wound % 5 - 2) * 80.f, y = (wound / 5) * 120.f - 60;
+                groundPoints.push_back({ x, y, outdoors ? x * .1f + y * .05f : 0.f });
+                trails.push_back(std::make_unique<MWRender::BloodTrail>(*scene, surface.mRaycast,
+                    [&](const auto& stamp) { decals.add("battle", stamp); }, projector, true));
+            }
+            for (int frame = 0; frame < 180; ++frame)
+            {
+                for (std::size_t wound = 0; wound < trails.size(); ++wound)
+                {
+                    const auto position = groundPoints[wound] + osg::Vec3f(0, 0, outdoors ? 32.f : 8.f);
+                    trails[wound]->update(1.f / 60, { { position, { 0, 0, -1 }, 1, true, true } }, 1, frame / 60.f);
+                }
+                decals.update(1.f / 60, 1200);
+            }
+            const auto states = decals.saveState();
+            unsigned pooledWounds = 0, totalDrops = 0;
+            for (std::size_t wound = 0; wound < trails.size(); ++wound)
+            {
+                totalDrops += trails[wound]->emittedCount();
+                const auto point = groundPoints[wound] + osg::Vec3f(.2f, .4f, outdoors ? .07f : .03f);
+                const auto layers = bloodLayersAt(states, "battle", point);
+                pooledWounds += layers > 0;
+                require(layers <= 2, "Ten resting wound fountains accumulated more than two floor layers");
+            }
+            require(projections < totalDrops / 2,
+                "Stationary blood still projected every impact instead of feeding bounded pool growth");
+            require(pooledWounds >= 9, "Most resting corpses failed to form visible ground pools");
+            require(states.size() < 120, "Ten resting corpses created a dense stack of individual floor stains");
+            return pooledWounds;
+        };
+        require(restingWounds(flat, false) == restingWounds(slope, true),
+            "Ten outdoor resting wounds left substantially less floor blood than the interior equivalent");
+        std::cout << "PASS equal interior/sloped-exterior pool formation for elevated lying wounds and bounded ground probing\n";
     }
 
     void bloodVisibleMeshReceiversAndProjection()
@@ -457,9 +794,14 @@ namespace
             stamp.mCenter = { 20, 0, 0 }; stamp.mNormal = { 1, 0, 0 }; stamp.mRadius = 12;
             stamp.mTriangles = cylindrical;
             decals.setCellActive("column", true); decals.add("column", stamp); decals.update(.1f, 1200);
-            const auto* mesh = root->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+            const auto* mesh = bloodMesh(*root);
             const auto* normals = static_cast<const osg::Vec3Array*>(mesh->getNormalArray());
+            const auto* localVertices = static_cast<const osg::Vec3Array*>(mesh->getVertexArray());
             require(normals && normals->size() == cylindrical.size(), "Projected column blood lost its surface normals");
+            const auto chunkWorld = worldMatrix(*bloodGeode(*root));
+            for (std::size_t i = 0; i < cylindrical.size(); ++i)
+                require(((*localVertices)[i] * chunkWorld - cylindrical[i]).length() < .0001f,
+                    "Local blood batch vertices no longer reconstruct their fitted world surface");
             for (std::size_t i = 0; i < cylindrical.size(); i += 3)
             {
                 auto normal = (cylindrical[i + 1] - cylindrical[i]) ^ (cylindrical[i + 2] - cylindrical[i]);
@@ -494,6 +836,24 @@ namespace
         for (const auto& p : carpetOnly)
             require(std::abs(p.z() - .04f) < .001f,
                 "Blood duplicated its patch on the hidden floor directly below a thin carpet");
+        for (const auto& offset : { osg::Vec3f(-45056, -28672, 512), osg::Vec3f(250000, -200000, 100) })
+        {
+            // Exterior coordinates are much farther from the origin than
+            // interiors, and the receiver need not be a horizontal plane.
+            std::vector<osg::Vec3f> slope;
+            quad(slope, { -100, -100, -5 }, { 100, -100, 5 }, { 100, 100, 25 }, { -100, 100, 15 });
+            osg::ref_ptr<osg::MatrixTransform> exterior = new osg::MatrixTransform;
+            exterior->setMatrix(osg::Matrixf::translate(offset));
+            exterior->addChild(node(slope, MWRender::Mask_Static));
+            const auto center = offset + osg::Vec3f(0, 0, 10);
+            const auto rendered = MWRender::collectBloodSurfaceTriangles(*exterior, center, 256);
+            const auto exteriorSurface = MWRender::BloodTrail::visualSurface(rendered);
+            osg::Vec3f point, normal;
+            require(exteriorSurface && exteriorSurface.mRaycast(center + osg::Vec3f(0, 0, 80),
+                center - osg::Vec3f(0, 0, 80), point, normal),
+                "Exterior blood missed a transformed visible receiver far from the world origin");
+            checkProjection(exteriorSurface, rendered, point, normal, 18);
+        }
         require(columnSurface.mProjector({ 20, 0, 0 }, {}, 12).empty()
             && columnSurface.mProjector({ 20, 0, 0 }, { 1, 0, 0 }, std::numeric_limits<float>::quiet_NaN()).empty(),
             "Invalid visual decal normal/radius was not rejected");
@@ -530,7 +890,7 @@ namespace
         actualDecals.add("actual", bloodQuad(true, 0, 8));
         actualDecals.add("actual", bloodQuad(false, 30, 8));
         actualDecals.update(.1f, 1200);
-        auto* actualTexture = dynamic_cast<osg::Texture2D*>(actual->getChild(0)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+        auto* actualTexture = dynamic_cast<osg::Texture2D*>(bloodGeode(*actual)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
         require(actualTexture && actualTexture->getImage() && actualTexture->getImage()->s() <= 2048
             && actualTexture->getImage()->t() <= 2048, "Blood atlas lost its bounded shared texture");
 
@@ -542,11 +902,11 @@ namespace
         for (unsigned seed : { 8u, 9u, 10u, 11u, 4u }) decals.add("marker", bloodQuad(false, float(seed) * 30, seed));
         for (unsigned seed : { 8u, 9u, 10u, 11u }) decals.add("marker", bloodQuad(true, float(seed) * 30, seed));
         decals.update(.1f, 1200);
-        auto* mesh = scene->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+        auto* mesh = bloodMesh(*scene);
         auto* uv = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(0));
         auto* info = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(1));
         auto* colors = static_cast<osg::Vec4Array*>(mesh->getColorArray());
-        auto* texture = dynamic_cast<osg::Texture2D*>(scene->getChild(0)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+        auto* texture = dynamic_cast<osg::Texture2D*>(bloodGeode(*scene)->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
         require(uv && info && colors && texture && uv->size() == 54 && info->size() == uv->size()
             && colors->size() == uv->size(), "Textured blood vertex attributes are incomplete");
         const auto* atlas = texture->getImage();
@@ -588,7 +948,7 @@ namespace
         const std::vector<osg::Vec3f> verticesBefore(vertices->begin(), vertices->end());
         const auto saved = decals.getSaveRecord();
         decals.loadSaveRecord(saved);
-        auto* restored = scene->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+        auto* restored = bloodMesh(*scene);
         const auto* after = static_cast<const osg::Vec2Array*>(restored->getTexCoordArray(0));
         require(coordinatesBefore.size() == after->size() && std::equal(coordinatesBefore.begin(), coordinatesBefore.end(), after->begin()),
             "Loading a save rerolled stain variant/orientation/size");
@@ -640,15 +1000,18 @@ namespace
         const std::size_t fitting = MWRender::BloodDecals::MaxVertices / verticesPerStain;
         for (std::size_t i = 0; i < fitting + 256; ++i)
         {
-            stamp.mCenter = { float(i), 0, 0 };
+            stamp.mCenter = { float(i) * 4, 0, 0 };
             stamp.mTriangles.clear();
             for (std::size_t j = 0; j < verticesPerStain / 3; ++j)
-                stamp.mTriangles.insert(stamp.mTriangles.end(), { stamp.mCenter,
-                    stamp.mCenter + osg::Vec3f(1, 0, 0), stamp.mCenter + osg::Vec3f(0, 1, 0) });
+            {
+                const auto corner = stamp.mCenter + osg::Vec3f((j % 8) * .1f, (j / 8) * .1f, 0);
+                stamp.mTriangles.insert(stamp.mTriangles.end(), { corner,
+                    corner + osg::Vec3f(.07f, 0, 0), corner + osg::Vec3f(0, .07f, 0) });
+            }
             decals.add("arena", stamp);
         }
         decals.update(.1f, 1200);
-        require(decals.size() == fitting && decals.saveState().front().mStamp.mCenter.x() == 256,
+        require(decals.size() == fitting && decals.saveState().front().mStamp.mCenter.x() == 256 * 4,
             "The extended retention cache exceeded the baseline geometry memory budget");
         decals.clear();
         require(scene->getNumChildren() == 0, "Geometry-budget eviction left render nodes alive");
@@ -1314,19 +1677,17 @@ namespace
         stamp.mNormal.set(0, 0, 1);
         for (int i = 0; i < int(MWRender::BloodDecals::MaxStains + 2048); ++i)
         {
-            stamp.mCenter.set(float(i), 0, 0);
+            stamp.mCenter.set(float(i) * 4, 0, 0);
             stamp.mTriangles.clear();
-            for (int edge = 0; edge < 8; ++edge)
-            {
-                const float a = edge * 6.2831853f / 8, b = (edge + 1) * 6.2831853f / 8;
-                stamp.mTriangles.insert(stamp.mTriangles.end(), { stamp.mCenter,
-                    stamp.mCenter + osg::Vec3f(std::cos(a), std::sin(a), 0),
-                    stamp.mCenter + osg::Vec3f(std::cos(b), std::sin(b), 0) });
-            }
+            const auto a = stamp.mCenter + osg::Vec3f(-1, -1, 0);
+            const auto b = stamp.mCenter + osg::Vec3f(1, -1, 0);
+            const auto c = stamp.mCenter + osg::Vec3f(1, 1, 0);
+            const auto d = stamp.mCenter + osg::Vec3f(-1, 1, 0);
+            stamp.mTriangles = { a, b, c, a, c, d };
             decals.add("arena", stamp);
         }
         decals.update(.1f, 600);
-        require(decals.size() == MWRender::BloodDecals::MaxStains && decals.saveState().front().mStamp.mCenter.x() == 2048,
+        require(decals.size() == MWRender::BloodDecals::MaxStains && decals.saveState().front().mStamp.mCenter.x() == 2048 * 4,
             "Full blood cache did not evict exactly the oldest stain");
         require(scene->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1, "Blood cache produced an unbounded number of drawables");
         struct Buffer
@@ -1338,7 +1699,7 @@ namespace
         std::vector<Buffer> buffers;
         for (unsigned i = 0; i < scene->getNumChildren(); ++i)
         {
-            auto* mesh = scene->getChild(i)->asGeode()->getDrawable(0)->asGeometry();
+            auto* mesh = bloodMesh(*scene->getChild(i));
             buffers.push_back({ mesh, mesh->getVertexArray(), mesh->getVertexArray()->getModifiedCount() });
         }
         for (int frame = 0; frame < 120; ++frame) decals.update(.1f, 600);
@@ -1360,7 +1721,7 @@ namespace
         decals.restoreState(saved);
         require(decals.size() == MWRender::BloodDecals::MaxStains && scene->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1, "Full blood save/load grew the render graph");
         for (unsigned i = 0; i < scene->getNumChildren(); ++i)
-            require(scene->getChild(i)->getNodeMask() == 0, "Restored blood became visible in an inactive cell");
+            require(bloodGeode(*scene->getChild(i))->getNodeMask() == 0, "Restored blood became visible in an inactive cell");
         decals.update(600, 600);
         require(decals.size() == 0 && scene->getNumChildren() == 0, "Expired full blood cache leaked render chunks");
         std::cout << "PASS full bounded stain-cache rollover, stable VBOs while aging, local chunk updates, save/load and cleanup\n";
@@ -2258,6 +2619,7 @@ int main(int argc, char** argv)
 {
     try
     {
+        std::cout << std::unitbuf;
         if (argc > 1 && std::string(argv[1]) == "--gore-benchmark")
         {
             goreLoadMeasurements(true);
@@ -2307,7 +2669,10 @@ int main(int argc, char** argv)
         }
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
+        bloodLayerBudgetAndGrowingPools();
+        bloodPoolHolesRemainEligibleForNewHits();
         bloodLaunchRangeAndVisibleWounds();
+        bloodGroundPoolParity();
         bloodVisibleMeshReceiversAndProjection();
         bloodTexturesAndVisualIdentity();
         organicCreatureBloodAndDeathTrigger();

@@ -90,6 +90,7 @@ file(GLOB UNITTEST_SRC_FILES
 
     sceneutil/osgacontroller.cpp
     sceneutil/testbloodlighting.cpp
+    sceneutil/testbloodexterior.cpp
 
     bsa/testbsafile.cpp
     bsa/testcompressedbsafile.cpp
@@ -101,6 +102,12 @@ file(GLOB UNITTEST_SRC_FILES
 source_group(apps\\components-tests FILES ${UNITTEST_SRC_FILES})
 
 openmw_add_executable(components-tests ${UNITTEST_SRC_FILES})
+
+target_sources(components-tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp
+    ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp)
+target_compile_definitions(components-tests PRIVATE BT_USE_DOUBLE_PRECISION)
+target_include_directories(components-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS})
 
 target_link_libraries(components-tests
     GTest::GTest
@@ -117,6 +124,7 @@ if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(blood-native-gl-tests
         sceneutil/bloodshaders_gl.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalblood.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodcoverage.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp)
     target_compile_features(blood-native-gl-tests PRIVATE cxx_std_20)
     set_target_properties(blood-native-gl-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

@@ -23,7 +23,9 @@ namespace MWRender
         constexpr std::size_t MaxNodes = 16384;
         constexpr std::size_t MaxScannedTriangles = 131072;
         constexpr std::size_t MaxStoredTriangles = 32768;
+        constexpr std::size_t MaxTrianglesPerMesh = 32768;
         struct SnapshotFull {};
+        struct MeshScanFull {};
 
         float distanceToBounds(const osg::BoundingBoxf& bounds, const osg::Vec3f& point)
         {
@@ -132,11 +134,17 @@ namespace MWRender
                 for (unsigned corner = 0; corner < 8; ++corner)
                     bounds.expandBy(drawable.getBoundingBox().corner(corner) * world);
                 if (!bounds.valid() || !intersects(bounds)) return;
-                mMeshes.push_back({ mesh, world, distanceToBounds(bounds, mCenter) });
+                // Native TerrainDrawable carries this exact mask. Paged
+                // decoration can have a huge bounding box containing the
+                // corpse even though all of its first triangles are remote.
+                // Reserve the early scan for actual land receivers.
+                const bool terrain = drawable.getNodeMask() == Mask_Terrain;
+                mMeshes.push_back({ mesh, world, distanceToBounds(bounds, mCenter), terrain });
             }
 
             void triangle(const std::array<osg::Vec3f, 3>& triangle)
             {
+                if (++mMeshScanned > mMeshScanLimit) throw MeshScanFull{};
                 if (++mScanned > MaxScannedTriangles) throw SnapshotFull{};
                 osg::BoundingBoxf bounds;
                 for (const auto& vertex : triangle)
@@ -167,18 +175,31 @@ namespace MWRender
                 // scan budget, retain the nearest triangles rather than whichever
                 // geometry happened to appear first in a cell's scene graph.
                 std::sort(mMeshes.begin(), mMeshes.end(), [](const auto& a, const auto& b) {
+                    if (a.mTerrain != b.mTerrain) return a.mTerrain;
                     return a.mDistance < b.mDistance;
                 });
                 try
                 {
-                    for (const auto& mesh : mMeshes)
+                    for (std::size_t index = 0; index < mMeshes.size(); ++index)
                     {
+                        const auto& mesh = mMeshes[index];
+                        const auto remaining = MaxScannedTriangles - mScanned;
+                        if (!remaining) break;
+                        // Keep the native land mesh intact, then share the
+                        // remaining work fairly between static drawables. A
+                        // single merged city mesh cannot spend every later
+                        // receiver's scan budget on remote triangles.
+                        const auto share = remaining / (mMeshes.size() - index);
+                        mMeshScanLimit = std::min(MaxTrianglesPerMesh,
+                            mesh.mTerrain ? remaining : std::max<std::size_t>(1, share));
                         osg::TriangleIndexFunctor<Triangles> triangles;
                         triangles.mCollector = this;
                         triangles.mPositions = dynamic_cast<const osg::Vec3Array*>(mesh.mMesh->getVertexArray());
                         triangles.mDoublePositions = dynamic_cast<const osg::Vec3dArray*>(mesh.mMesh->getVertexArray());
                         triangles.mWorld = mesh.mWorld;
-                        mesh.mMesh->accept(triangles);
+                        mMeshScanned = 0;
+                        try { mesh.mMesh->accept(triangles); }
+                        catch (const MeshScanFull&) { /* Share the global scan budget with other receivers. */ }
                     }
                 }
                 catch (const SnapshotFull&) {}
@@ -202,6 +223,7 @@ namespace MWRender
                 osg::ref_ptr<const osg::Geometry> mMesh;
                 osg::Matrixf mWorld;
                 float mDistance;
+                bool mTerrain;
             };
             bool intersects(const osg::BoundingBoxf& bounds) const
             {
@@ -214,7 +236,7 @@ namespace MWRender
             osg::Vec3f mCenter;
             float mRadius;
             const std::function<bool(const osg::Node&)>& mFilter;
-            std::size_t mNodes = 0, mScanned = 0;
+            std::size_t mNodes = 0, mScanned = 0, mMeshScanned = 0, mMeshScanLimit = MaxTrianglesPerMesh;
         };
 
         void Triangles::operator()(unsigned a, unsigned b, unsigned c)

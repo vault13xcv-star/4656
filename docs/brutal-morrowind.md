@@ -1,8 +1,42 @@
-# Brutal Morrowind 0.7.0-preview.5
+# Brutal Morrowind 0.7.0-preview.6
 
 This blood update starts from the exact stable preview.2 source revision
 `a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
 experimental changes from other branches. Combat calculations are unchanged.
+
+## Pool overdraw and sprite droplets
+
+Surface blood now has a maximum of two overlapping geometry layers on the same
+receiver. New splats are clipped only where two existing stains already cover
+the surface; uncovered areas and peripheral splashes remain possible. A spatial
+hash finds nearby stains of any age without repeatedly scanning the full cache.
+Overlapping stacks from older saves are compacted while preserving saved ages.
+
+Repeated floor impacts feed one growing pool. Growth is projected again onto
+the visible receiver mesh at most four times per second, up to a configurable
+96-unit radius. Dense native impacts are routed before triangle projection, so
+redundant drops do not repeatedly tessellate the same floor. Texture identity is
+preserved as the pool grows. The existing total stain and geometry caps remain.
+Per update, native effects can project at most twelve new deposits and four pool
+growths; eight bounded containment checks can absorb smaller covered stains.
+Complex redundant deposits are rejected within a small geometry-work budget.
+Uncovered holes remain eligible for new hits when a pool cannot grow. These
+limits apply to live effects; loading retains a separate bounded compaction
+path so a large save is not truncated by a single-frame emission budget.
+
+Airborne droplets are camera-facing textured sprites, batched as four vertices
+and six indices per drop instead of the previous 24-vertex volume. Their shared
+alpha texture has transparent edges. The GPU orients the sprites for each
+camera; trajectories, collision sweeps, lighting, fog and native shadows remain
+active. There is no individual scene node or rigid body for each drop.
+
+Exterior coverage has three additional corrections. Native terrain is collected
+before paged decoration, and the bounded triangle scan is shared between meshes
+so one large combined model cannot omit the ground. Pools probe up to 64 units
+below resting wounds, covering gaps caused by uneven terrain. Render batches
+use a local origin and a double-precision scene transform; the saved geometry
+remains in world coordinates. This avoids losing much of a decal in the depth
+buffer at large exterior coordinates and shallow viewing angles.
 
 ## World surfaces, lighting and stronger sprays
 
@@ -18,8 +52,9 @@ snapshots per rendered frame and a bounded sixteen-entry cache. Moving or
 removed receivers invalidate only nearby snapshots. Each stain has a maximum
 of 192 projected vertices, and the existing global geometry limit still applies.
 Deposited blood remains world-space geometry; it does not follow moving doors
-or inventory objects. Existing saved stains retain their old projected shape;
-the corrected projection applies to new deposits.
+or inventory objects. Existing saved stains retain their surface-projected shape,
+with redundant overlap clipped during loading; the corrected receiver projection
+applies to new deposits.
 
 Blood uses the scene's current ambient, sun and nearby point lights, with native
 attenuation and fog. Native shader shadow libraries handle the sun's shadow

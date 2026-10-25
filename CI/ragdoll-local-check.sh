@@ -33,6 +33,7 @@ cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" --targe
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/ragdollappearance.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/brutalblood.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/bloodsurface.cpp.o \
+    apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/bloodcoverage.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/bloodsurfacevisitor.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/brutalgore.cpp.o \
     apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/renderingmanager.cpp.o \

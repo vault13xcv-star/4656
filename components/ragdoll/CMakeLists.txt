@@ -53,6 +53,7 @@ if(RAGDOLL_TEST_RENDERING)
         ../../apps/openmw/mwrender/ragdollappearance.cpp
         ../../apps/openmw/mwrender/brutalgore.cpp
         ../../apps/openmw/mwrender/brutalblood.cpp
+        ../../apps/openmw/mwrender/bloodcoverage.cpp
         ../../apps/openmw/mwrender/bloodsurface.cpp
         ../../apps/openmw/mwrender/bloodsurfacevisitor.cpp
         ../sceneutil/skeleton.cpp
@@ -80,6 +81,7 @@ if(RAGDOLL_TEST_RENDERING)
         find_package(OpenSceneGraph 3.6.5 REQUIRED COMPONENTS osg osgUtil osgViewer osgGA osgDB)
         add_executable(ragdoll-gl-tests tests/appearance_gl.cpp ../../apps/openmw/mwrender/ragdollappearance.cpp
             ../../apps/openmw/mwrender/brutalblood.cpp
+            ../../apps/openmw/mwrender/bloodcoverage.cpp
             ../../apps/openmw/mwrender/bloodsurface.cpp
             ../../apps/openmw/mwrender/bloodsurfacevisitor.cpp)
         target_compile_features(ragdoll-gl-tests PRIVATE cxx_std_20)
@@ -103,5 +105,7 @@ if(RAGDOLL_TEST_RENDERING)
         add_test(NAME brutal-gl-blood-atlas-reversed COMMAND ragdoll-gl-tests reversed blood-atlas)
         add_test(NAME brutal-gl-blood-lighting COMMAND ragdoll-gl-tests normal blood-lighting)
         add_test(NAME brutal-gl-blood-lighting-reversed COMMAND ragdoll-gl-tests reversed blood-lighting)
+        add_test(NAME brutal-gl-blood-sprites COMMAND ragdoll-gl-tests normal blood-sprites)
+        add_test(NAME brutal-gl-blood-sprites-reversed COMMAND ragdoll-gl-tests reversed blood-sprites)
     endif()
 endif()

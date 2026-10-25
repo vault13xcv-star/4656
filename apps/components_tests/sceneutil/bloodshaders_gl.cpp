@@ -8,6 +8,8 @@
 #include <components/sceneutil/depth.hpp>
 #include <components/sceneutil/shadow.hpp>
 #include <components/shader/shadermanager.hpp>
+#include <components/terrain/compositemaprenderer.hpp>
+#include <components/terrain/terraindrawable.hpp>
 
 #include <osg/Geode>
 #include <osg/LightModel>
@@ -17,10 +19,12 @@
 #include <osgViewer/Viewer>
 
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -91,8 +95,13 @@ namespace
     osg::Program* bloodProgram(osg::Group& root)
     {
         for (unsigned i = 0; i < root.getNumChildren(); ++i)
-            if (root.getChild(i)->getName() == "Brutal Morrowind blood stains")
-                return dynamic_cast<osg::Program*>(root.getChild(i)->getStateSet()->getAttribute(osg::StateAttribute::PROGRAM));
+        {
+            auto* child = root.getChild(i);
+            if (child->getName() == "Brutal Morrowind blood stains")
+                return dynamic_cast<osg::Program*>(child->getStateSet()->getAttribute(osg::StateAttribute::PROGRAM));
+            if (auto* group = child->asGroup())
+                if (auto* program = bloodProgram(*group)) return program;
+        }
         return nullptr;
     }
 }
@@ -234,8 +243,136 @@ int main(int argc, char** argv)
         defines["perspectiveShadowMaps"] = "0";
         shaders.setGlobalDefines(defines);
         require(sample().length() <= 3, "Existing blood failed native orthographic-cascade shader reload");
+        // Sprites have a different vertex program from surface decals. Link
+        // that actual program against the same native shadow libraries too.
+        blood.clear();
+        sun->setPosition({ 0, 0, 1, 0 });
+        ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+        MWRender::BloodTrail airborne(*root, {}, {});
+        airborne.update(.1f, { { { -30, 0, 40 }, { 1, 0, 0 }, 1, true } }, .1f, .14f);
+        require(airborne.particleCount() == 1, "Native sprite fixture did not isolate one airborne drop");
+        auto* spriteNode = root->getChild(root->getNumChildren() - 1)->asGroup()->getChild(0)->asGeode();
+        auto* spriteMesh = spriteNode->getDrawable(0)->asGeometry();
+        auto* spriteProgram = dynamic_cast<osg::Program*>(spriteNode->getStateSet()->getAttribute(osg::StateAttribute::PROGRAM));
+        require(spriteProgram && spriteProgram->getNumShaders() == 4,
+            "Native factory did not install real shadow libraries in the sprite program");
+        require(spriteMesh->getVertexArray()->getNumElements() == 4 && spriteMesh->getPrimitiveSet(0)->getNumIndices() == 6,
+            "Native airborne blood still used a solid mesh");
+        const auto spritePixels = [&] {
+            viewer.frame(); glFinish();
+            const auto* linked = spriteProgram->getPCP(*camera->getGraphicsContext()->getState());
+            std::string log;
+            if (linked) linked->getInfoLog(log);
+            require(linked && linked->isLinked(), "Native blood sprite/shadow GLSL failed to link: " + log);
+            std::vector<unsigned char> pixels(Width * Height * 3);
+            glReadPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+            require(glGetError() == GL_NO_ERROR, "Native sprite/shadow draw raised an OpenGL error");
+            unsigned visible = 0;
+            for (std::size_t i = 0; i < pixels.size(); i += 3)
+                visible += pixels[i] > 3 || pixels[i + 1] > 3 || pixels[i + 2] > 3;
+            return visible;
+        };
+        require(spritePixels() == 0, "Camera-facing blood sprites ignored the actual native shadow depth comparison");
+        *reinterpret_cast<float*>(secondDepth->getImage()->data()) = .75f;
+        secondDepth->getImage()->dirty();
+        require(spritePixels() > 3, "Native world-lit blood sprite was invisible after leaving the shadow");
+        sun->setDiffuse({ 0, 0, 0, 1 });
+        require(spritePixels() == 0, "Native blood sprite glowed after its actual sunlight was removed");
+        ambient->setAmbientIntensity({ .8f, .8f, .8f, 1 });
+        require(spritePixels() > 3, "Native blood sprite failed to receive the scene's ambient light");
+        ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+        const auto spriteCenter = (*static_cast<const osg::Vec3Array*>(spriteMesh->getVertexArray()))[0];
+        pointTransform->setMatrix(osg::Matrixf::translate(spriteCenter + osg::Vec3f(0, -30, 0)));
+        point->setEmpty(false);
+        require(spritePixels() > 3, "A real native torch at the sprite's own height failed to illuminate blood");
+        point->setEmpty(true);
+        require(spritePixels() == 0, "Native blood sprites remained illuminated after their torch was extinguished");
+
+        {
+            // Terrain keeps its vertices near a local chunk origin. Blood must
+            // use the same precision strategy; world-sized float vertices lose
+            // the shallow-angle depth test far from the world origin.
+            osg::ref_ptr<osg::Group> precisionRoot = new osg::Group;
+            auto* precisionState = precisionRoot->getOrCreateStateSet();
+            precisionState->merge(*MWRender::createBloodLightingState());
+            osg::ref_ptr<osg::LightModel> daylight = new osg::LightModel;
+            daylight->setAmbientIntensity({ 1, 1, 1, 1 });
+            precisionState->setAttributeAndModes(daylight, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            precisionState->setAttributeAndModes(new SceneUtil::AutoDepth, osg::StateAttribute::ON);
+            osg::ref_ptr<osg::MatrixTransform> groundTransform = new osg::MatrixTransform;
+            osg::ref_ptr<Terrain::TerrainDrawable> ground = new Terrain::TerrainDrawable;
+            osg::ref_ptr<osg::Vec3Array> groundVertices = new osg::Vec3Array;
+            const std::array groundCorners{
+                osg::Vec3f(-4000, -4000, 0), osg::Vec3f(4000, -4000, 0), osg::Vec3f(4000, 4000, 0),
+                osg::Vec3f(-4000, -4000, 0), osg::Vec3f(4000, 4000, 0), osg::Vec3f(-4000, 4000, 0)
+            };
+            for (const auto& vertex : groundCorners)
+                groundVertices->push_back(vertex + osg::Vec3f(0, 0, vertex.x() * .2f + vertex.y() * .1f));
+            ground->setVertexArray(groundVertices);
+            ground->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, groundVertices->size()));
+            ground->setCullingActive(false); ground->createClusterCullingCallback();
+            osg::ref_ptr<osg::StateSet> groundPass = new osg::StateSet;
+            groundPass->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+            groundPass->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+            groundPass->setAttributeAndModes(new SceneUtil::AutoDepth, osg::StateAttribute::ON);
+            osg::ref_ptr<osg::Program> groundProgram = new osg::Program;
+            groundProgram->addShader(new osg::Shader(osg::Shader::VERTEX,
+                "#version 120\nuniform mat4 projectionMatrix;void main(){gl_Position=projectionMatrix*gl_ModelViewMatrix*gl_Vertex;}"));
+            groundProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT,
+                "#version 120\nvoid main(){gl_FragColor=vec4(.3,.3,.3,1.0);}"));
+            groundPass->setAttributeAndModes(groundProgram, osg::StateAttribute::ON);
+            ground->setPasses({ groundPass });
+            groundTransform->addChild(ground); precisionRoot->addChild(groundTransform);
+            MWRender::BloodDecals preciseBlood(*precisionRoot);
+            preciseBlood.setTextures({ image }, { image });
+            viewer.setSceneData(precisionRoot);
+            camera->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+            unsigned originPixels = 0;
+            for (const auto& world : { osg::Vec3f(), osg::Vec3f(-45056, -28672, 512), osg::Vec3f(500000, 500000, 1000) })
+            {
+                groundTransform->setMatrix(osg::Matrixf::translate(world));
+                const double distance = 700, rise = std::tan(8 * 3.141592653589793 / 180) * distance;
+                camera->setViewMatrixAsLookAt(osg::Vec3d(world) + osg::Vec3d(-distance * .707106781, -distance * .707106781, rise),
+                    osg::Vec3d(world), { 0, 0, 1 });
+                camera->setProjectionMatrixAsPerspective(60, double(Width) / Height, 1, 81920);
+                auto precisionProjection = camera->getProjectionMatrix();
+                if (reversed) for (int row = 0; row < 4; ++row) precisionProjection(row, 2) = -precisionProjection(row, 2);
+                precisionState->addUniform(new osg::Uniform("projectionMatrix", osg::Matrixf(precisionProjection)));
+                preciseBlood.clear(); preciseBlood.setCellActive("exterior-depth", true);
+                MWRender::BloodStamp projected;
+                projected.mCenter = world; projected.mNormal = { -.2f, -.1f, 1 };
+                projected.mNormal.normalize(); projected.mRadius = 20; projected.mVisualSeed = 8;
+                const std::array corners{
+                    osg::Vec3f(-20, -20, 0), osg::Vec3f(20, -20, 0), osg::Vec3f(20, 20, 0),
+                    osg::Vec3f(-20, -20, 0), osg::Vec3f(20, 20, 0), osg::Vec3f(-20, 20, 0)
+                };
+                for (const auto& vertex : corners)
+                    projected.mTriangles.push_back(world + vertex
+                        + osg::Vec3f(0, 0, vertex.x() * .2f + vertex.y() * .1f) + projected.mNormal * .03f);
+                preciseBlood.add("exterior-depth", projected); preciseBlood.update(.1f, 1200);
+                const auto pixels = [&] {
+                    viewer.frame(); glFinish();
+                    std::vector<unsigned char> buffer(Width * Height * 3);
+                    glReadPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+                    require(glGetError() == GL_NO_ERROR, "Native exterior terrain/blood draw failed");
+                    unsigned visible = 0;
+                    for (std::size_t i = 0; i < buffer.size(); i += 3)
+                        visible += buffer[i] > buffer[i + 1] + 12 && buffer[i] > buffer[i + 2] + 12;
+                    return visible;
+                };
+                pixels();
+                const unsigned visible = pixels();
+                if (world == osg::Vec3f())
+                {
+                    originPixels = visible;
+                    require(originPixels > 25, "Native sloped terrain fixture did not display blood at the origin");
+                }
+                else require(visible >= originPixels * .9f && visible <= originPixels * 1.1f,
+                    "Blood lost visible terrain coverage at far exterior coordinates or a shallow camera angle");
+            }
+        }
         std::cout << "PASS actual native GLSL compilation/link, LightManager callbacks, two depth-comparison cascades, "
-            "ambient/torch preservation, shadow fade and enabled/disabled shader reload ("
+            "ambient/torch preservation, shadow fade, shader reload, billboard sprites and far exterior terrain depth ("
             << (reversed ? "reversed" : "normal") << " depth)\n";
         return 0;
     }

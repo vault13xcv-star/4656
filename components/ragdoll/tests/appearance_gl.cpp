@@ -32,6 +32,15 @@ namespace
 {
     void check(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
     constexpr int width = 320, height = 240;
+    osg::Geode* bloodGeode(osg::Node& node)
+    {
+        if (auto* geode = node.asGeode(); geode && geode->getName() == "Brutal Morrowind blood stains")
+            return geode;
+        if (auto* group = node.asGroup())
+            for (unsigned child = 0; child < group->getNumChildren(); ++child)
+                if (auto* result = bloodGeode(*group->getChild(child))) return result;
+        return nullptr;
+    }
 }
 int main(int argc, char** argv)
 {
@@ -96,6 +105,110 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
         geode->addDrawable(wall); root->addChild(geode);
         viewer.setSceneData(root); viewer.realize();
+        if (effect == "blood-sprites")
+        {
+            root->removeChild(geode);
+            camera->setClearColor({ 0, 0, 0, 1 });
+            auto* ambient = static_cast<osg::LightModel*>(state->getAttribute(osg::StateAttribute::LIGHTMODEL));
+            check(ambient, "Blood sprite fixture lost the real ambient light state");
+            MWRender::BloodTrail airborne(*root, {}, {});
+            airborne.update(.1f, { { { 0, 0, 40 }, { 1, 0, 0 }, 1, true } }, .1f, .14f);
+            check(airborne.particleCount() == 1, "Isolated sprite fixture emitted an unexpected droplet count");
+            auto* spriteNode = root->getChild(0)->asGroup()->getChild(0)->asGeode();
+            auto* mesh = spriteNode->getDrawable(0)->asGeometry();
+            auto* vertices = static_cast<osg::Vec3Array*>(mesh->getVertexArray());
+            auto* sizes = static_cast<osg::Vec2Array*>(mesh->getTexCoordArray(1));
+            auto* travel = static_cast<osg::Vec3Array*>(mesh->getNormalArray());
+            check(vertices->size() == 4 && mesh->getPrimitiveSet(0)->getNumIndices() == 6,
+                "A visible blood droplet still used solid geometry rather than a two-triangle sprite");
+            const auto center = (*vertices)[0];
+            const float naturalRadius = std::sqrt((*sizes)[0].length2());
+            const auto naturalBounds = mesh->getBoundingBox();
+            check(naturalBounds.contains(center - osg::Vec3f(naturalRadius, naturalRadius, naturalRadius))
+                && naturalBounds.contains(center + osg::Vec3f(naturalRadius, naturalRadius, naturalRadius)),
+                "GPU-expanded blood sprites were culled using their degenerate center-only CPU bounds");
+            auto* texture = dynamic_cast<osg::Texture2D*>(spriteNode->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+            check(texture && texture->getImage(), "Blood sprites did not use a shared alpha-mask texture");
+            const auto* image = texture->getImage();
+            check(image->getColor(0, 0).a() < .01f && image->getColor(image->s() - 1, image->t() - 1).a() < .01f,
+                "Blood sprite texture retained opaque rectangular corners");
+            bool smooth = false;
+            for (int y = 0; y < image->t(); ++y) for (int x = 0; x < image->s(); ++x)
+            {
+                const float alpha = image->getColor(x, y).a();
+                smooth |= alpha > .05f && alpha < .95f;
+            }
+            check(smooth, "Blood sprite silhouette lost its smoothly transparent boundary");
+            // Enlarge only this isolated test sprite to sample its transparent
+            // corners independently of subpixel rounding at the default size.
+            for (auto& size : *sizes) size.set(6, 10);
+            sizes->dirty();
+            mesh->setInitialBound(osg::BoundingBox(center - osg::Vec3f(15, 15, 15), center + osg::Vec3f(15, 15, 15)));
+            mesh->dirtyBound();
+            const auto read = [&] {
+                viewer.frame(); glFinish();
+                std::vector<unsigned char> pixels(width * height * 3);
+                glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+                check(glGetError() == GL_NO_ERROR, "OpenGL sprite drawing failed");
+                return pixels;
+            };
+            const auto visible = [&](const auto& pixels) {
+                unsigned count = 0;
+                for (std::size_t i = 0; i < pixels.size(); i += 3)
+                    count += pixels[i] > 5 || pixels[i + 1] > 5 || pixels[i + 2] > 5;
+                return count;
+            };
+            for (const auto& view : { osg::Vec3f(0, -190, 0), osg::Vec3f(190, 0, 0), osg::Vec3f(-125, -125, 70) })
+            {
+                camera->setViewMatrixAsLookAt(center + view, center, { 0, 0, 1 });
+                ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+                check(visible(read()) == 0, "A camera-facing blood sprite emitted light in a dark scene");
+                ambient->setAmbientIntensity({ .8f, .8f, .8f, 1 });
+                const auto pixels = read();
+                const unsigned filled = visible(pixels);
+                check(filled > 30 && filled < 800,
+                    "Blood sprite was invisible edge-on or rendered its whole rectangular billboard");
+                const osg::Vec3d eye = osg::Vec3d(center) * camera->getViewMatrix();
+                const auto direction = osg::Matrixf::transform3x3((*travel)[0], osg::Matrixf(camera->getViewMatrix()));
+                osg::Vec2f axis(direction.x(), direction.y());
+                const float projected = axis.length();
+                if (projected < .001f) axis.set(0, 1); else axis /= projected;
+                const osg::Vec2f across(axis.y(), -axis.x());
+                const float length = 6 + 4 * std::clamp(projected, 0.f, 1.f);
+                const auto corner = eye + osg::Vec3d(across.x() * 5.5f + axis.x() * length * .94f,
+                    across.y() * 5.5f + axis.y() * length * .94f, 0);
+                const auto window = corner * camera->getProjectionMatrix() * camera->getViewport()->computeWindowMatrix();
+                const auto offset = (std::size_t(window.y()) * width + std::size_t(window.x())) * 3;
+                check(offset + 2 < pixels.size() && pixels[offset] < 3 && pixels[offset + 1] < 3 && pixels[offset + 2] < 3,
+                    "Blood sprite alpha mask did not remove billboard corners in the actual shader");
+            }
+            ambient->setAmbientIntensity({ 0, 0, 0, 1 });
+            osg::ref_ptr<osg::Light> torch = new osg::Light;
+            torch->setPosition(osg::Vec4f(center + osg::Vec3f(0, -80, 0), 1));
+            torch->setDiffuse({ 1, .65f, .35f, 1 }); torch->setAmbient({ 0, 0, 0, 1 });
+            torch->setConstantAttenuation(1); torch->setLinearAttenuation(.001f); torch->setQuadraticAttenuation(0);
+            unsigned maximumRed = 0;
+            for (const auto& view : { osg::Vec3f(0, -190, 0), osg::Vec3f(190, 0, 0) })
+            {
+                camera->setViewMatrixAsLookAt(center + view, center, { 0, 0, 1 });
+                MWRender::setBloodPointLight(*state, 0, *torch, 200, osg::Matrixf(camera->getViewMatrix()));
+                const auto pixels = read();
+                check(visible(pixels) > 30, "A native torch at the blood sprite's height failed to illuminate it");
+                unsigned red = 0;
+                for (std::size_t i = 0; i < pixels.size(); i += 3) red = std::max(red, unsigned(pixels[i]));
+                check(maximumRed == 0 || std::abs(int(red) - int(maximumRed)) <= 4,
+                    "Blood sprite lighting rotated with the camera rather than its native torch");
+                maximumRed = red;
+            }
+            state->getUniform("brutalBloodPointCount")->set(0);
+            check(visible(read()) == 0, "Blood sprites remained lit after their native point light was extinguished");
+            MWRender::BloodTrail another(*root, {}, {});
+            auto* otherNode = root->getChild(1)->asGroup()->getChild(0)->asGeode();
+            check(otherNode->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE) == texture,
+                "Each blood source allocated its own sprite texture");
+            std::cout << "PASS batched two-triangle blood sprites, GPU billboarding at three angles, alpha silhouette, dark/lit response and conservative bounds\n";
+            return 0;
+        }
         if (effect == "blood-lighting")
         {
             root->removeChild(geode);
@@ -334,7 +447,7 @@ int main(int argc, char** argv)
             check(occluded == 0, "Blood decals visible through an opaque wall");
             root->removeChild(flesh);
             const auto wet = read();
-            auto* stainMesh = root->getChild(root->getNumChildren() - 1)->asGeode()->getDrawable(0)->asGeometry();
+            auto* stainMesh = bloodGeode(*root)->getDrawable(0)->asGeometry();
             osg::ref_ptr<osg::Array> stableVertices = stainMesh->getVertexArray();
             const auto modified = stableVertices->getModifiedCount();
             blood.update(90, 600);
@@ -349,39 +462,54 @@ int main(int argc, char** argv)
             // Exercise an actual full GPU cache while eight wounds continue to
             // bleed. This crosses the eviction threshold repeatedly, rather
             // than checking only the first splat on a single corpse.
+            camera->setProjectionMatrixAsOrtho(-600, 600, -100, 600, 1, 500);
+            auto cacheProjection = camera->getProjectionMatrix();
+            if (reversed) for (int row = 0; row < 4; ++row) cacheProjection(row, 2) = -cacheProjection(row, 2);
+            state->getUniform("projectionMatrix")->set(osg::Matrixf(cacheProjection));
             MWRender::BloodStamp stamp;
             stamp.mNormal = { 0, -1, 0 }; stamp.mRadius = .4f;
             for (int i = 0; i < int(MWRender::BloodDecals::MaxStains + 1024); ++i)
             {
-                const float x = -64.f + i % 128, z = float((i / 128) % 64);
+                // Distinct footprints keep this a capacity test under the
+                // two-layer overlap budget instead of four stacked copies.
+                const float x = -512.f + (i % 256) * 4.f, z = (i / 256) * 4.f;
                 stamp.mCenter = { x, 0, z };
                 stamp.mTriangles.clear();
-                for (int edge = 0; edge < 16; ++edge)
-                {
-                    const float a = edge * 6.2831853f / 16, b = (edge + 1) * 6.2831853f / 16;
-                    stamp.mTriangles.insert(stamp.mTriangles.end(), { stamp.mCenter,
-                        stamp.mCenter + osg::Vec3f(std::cos(a) * .4f, 0, std::sin(a) * .4f),
-                        stamp.mCenter + osg::Vec3f(std::cos(b) * .4f, 0, std::sin(b) * .4f) });
-                }
+                const auto a = stamp.mCenter + osg::Vec3f(-.4f, 0, -.4f);
+                const auto b = stamp.mCenter + osg::Vec3f(.4f, 0, -.4f);
+                const auto c = stamp.mCenter + osg::Vec3f(.4f, 0, .4f);
+                const auto d = stamp.mCenter + osg::Vec3f(-.4f, 0, .4f);
+                stamp.mTriangles = { a, b, c, a, c, d };
                 blood.add("test", stamp);
             }
-            const auto ray = MWRender::BloodTrail::collisionRaycast({ { -1000, -1000, 0 }, { 1000, -1000, 0 },
+            blood.update(.1f, 600);
+            check(blood.size() == MWRender::BloodDecals::MaxStains,
+                "GPU stress did not actually fill and overflow the stain cache");
+            viewer.frame();
+            const auto surface = MWRender::BloodTrail::visualSurface({ { -1000, -1000, 0 }, { 1000, -1000, 0 },
                 { 1000, 1000, 0 }, { -1000, -1000, 0 }, { 1000, 1000, 0 }, { -1000, 1000, 0 } });
             std::vector<std::unique_ptr<MWRender::BloodTrail>> trails;
             for (int i = 0; i < 8; ++i)
-                trails.push_back(std::make_unique<MWRender::BloodTrail>(*root, ray,
-                    [&](const auto& splat) { blood.add("test", splat); }));
+                trails.push_back(std::make_unique<MWRender::BloodTrail>(*root, surface.mRaycast,
+                    [&](const auto& splat) { blood.add("test", splat); }, surface.mProjector, true));
             for (int frame = 0; frame < 180; ++frame)
             {
                 for (int i = 0; i < 8; ++i)
                     trails[i]->update(.1f, { { { float(i * 10 - 40), 0, 30 }, { 0, 0, -1 }, 1, true } }, 3, frame * .1f);
                 blood.update(.1f, 600);
-                check(blood.size() == MWRender::BloodDecals::MaxStains
+                // Pool absorption can legitimately remove details after the
+                // initial full-cache draw. Keep a near-full GPU workload while
+                // checking the upper bound rather than requiring every absorbed
+                // stain to be replaced by another redundant layer.
+                check(blood.size() <= MWRender::BloodDecals::MaxStains
+                    && blood.size() >= MWRender::BloodDecals::MaxStains * 9 / 10
                     && root->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 10, "Full GPU blood cache grew without bound");
                 viewer.frame();
                 check(glGetError() == GL_NO_ERROR, "Full blood cache caused an OpenGL error");
             }
             glFinish(); trails.clear(); blood.clear();
+            camera->setProjectionMatrixAsOrtho(-80, 80, -20, 100, 1, 500);
+            state->getUniform("projectionMatrix")->set(osg::Matrixf(renderProjection));
             check(read() == baseline && root->getNumChildren() == 1, "Crowded blood leaked GPU/scene nodes after cleanup");
             std::cout << "PASS actual GL blood decals, native projection, inherited alpha/shader, opaque occlusion and expiry\n";
             std::cout << "PASS full bounded stain GPU cache rollover with eight simultaneous maximum-pressure blood trails\n";

@@ -12,7 +12,9 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <list>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -20,11 +22,16 @@ namespace MWRender
 {
     struct BloodStamp
     {
+        using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
         osg::Vec3f mCenter, mNormal;
         std::vector<osg::Vec3f> mTriangles;
         float mRadius = 1;
         bool mPool = false;
         std::uint32_t mVisualSeed = 0;
+        // A deposit may defer projection until it passes the overlap/pool
+        // preflight. This callback is consumed immediately and never saved or
+        // retained with the stain (it may refer to a short-lived corpse).
+        Projector mProjector;
     };
 
     struct BloodStainState
@@ -42,6 +49,12 @@ namespace MWRender
         static constexpr std::size_t MaxStains = ESM::BrutalBloodState::MaxStains;
         static constexpr std::size_t MaxVertices = ESM::BrutalBloodState::MaxVertices;
         static constexpr std::size_t ChunkStains = 128;
+        static constexpr unsigned MaxOverlappingLayers = 2;
+        static constexpr float MaxPoolRadius = 96.f;
+        static constexpr float PoolGrowthInterval = .25f;
+        static constexpr unsigned MaxNewDepositsPerFrame = 12;
+        static constexpr unsigned MaxPoolGrowthsPerFrame = 4;
+        static constexpr unsigned MaxPoolAbsorptionChecksPerFrame = 8;
         explicit BloodDecals(osg::Group& parent);
         ~BloodDecals();
         void add(const std::string& cell, const BloodStamp& stamp);
@@ -62,6 +75,8 @@ namespace MWRender
         struct Chunk
         {
             osg::ref_ptr<osg::Geode> mNode;
+            osg::ref_ptr<osg::MatrixTransform> mTransform;
+            osg::Vec3f mOrigin;
             osg::ref_ptr<osg::Geometry> mGeometry;
             bool mDirty = true;
         };
@@ -73,9 +88,15 @@ namespace MWRender
         struct Stain : BloodStainState
         {
             std::uint64_t mSequence;
+            float mAccumulatedArea = 0;
+            double mNextGrowth = 0, mNextWetRefresh = 0;
+            mutable std::uint64_t mCoverageVisit = 0;
+            std::list<Stain>::iterator mSelf{};
         };
+        struct CoverageIndex;
         osg::ref_ptr<osg::Group> mParent;
-        std::deque<Stain> mStains;
+        std::list<Stain> mStains;
+        std::unique_ptr<CoverageIndex> mCoverage;
         std::map<std::string, Batch> mBatches;
         osg::ref_ptr<osg::Uniform> mTimeUniform, mLifetimeUniform;
         osg::ref_ptr<osg::Texture2D> mAtlas;
@@ -86,8 +107,11 @@ namespace MWRender
         double mTime = 0;
         float mSinceBatch = 1;
         float mLifetime = 600;
+        unsigned mNewDeposits = 0, mPoolGrowths = 0, mPoolAbsorptionChecks = 0;
         void dirty(const Stain& stain);
         void rebuild();
+        std::list<Stain>::iterator eraseStain(std::list<Stain>::iterator stain);
+        bool feedPool(const std::string& cell, const BloodStamp& stamp);
     };
 
     class BloodTrail
@@ -97,14 +121,19 @@ namespace MWRender
         // amount slider, which controls emission and the existing pool growth.
         static constexpr float DecalScale = 1.75f;
         static constexpr std::size_t MaxParticles = 192;
+        static constexpr std::size_t SpriteVertices = 4;
+        static constexpr std::size_t SpriteIndices = 6;
         static constexpr std::size_t MaxSources = 32;
         static constexpr unsigned MaxImpactSplats = 8;
         static constexpr float MaxDropAge = 3.f;
         static constexpr float NormalEmissionRate = 14.f;
         static constexpr float NeckEmissionRate = 60.f;
         static constexpr float MajorEmissionRate = 35.f;
+        // Wounds on a resting torso can be several dozen units above sloping
+        // terrain; the old eighteen-unit probe missed their growing pools.
+        static constexpr float GroundPoolProbe = 64.f;
         using Raycast = std::function<bool(const osg::Vec3f&, const osg::Vec3f&, osg::Vec3f&, osg::Vec3f&)>;
-        using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
+        using Projector = BloodStamp::Projector;
         struct Surface
         {
             Raycast mRaycast;
@@ -119,7 +148,7 @@ namespace MWRender
             bool mNeck = false;
             bool mMajorWound = false;
         };
-        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {});
+        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {}, bool deferProjection = false);
         static Raycast collisionRaycast(const std::vector<osg::Vec3f>& triangles);
         // Both callbacks share one immutable BVH of visible world triangles.
         static Surface visualSurface(const std::vector<osg::Vec3f>& triangles);
@@ -136,6 +165,7 @@ namespace MWRender
         Raycast mRaycast;
         Projector mProjector;
         Deposit mDeposit;
+        bool mDeferProjection = false;
         std::vector<Drop> mDrops;
         std::vector<float> mRemainders, mPoolTimes;
         std::vector<unsigned> mPendingDrops;
