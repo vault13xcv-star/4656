@@ -89,6 +89,8 @@ namespace
         ASSERT_TRUE(animation->getCombatWeaponSegment(blade));
         EXPECT_LT((blade.mBase - osg::Vec3f(100, 30, 40)).length(), .01f);
         EXPECT_LT((blade.mTip - osg::Vec3f(40, 30, 40)).length(), .01f);
+        EXPECT_NEAR(blade.mGripReach, 60.f, .01f);
+        EXPECT_LT(PhysicalCombat::approachRange(blade.mGripReach, 64, 16), 60.f);
         EXPECT_EQ(animation->mHand->getMatrix(), original);
         animation->mTrack->mPose.mTranslation = osg::Vec3f(-10, 20, 40);
         ASSERT_TRUE(animation->getCombatWeaponSegment(blade));

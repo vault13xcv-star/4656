@@ -1599,6 +1599,7 @@ namespace MWRender
             result.mBase = osg::Vec3f() * world;
             const auto* base = mPtr.getRefData().getBaseNode();
             result.mTip = result.mBase + (base ? base->getAttitude() * osg::Vec3f(0, 8, 0) : osg::Vec3f(0, 8, 0));
+            result.mGripReach = 8;
         }
         else
         {
@@ -1618,6 +1619,8 @@ namespace MWRender
             a[axis] = box._min[axis]; b[axis] = box._max[axis];
             if (a.length2() > b.length2()) std::swap(a, b);
             result.mBase = a * world; result.mTip = b * world;
+            const osg::Vec3f grip = osg::Vec3f() * world;
+            result.mGripReach = std::max((result.mBase - grip).length(), (result.mTip - grip).length());
         }
         return std::isfinite(result.mBase.length2()) && std::isfinite(result.mTip.length2());
     }

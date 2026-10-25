@@ -334,6 +334,9 @@ namespace MWMechanics
         bool readyToPrepareAttack() const;
         bool readyToStartAttack() const;
 
+        /// AI approach distance for actual blade contacts, in collision-bound distance units.
+        float getPhysicalMeleeRange(float legacyRange) const;
+
         float calculateWindUp() const;
 
         float getAttackStrength() const;

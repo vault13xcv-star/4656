@@ -1,4 +1,4 @@
-# Brutal Morrowind 0.8.0-preview.1 — hybrid physical combat
+# Brutal Morrowind 0.8.0-preview.2 — hybrid physical combat
 
 This preview adds driven weapon inertia, model-based melee contacts, live-body
 impulses and an active shield to the existing blood/dismemberment runtime.
@@ -60,6 +60,9 @@ promise that every animation completes in that time. With zero fatigue every
 phase runs at exactly half its normal rate and the minimum cycle doubles.
 
 There is **no hit/miss skill roll** for native melee or projectile contacts.
+Melee attacks follow vertical aim in both camera modes. AI approaches using the
+model's measured reach from its grip, rather than stopping at the old hit-cone
+radius; touch spells and natural creature attacks keep their own approach ranges.
 Weapon skill instead scales damage from 55% at skill 0 to 130% at skill 100
 (62.5% at skill 10). Skill still affects handling independently.
 

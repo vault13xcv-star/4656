@@ -87,6 +87,15 @@ namespace
     }
     void motionAndContacts()
     {
+        const float fistRange = approachRange(8, 64, 16);
+        const float daggerRange = approachRange(25, 64, 16);
+        const float swordRange = approachRange(70, 64, 16);
+        const float spearRange = approachRange(110, 64, 16);
+        check(fistRange < daggerRange && daggerRange < swordRange && swordRange < spearRange,
+            "AI approach distance does not follow the physical grip-to-tip reach");
+        check(swordRange + 16 + 8 < 38.4f + 70 && daggerRange < 40 && spearRange < 100,
+            "AI stops outside the arm/blade contact envelope");
+        check(approachRange(0, 0, 100) == 4, "Short limbs can give AI a negative attack range");
         State lightMotor, heavyMotor;
         Weapon light{ 5, 50, 1, Handling::LightBlade }, heavy{ 50, 140, 1, Handling::Heavy };
         for (int frame = 0; frame < 120; ++frame)

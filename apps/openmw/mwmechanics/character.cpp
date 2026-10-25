@@ -1242,6 +1242,16 @@ namespace MWMechanics
             || (mWeaponType >= ESM::Weapon::ShortBladeOneHand && mWeaponType <= ESM::Weapon::SpearTwoWide));
     }
 
+    float CharacterController::getPhysicalMeleeRange(float legacyRange) const
+    {
+        if (!usesPhysicalMelee()) return legacyRange;
+        const auto& state = mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat;
+        const float gripReach = mWeapon.isEmpty() ? 8.f : state.mWeaponGripReach > 0
+            ? state.mWeaponGripReach : physicalWeapon(mPtr, mWeapon).mLength * .8f;
+        const auto bounds = MWBase::Environment::get().getWorld()->getHalfExtents(mPtr);
+        return std::min(legacyRange, PhysicalCombat::approachRange(gripReach, bounds.z(), bounds.y()));
+    }
+
     void CharacterController::updatePhysicalCombat(float duration)
     {
         if (!mPtr.getClass().isActor()) return;
@@ -1333,6 +1343,7 @@ namespace MWMechanics
         if (!mAnimation->getCombatWeaponSegment(blade)) return;
         mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat.mWeaponLength
             = std::clamp((blade.mTip - blade.mBase).length(), 12.f, 280.f);
+        mPtr.getClass().getCreatureStats(mPtr).mPhysicalCombat.mWeaponGripReach = blade.mGripReach;
         if (!mHasPreviousBlade) { mPreviousBlade = blade; mHasPreviousBlade = true; return; }
         const auto world = MWBase::Environment::get().getWorld();
         MWPhysics::RayCastingResult best{};
@@ -1496,6 +1507,7 @@ namespace MWMechanics
             {
                 mWeapon = newWeapon;
                 stats.mPhysicalCombat.mWeaponLength = 0;
+                stats.mPhysicalCombat.mWeaponGripReach = 0;
                 stats.mPhysicalCombat.mHasBladeDirection = false;
                 mHasPreviousBlade = false;
                 weaponChanged = true;
@@ -1510,7 +1522,10 @@ namespace MWMechanics
                 {
                     PhysicalCombat::Blade measured;
                     if (mAnimation->getCombatWeaponSegment(measured))
+                    {
                         stats.mPhysicalCombat.mWeaponLength = std::clamp((measured.mTip - measured.mBase).length(), 12.f, 280.f);
+                        stats.mPhysicalCombat.mWeaponGripReach = measured.mGripReach;
+                    }
                 }
                 const auto rates = PhysicalCombat::timing(physicalWeapon(mPtr, mWeapon), physicalActor(mPtr, mWeapon));
                 weapSpeed = mUpperBodyState == UpperBodyState::AttackRelease ? rates.mStrike
@@ -2075,7 +2090,7 @@ namespace MWMechanics
 
         mAnimation->setPitchFactor(0.f);
         if (mUpperBodyState > UpperBodyState::WeaponEquipped
-            && (weapclass == ESM::WeaponType::Ranged || weapclass == ESM::WeaponType::Thrown))
+            && (weapclass == ESM::WeaponType::Ranged || weapclass == ESM::WeaponType::Thrown || usesPhysicalMelee()))
         {
             mAnimation->setPitchFactor(1.f);
 

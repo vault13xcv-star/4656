@@ -1,4 +1,4 @@
-# Brutal Morrowind 0.8.0-preview.1
+# Brutal Morrowind 0.8.0-preview.2
 
 New blood, physical intestines, longitudinal cuts and hammer torso tearing are
 documented in [brutal-morrowind.md](brutal-morrowind.md). This continues preview.5;

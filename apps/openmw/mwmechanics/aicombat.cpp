@@ -243,6 +243,8 @@ namespace MWMechanics
         float& rangeAttack = storage.mAttackRange;
 
         rangeAttack = currentAction->getCombatRange(isRangedCombat);
+        if (!isRangedCombat && dynamic_cast<const ActionWeapon*>(currentAction.get()))
+            rangeAttack = characterController.getPhysicalMeleeRange(rangeAttack);
 
         // Get weapon characteristics
         const ESM::Weapon* weapon = currentAction->getWeapon();

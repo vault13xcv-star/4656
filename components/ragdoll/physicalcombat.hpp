@@ -12,7 +12,20 @@ namespace PhysicalCombat
 {
     inline float finite(float value, float fallback) { return std::isfinite(value) ? value : fallback; }
     enum class Handling { LightBlade, Heavy, Mixed };
-    struct Blade { osg::Vec3f mBase, mTip; };
+    struct Blade
+    {
+        osg::Vec3f mBase, mTip;
+        float mGripReach = 0; // Furthest endpoint from the attachment, including model scale.
+    };
+    inline float approachRange(float gripReach, float halfHeight, float bodyRadius)
+    {
+        // AI distances are measured between collision bounds, while blade
+        // contact needs to reach the visible body. Leave room for bent elbows
+        // and the gap between the target's capsule and its skin.
+        const float armReach = .6f * std::max(0.f, finite(halfHeight, 64));
+        return std::max(4.f, .8f * (armReach + std::max(0.f, finite(gripReach, 0)))
+            - std::max(0.f, finite(bodyRadius, 16)) - 8.f);
+    }
     inline osg::Vec3f pointVelocity(const Blade& previous, const Blade& current, float along, float duration)
     {
         return duration > 0 ? ((current.mBase - previous.mBase) * (1 - along)
@@ -150,7 +163,7 @@ namespace PhysicalCombat
         osg::Vec3f mWeaponLag, mWeaponLagVelocity, mLastBladeDirection;
         float mPoise = 0, mContactSpeed = 0, mContactAge = 10;
         float mRecoil = 0;
-        float mWeaponLength = 0;
+        float mWeaponLength = 0, mWeaponGripReach = 0;
         int mContactBody = -1;
         bool mHasPosition = false, mContactValid = false;
         bool mHasBladeDirection = false;

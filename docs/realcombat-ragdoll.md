@@ -1,4 +1,4 @@
-# Brutal Morrowind 0.8.0-preview.1
+# Brutal Morrowind 0.8.0-preview.2
 
 Новые эффекты крови, физические кишки, продольный разруб и разрыв молотом описаны
 в [brutal-morrowind.md](brutal-morrowind.md). Ниже сохранена история прежних
