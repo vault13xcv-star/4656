@@ -200,12 +200,12 @@ namespace Settings
             EXPECT_EQ(Manager::getFloat("bow impulse scale", "Ragdoll"), 1.f);
             physics.mBloodAmount.set(0); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 0);
             physics.mBloodAmount.set(3); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 3);
-            physics.mBloodAmount.reset(); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 1);
+            physics.mBloodAmount.reset(); EXPECT_FLOAT_EQ(physics.mBloodAmount.get(), 2);
             physics.mBloodLifetime.set(300); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 300);
             physics.mBloodLifetime.set(1800); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 1800);
-            physics.mBloodLifetime.reset(); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 600);
+            physics.mBloodLifetime.reset(); EXPECT_FLOAT_EQ(physics.mBloodLifetime.get(), 1200);
         }
-        TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToHalfAndTripleItsActualDefault)
+        TEST_F(SettingsValuesTest, physicsLayoutBindsEverySliderToItsConfiguredRange)
         {
             const auto data = mSettingsDefaultPath.parent_path() / "data";
             MyGUI::xml::Document document;
@@ -244,8 +244,13 @@ namespace Settings
                     // probabilities such as 0.3 do not have exact binary doubles.
                     const float minimum = std::stof(metadata["SettingMin"]);
                     const float maximum = std::stof(metadata["SettingMax"]);
-                    EXPECT_FLOAT_EQ(minimum, name == "dismemberment chance" || name == "blood amount" ? 0.f : static_cast<float>(base * .5));
-                    EXPECT_FLOAT_EQ(maximum, name == "dismemberment chance" ? 1.f : static_cast<float>(base * 3));
+                    const float expectedMin = name == "dismemberment chance" || name == "blood amount" ? 0.f
+                        : name == "blood lifetime" ? 300.f : static_cast<float>(base * .5);
+                    const float expectedMax = name == "dismemberment chance" ? 1.f
+                        : name == "blood amount" ? 3.f : name == "blood lifetime" ? 1800.f
+                        : static_cast<float>(base * 3);
+                    EXPECT_FLOAT_EQ(minimum, expectedMin);
+                    EXPECT_FLOAT_EQ(maximum, expectedMax);
                     if (integer)
                     {
                         auto& setting = index.get<int>("Ragdoll", name);
