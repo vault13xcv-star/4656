@@ -1,0 +1,180 @@
+[       OK ] Params/FilesGetHash.shouldReturnHashForStringStream/3 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForStringStream/4
+[       OK ] Params/FilesGetHash.shouldReturnHashForStringStream/4 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForStringStream/5
+[       OK ] Params/FilesGetHash.shouldReturnHashForStringStream/5 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForStringStream/6
+[       OK ] Params/FilesGetHash.shouldReturnHashForStringStream/6 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/0
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/0 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/1
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/1 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/2
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/2 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/3
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/3 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/4
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/4 (6 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/5
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/5 (1 ms)
+[ RUN      ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/6
+[       OK ] Params/FilesGetHash.shouldReturnHashForConstrainedFileStream/6 (1 ms)
+[----------] 14 tests from Params/FilesGetHash (28 ms total)
+
+[----------] 15 tests from FromQuat/MiscToEulerAnglesXZQuatTest
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/0
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/0 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/1
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/1 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/2
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/2 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/3
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/3 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/4
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/4 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/5
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/5 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/6
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/6 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/7
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/7 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/8
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/8 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/9
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/9 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/10
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/10 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/11
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/11 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/12
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/12 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/13
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/13 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/14
+[       OK ] FromQuat/MiscToEulerAnglesXZQuatTest.shouldReturnValueCloseTo/14 (0 ms)
+[----------] 15 tests from FromQuat/MiscToEulerAnglesXZQuatTest (0 ms total)
+
+[----------] 15 tests from FromQuat/MiscToEulerAnglesZYXQuatTest
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/0
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/0 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/1
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/1 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/2
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/2 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/3
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/3 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/4
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/4 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/5
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/5 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/6
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/6 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/7
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/7 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/8
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/8 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/9
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/9 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/10
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/10 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/11
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/11 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/12
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/12 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/13
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/13 (0 ms)
+[ RUN      ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/14
+[       OK ] FromQuat/MiscToEulerAnglesZYXQuatTest.shouldReturnValueCloseTo/14 (0 ms)
+[----------] 15 tests from FromQuat/MiscToEulerAnglesZYXQuatTest (0 ms total)
+
+[----------] 4 tests from PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix
+[ RUN      ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/0
+[       OK ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/0 (0 ms)
+[ RUN      ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/1
+[       OK ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/1 (0 ms)
+[ RUN      ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/2
+[       OK ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/2 (0 ms)
+[ RUN      ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/3
+[       OK ] PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix.shouldMatchExpected/3 (0 ms)
+[----------] 4 tests from PathsWithPrefix/MiscResourceHelpersCorrectResourcePathShouldRemoveExtraPrefix (0 ms total)
+
+[----------] 4 tests from Params/NifOsgLoaderBSShaderPrefixTest
+[ RUN      ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/0
+[       OK ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/0 (0 ms)
+[ RUN      ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/1
+[       OK ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/1 (0 ms)
+[ RUN      ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/2
+Unhandled BSShaderType 32 in test.nif
+[       OK ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/2 (0 ms)
+[ RUN      ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/3
+Unknown BSShaderType 4294967295 in test.nif
+[       OK ] Params/NifOsgLoaderBSShaderPrefixTest.shouldAddShaderPrefix/3 (0 ms)
+[----------] 4 tests from Params/NifOsgLoaderBSShaderPrefixTest (0 ms total)
+
+[----------] 3 tests from Params/NifOsgLoaderBSLightingShaderPrefixTest
+[ RUN      ] Params/NifOsgLoaderBSLightingShaderPrefixTest.shouldAddShaderPrefix/0
+[       OK ] Params/NifOsgLoaderBSLightingShaderPrefixTest.shouldAddShaderPrefix/0 (0 ms)
+[ RUN      ] Params/NifOsgLoaderBSLightingShaderPrefixTest.shouldAddShaderPrefix/1
+Unhandled BSLightingShaderType 17 in test.nif
+[       OK ] Params/NifOsgLoaderBSLightingShaderPrefixTest.shouldAddShaderPrefix/1 (0 ms)
+[ RUN      ] Params/NifOsgLoaderBSLightingShaderPrefixTest.shouldAddShaderPrefix/2
+Unknown BSLightingShaderType 4294967295 in test.nif
+[       OK ] Params/NifOsgLoaderBSLightingShaderPrefixTest.shouldAddShaderPrefix/2 (0 ms)
+[----------] 3 tests from Params/NifOsgLoaderBSLightingShaderPrefixTest (0 ms total)
+
+[----------] 10 tests from SupportedTerminals/ShaderParseDefinesTest
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/0
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/0 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/1
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/1 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/2
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/2 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/3
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/3 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/4
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/4 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/5
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/5 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/6
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/6 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/7
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/7 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/8
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/8 (0 ms)
+[ RUN      ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/9
+[       OK ] SupportedTerminals/ShaderParseDefinesTest.support_defines_terminated_by/9 (0 ms)
+[----------] 10 tests from SupportedTerminals/ShaderParseDefinesTest (0 ms total)
+
+[----------] 4 tests from Files/Utf8EncoderTest
+[ RUN      ] Files/Utf8EncoderTest.getUtf8ShouldConvertFromLegacyEncodingToUtf8/0
+[       OK ] Files/Utf8EncoderTest.getUtf8ShouldConvertFromLegacyEncodingToUtf8/0 (0 ms)
+[ RUN      ] Files/Utf8EncoderTest.getUtf8ShouldConvertFromLegacyEncodingToUtf8/1
+[       OK ] Files/Utf8EncoderTest.getUtf8ShouldConvertFromLegacyEncodingToUtf8/1 (0 ms)
+[ RUN      ] Files/Utf8EncoderTest.getLegacyEncShouldConvertFromUtf8ToLegacyEncoding/0
+[       OK ] Files/Utf8EncoderTest.getLegacyEncShouldConvertFromUtf8ToLegacyEncoding/0 (0 ms)
+[ RUN      ] Files/Utf8EncoderTest.getLegacyEncShouldConvertFromUtf8ToLegacyEncoding/1
+[       OK ] Files/Utf8EncoderTest.getLegacyEncShouldConvertFromUtf8ToLegacyEncoding/1 (0 ms)
+[----------] 4 tests from Files/Utf8EncoderTest (0 ms total)
+
+[----------] 8 tests from IsNormalizedTestParams/VFSPathIsNormalizedTest
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/0
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/0 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/1
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/1 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/2
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/2 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/3
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/3 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/4
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/4 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/5
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/5 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/6
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/6 (0 ms)
+[ RUN      ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/7
+[       OK ] IsNormalizedTestParams/VFSPathIsNormalizedTest.shouldReturnExpectedResult/7 (0 ms)
+[----------] 8 tests from IsNormalizedTestParams/VFSPathIsNormalizedTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1402 tests from 152 test suites ran. (6838 ms total)
+[  PASSED  ] 1402 tests.
