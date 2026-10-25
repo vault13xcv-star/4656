@@ -1202,17 +1202,27 @@ namespace MWRender
                 }
             };
         };
+        auto reusable = mBloodSurfaceSnapshots.end();
         for (auto it = mBloodSurfaceSnapshots.begin(); it != mBloodSurfaceSnapshots.end(); ++it)
         {
             const float distance = (it->mCenter - center).length();
-            if (it->mCell == cell && mBloodSurfaceTime - it->mTime < .5
-                && distance + radius <= it->mRadius)
+            const bool sameWorld = it->mCell == cell || (it->mCell && it->mCell->isExterior() && cell->isExterior()
+                && it->mCell->getCell()->getWorldSpace() == cell->getCell()->getWorldSpace());
+            if (sameWorld && distance + radius <= it->mRadius)
             {
-                const auto result = wrap(it->mSurface);
-                auto recent = std::move(*it);
-                mBloodSurfaceSnapshots.erase(it);
-                mBloodSurfaceSnapshots.push_back(std::move(recent));
-                return result;
+                // World-object moves/deletions explicitly invalidate these
+                // slots. Reusing unchanged ground longer avoids building a
+                // separate terrain BVH twice a second for every open wound.
+                if (mBloodSurfaceTime - it->mTime < 2 || mBloodSurfacesBuilt >= 2)
+                {
+                    const auto result = wrap(it->mSurface);
+                    auto recent = std::move(*it);
+                    mBloodSurfaceSnapshots.erase(it);
+                    mBloodSurfaceSnapshots.push_back(std::move(recent));
+                    return result;
+                }
+                reusable = it;
+                break;
             }
         }
         if (mBloodSurfacesBuilt >= 2) return {};
@@ -1227,10 +1237,24 @@ namespace MWRender
                         return false;
             return true;
         };
-        const float captureRadius = radius + 128.f;
+        const auto captureCenter = reusable == mBloodSurfaceSnapshots.end() ? center : reusable->mCenter;
+        const float captureRadius = reusable == mBloodSurfaceSnapshots.end() ? radius + 128.f : reusable->mRadius;
         auto surface = BloodTrail::visualSurface(collectBloodSurfaceTriangles(
-            *mSceneRoot, center, captureRadius, filter, mViewer->getFrameStamp()));
+            *mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp()));
         if (!surface) return {};
+        if (reusable != mBloodSurfaceSnapshots.end())
+        {
+            // Refresh the slot in place. Appending an equivalent snapshot used
+            // to evict other corpses' still-live receivers from the 16 slots,
+            // intermittently dropping their outdoor ray hits and floor stains.
+            *reusable->mSurface = std::move(surface);
+            reusable->mTime = mBloodSurfaceTime;
+            const auto result = wrap(reusable->mSurface);
+            auto recent = std::move(*reusable);
+            mBloodSurfaceSnapshots.erase(reusable);
+            mBloodSurfaceSnapshots.push_back(std::move(recent));
+            return result;
+        }
         auto slot = std::make_shared<BloodTrail::Surface>(std::move(surface));
         if (mBloodSurfaceSnapshots.size() >= 16)
         {

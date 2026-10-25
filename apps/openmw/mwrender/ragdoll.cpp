@@ -679,7 +679,10 @@ namespace MWRender
                 if (!mSimulation) std::vector<osg::Vec3f>().swap(mCollisionVertices);
             }
             mSinceBlood += std::max(0.f, duration);
-            if (!mSettings.mBloodEffect || mSettings.mBloodAmount <= 0 || mElapsed >= mSettings.mBleedDuration
+            // The ballistic trail already draws every droplet as a textured
+            // billboard. Do not add whole legacy NIF effects on top of it.
+            // Keep the old callback only for callers without a blood trail.
+            if (mSettings.mBloodDeposit || !mSettings.mBloodEffect || mSettings.mBloodAmount <= 0 || mElapsed >= mSettings.mBleedDuration
                 || mSinceBlood < .25f / std::max(.1f, mSettings.mBloodAmount))
                 return;
             mSinceBlood = 0;

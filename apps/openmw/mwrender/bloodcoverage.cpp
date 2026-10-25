@@ -16,7 +16,11 @@ namespace MWRender
         constexpr std::size_t MaxCandidates = 128;
         constexpr std::size_t MaxPieces = 128;
         constexpr double PlaneTolerance = .08;
-        constexpr double ParallelNormals = .9995;
+        // Clipped float vertices far from the world origin can perturb the
+        // normal of a narrow triangle. Distance to the receiver plane remains
+        // the authoritative test; an almost exact normal match loses real
+        // coverage on otherwise identical exterior faces.
+        constexpr double ParallelNormals = .98;
         constexpr double AreaEpsilon = 1e-9;
         using Polygon = std::vector<osg::Vec2d>;
 
@@ -167,6 +171,7 @@ namespace MWRender
             double mMinimum[3]{}, mMaximum[3]{};
             Polygon mTriangle;
             double mMargin = 1e-5;
+            double mPlaneTolerance = PlaneTolerance;
 
             explicit Face(const osg::Vec3f* vertices)
             {
@@ -176,18 +181,6 @@ namespace MWRender
                 mNormal = a ^ b;
                 if (!std::isfinite(mNormal.length2()) || mNormal.normalize() <= 1e-10 || a.length2() <= 1e-20)
                     return;
-                const TriangleBounds bounds(vertices);
-                for (unsigned axis = 0; axis < 3; ++axis)
-                {
-                    const double padding = std::abs(mNormal[axis]) * PlaneTolerance;
-                    mMinimum[axis] = bounds.mMinimum[axis] - padding;
-                    mMaximum[axis] = bounds.mMaximum[axis] + padding;
-                }
-                mHorizontal = a;
-                mHorizontal.normalize();
-                mVertical = mNormal ^ mHorizontal;
-                mTriangle = { project(vertices[0]), project(vertices[1]), project(vertices[2]) };
-                clean(mTriangle);
                 // A clipped edge is rounded back to float world coordinates.
                 // Leave a few ULPs of clearance so a load/rebuild cannot round
                 // it into a third layer, including far from the world origin.
@@ -196,6 +189,19 @@ namespace MWRender
                     for (unsigned axis = 0; axis < 3; ++axis)
                         magnitude = std::max(magnitude, std::abs(double(vertices[vertex][axis])));
                 mMargin = std::max(mMargin, magnitude * double(std::numeric_limits<float>::epsilon()) * 4);
+                mPlaneTolerance = std::max(PlaneTolerance, mMargin);
+                const TriangleBounds bounds(vertices);
+                for (unsigned axis = 0; axis < 3; ++axis)
+                {
+                    const double padding = std::abs(mNormal[axis]) * mPlaneTolerance;
+                    mMinimum[axis] = bounds.mMinimum[axis] - padding;
+                    mMaximum[axis] = bounds.mMaximum[axis] + padding;
+                }
+                mHorizontal = a;
+                mHorizontal.normalize();
+                mVertical = mNormal ^ mHorizontal;
+                mTriangle = { project(vertices[0]), project(vertices[1]), project(vertices[2]) };
+                clean(mTriangle);
             }
 
             osg::Vec2d project(const osg::Vec3f& point) const
@@ -230,7 +236,7 @@ namespace MWRender
                 for (unsigned vertex = 0; vertex < 3; ++vertex)
                 {
                     const auto relative = osg::Vec3d(vertices[vertex]) - mOrigin;
-                    if (!std::isfinite(relative.length2()) || std::abs(relative * mNormal) > PlaneTolerance)
+                    if (!std::isfinite(relative.length2()) || std::abs(relative * mNormal) > mPlaneTolerance)
                         return {};
                     result.push_back(project(vertices[vertex]));
                 }
@@ -279,6 +285,31 @@ namespace MWRender
                 return osg::Vec3f(mOrigin + mHorizontal * point.x() + mVertical * point.y());
             }
         };
+    }
+
+    bool bloodStampContains(const BloodStamp& outer, const BloodStamp& inner, std::size_t maxWork)
+    {
+        if (outer.mTriangles.empty() || inner.mTriangles.empty()
+            || outer.mTriangles.size() % 3 || inner.mTriangles.size() % 3) return false;
+        Budget budget(maxWork);
+        try
+        {
+            for (std::size_t vertex = 0; vertex < inner.mTriangles.size(); vertex += 3)
+            {
+                budget.spend();
+                const Face face(inner.mTriangles.data() + vertex);
+                if (face.mTriangle.empty()) return false;
+                std::vector<Polygon> pieces{ face.mTriangle };
+                for (std::size_t other = 0; other < outer.mTriangles.size() && !pieces.empty(); other += 3)
+                {
+                    const auto covered = face.coplanarTriangle(outer.mTriangles.data() + other, budget);
+                    if (!covered.empty()) subtract(pieces, covered, 0, budget);
+                }
+                if (!pieces.empty()) return false;
+            }
+        }
+        catch (const BudgetExhausted&) { return false; }
+        return true;
     }
 
     std::vector<osg::Vec3f> clipBloodCoverage(const BloodStamp& incoming,

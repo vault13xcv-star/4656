@@ -112,7 +112,7 @@ int main(int argc, char** argv)
             auto* ambient = static_cast<osg::LightModel*>(state->getAttribute(osg::StateAttribute::LIGHTMODEL));
             check(ambient, "Blood sprite fixture lost the real ambient light state");
             MWRender::BloodTrail airborne(*root, {}, {});
-            airborne.update(.1f, { { { 0, 0, 40 }, { 1, 0, 0 }, 1, true } }, .1f, .14f);
+            airborne.update(.1f, { { { 507904, -188416, 552 }, { 1, 0, 0 }, 1, true } }, .1f, .14f);
             check(airborne.particleCount() == 1, "Isolated sprite fixture emitted an unexpected droplet count");
             auto* spriteNode = root->getChild(0)->asGroup()->getChild(0)->asGeode();
             auto* mesh = spriteNode->getDrawable(0)->asGeometry();
@@ -121,11 +121,12 @@ int main(int argc, char** argv)
             auto* travel = static_cast<osg::Vec3Array*>(mesh->getNormalArray());
             check(vertices->size() == 4 && mesh->getPrimitiveSet(0)->getNumIndices() == 6,
                 "A visible blood droplet still used solid geometry rather than a two-triangle sprite");
-            const auto center = (*vertices)[0];
+            const auto localCenter = (*vertices)[0];
+            const osg::Vec3d center = osg::Vec3d(localCenter) * osg::computeLocalToWorld(mesh->getParentalNodePaths().front());
             const float naturalRadius = std::sqrt((*sizes)[0].length2());
             const auto naturalBounds = mesh->getBoundingBox();
-            check(naturalBounds.contains(center - osg::Vec3f(naturalRadius, naturalRadius, naturalRadius))
-                && naturalBounds.contains(center + osg::Vec3f(naturalRadius, naturalRadius, naturalRadius)),
+            check(naturalBounds.contains(localCenter - osg::Vec3f(naturalRadius, naturalRadius, naturalRadius))
+                && naturalBounds.contains(localCenter + osg::Vec3f(naturalRadius, naturalRadius, naturalRadius)),
                 "GPU-expanded blood sprites were culled using their degenerate center-only CPU bounds");
             auto* texture = dynamic_cast<osg::Texture2D*>(spriteNode->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
             check(texture && texture->getImage(), "Blood sprites did not use a shared alpha-mask texture");
@@ -143,7 +144,7 @@ int main(int argc, char** argv)
             // corners independently of subpixel rounding at the default size.
             for (auto& size : *sizes) size.set(6, 10);
             sizes->dirty();
-            mesh->setInitialBound(osg::BoundingBox(center - osg::Vec3f(15, 15, 15), center + osg::Vec3f(15, 15, 15)));
+            mesh->setInitialBound(osg::BoundingBox(localCenter - osg::Vec3f(15, 15, 15), localCenter + osg::Vec3f(15, 15, 15)));
             mesh->dirtyBound();
             const auto read = [&] {
                 viewer.frame(); glFinish();

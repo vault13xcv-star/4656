@@ -30,10 +30,10 @@ namespace MWRender
         {
             return std::isfinite(v.length2()) && v.normalize() > .0001f ? v : fallback;
         }
-        osg::Matrixf worldMatrix(osg::Node& root)
+        osg::Matrixd worldMatrix(osg::Node& root)
         {
             const auto paths = root.getParentalNodePaths();
-            return paths.empty() ? osg::Matrixf::identity() : osg::Matrixf(osg::computeLocalToWorld(paths.front()));
+            return paths.empty() ? osg::Matrixd::identity() : osg::computeLocalToWorld(paths.front());
         }
         osg::ref_ptr<osg::Geometry> geometry(osg::Vec3Array* vertices, osg::Vec3Array* normals,
             osg::Vec4Array* colors)
@@ -262,8 +262,7 @@ namespace MWRender
         static constexpr std::size_t MaxBinsPerStamp = 4096;
         static constexpr std::size_t MaxNearby = 128;
         static constexpr std::size_t MaxQueryVisits = 16384;
-        static constexpr std::size_t MaxRuntimeMasks = 8;
-        static constexpr std::size_t RuntimeWork = 2048;
+        static constexpr std::size_t RuntimeWork = 8192;
         struct Key
         {
             std::string mCell;
@@ -371,6 +370,8 @@ namespace MWRender
         static bool coversPoint(const BloodStamp& stamp, const osg::Vec3f& point)
         {
             const osg::Vec3d target(point);
+            const double tolerance = std::max(.12, std::max({ std::abs(double(point.x())),
+                std::abs(double(point.y())), std::abs(double(point.z())) }) * std::numeric_limits<float>::epsilon() * 4);
             for (std::size_t i = 0; i + 2 < stamp.mTriangles.size(); i += 3)
             {
                 const osg::Vec3d origin(stamp.mTriangles[i]);
@@ -381,7 +382,7 @@ namespace MWRender
                 const double length2 = normal.length2();
                 if (length2 <= 1e-16) continue;
                 const double height = relative * normal;
-                if (height * height > .12 * .12 * length2) continue;
+                if (height * height > tolerance * tolerance * length2) continue;
                 const double u = ((relative ^ b) * normal) / length2;
                 const double v = ((a ^ relative) * normal) / length2;
                 if (u >= -1e-7 && v >= -1e-7 && u + v <= 1.0000001) return true;
@@ -559,12 +560,17 @@ namespace MWRender
             const auto& existing = candidate->mStamp;
             if (existing.mNormal.z() < .7f || existing.mNormal * stamp.mNormal < .98f) continue;
             const auto offset = stamp.mCenter - existing.mCenter;
-            if (std::abs(offset * existing.mNormal) > .12f) continue;
             const auto tangent = offset - existing.mNormal * (offset * existing.mNormal);
             const float reach = std::max(6.f, existing.mRadius * .8f + stamp.mRadius * .3f);
             const float distance = tangent.length2();
             if (distance > reach * reach) continue;
-            const float score = distance / (reach * reach) + (existing.mPool ? 0.f : .25f);
+            // On curved ground, the impact can be on this pool's actual
+            // receiver while lying outside its anchor's tangent plane.
+            const bool covered = CoverageIndex::coversPoint(existing, stamp.mCenter);
+            if (!covered && std::abs(offset * existing.mNormal) > 2.f) continue;
+            // Keep feeding the established puddle rather than promoting each
+            // nearby airborne impact into a separate, competing pool anchor.
+            const float score = distance / (reach * reach) - (existing.mPool ? 2.f : 0.f) - (covered ? 1.f : 0.f);
             if (score < nearest) { nearest = score; pool = candidate; }
         }
         if (!pool) return false;
@@ -614,22 +620,17 @@ namespace MWRender
         std::vector<Stain*> absorbed;
         const auto oldBounds = CoverageIndex::bounds(pool->mStamp);
         const auto grownBounds = CoverageIndex::bounds(grown);
-        const BloodStamp oldCopy = pool->mStamp, grownCopy = grown;
         for (Stain* other : neighbors.mStains)
         {
             if (mPoolAbsorptionChecks >= MaxPoolAbsorptionChecksPerFrame) break;
             if (other->mStamp.mNormal * grown.mNormal < .98f || other->mStamp.mNormal.z() < .7f
-                || other->mStamp.mTriangles.size() > 24) continue;
+                || other->mStamp.mRadius > grown.mRadius) continue;
             const auto otherBounds = CoverageIndex::bounds(other->mStamp);
             const bool insideOldBox = CoverageIndex::containsBounds(oldBounds, otherBounds);
             if (!insideOldBox && !CoverageIndex::containsBounds(grownBounds, otherBounds)) continue;
             ++mPoolAbsorptionChecks;
-            bool completed = false;
             const auto& covering = insideOldBox ? pool->mStamp : grown;
-            const auto& copy = insideOldBox ? oldCopy : grownCopy;
-            const auto remainder = clipBloodCoverage(other->mStamp, { &covering, &copy },
-                ESM::BrutalBloodState::MaxVerticesPerStain, 512, &completed);
-            if (!completed || !remainder.empty()) continue;
+            if (!bloodStampContains(covering, other->mStamp)) continue;
             if (insideOldBox) eraseStain(other->mSelf);
             else absorbed.push_back(other);
         }
@@ -641,7 +642,6 @@ namespace MWRender
         masks.reserve(neighbors.mStains.size());
         for (const Stain* other : neighbors.mStains)
             if (std::find(absorbed.begin(), absorbed.end(), other) == absorbed.end()) masks.push_back(&other->mStamp);
-        if (masks.size() > CoverageIndex::MaxRuntimeMasks) return coveredBefore;
         grown.mTriangles = clipBloodCoverage(grown, masks, ESM::BrutalBloodState::MaxVerticesPerStain,
             CoverageIndex::RuntimeWork);
         std::size_t removedVertices = 0;
@@ -681,7 +681,7 @@ namespace MWRender
         if (incoming.mTriangles.empty()) incoming.mTriangles = stamp.mProjector(stamp.mCenter, stamp.mNormal, stamp.mRadius);
         if (!validStamp(incoming)) return;
         const auto nearby = mCoverage->query(cell, CoverageIndex::bounds(incoming));
-        if (!nearby.mComplete || (stamp.mProjector && nearby.mStains.size() > CoverageIndex::MaxRuntimeMasks)) return;
+        if (!nearby.mComplete) return;
         std::vector<const BloodStamp*> masks;
         masks.reserve(nearby.mStains.size());
         for (const Stain* other : nearby.mStains) masks.push_back(&other->mStamp);
@@ -1050,7 +1050,10 @@ namespace MWRender
         amount = Ragdoll::bloodEmissionScale(amount);
         const auto sourceCount = std::min(sources.size(), MaxSources);
         mRemainders.resize(sourceCount, 0);
-        mPoolTimes.resize(sourceCount, 0);
+        // Establish the common footprint on the first emitted drop. Waiting
+        // 250 ms lets a multi-wound corpse first fill it with competing tiny
+        // splats, blocking the later large pool's bounded clipping work.
+        mPoolTimes.resize(sourceCount, BloodDecals::PoolGrowthInterval);
         mPendingDrops.assign(sourceCount, 0);
         unsigned pending = 0;
         for (std::size_t i = 0; i < sourceCount; ++i)
@@ -1128,6 +1131,7 @@ namespace MWRender
         if (vertices->empty() && mDrops.empty()) return;
         vertices->clear(); normals->clear(); colors->clear(); uv->clear(); sizes->clear(); indices->clear();
         osg::BoundingBox bounds;
+        const osg::Vec3f origin = mDrops.empty() ? osg::Vec3f() : mDrops.front().mPosition;
         const std::array<osg::Vec2f, SpriteVertices> corners{
             osg::Vec2f(0, 0), osg::Vec2f(1, 0), osg::Vec2f(1, 1), osg::Vec2f(0, 1)
         };
@@ -1142,7 +1146,7 @@ namespace MWRender
             // stretching its long axis along the projected flight direction.
             for (const auto& corner : corners)
             {
-                vertices->push_back(drop.mPosition);
+                vertices->push_back(drop.mPosition - origin);
                 normals->push_back(axis);
                 colors->push_back({ .26f, .007f, .028f, .94f });
                 uv->push_back(corner);
@@ -1154,12 +1158,12 @@ namespace MWRender
             // Include every possible billboard orientation in culling/light
             // selection bounds, including when viewed along its travel axis.
             const float extent = size.length();
-            bounds.expandBy(drop.mPosition - osg::Vec3f(extent, extent, extent));
-            bounds.expandBy(drop.mPosition + osg::Vec3f(extent, extent, extent));
+            bounds.expandBy(drop.mPosition - origin - osg::Vec3f(extent, extent, extent));
+            bounds.expandBy(drop.mPosition - origin + osg::Vec3f(extent, extent, extent));
         }
         vertices->dirty(); normals->dirty(); colors->dirty(); uv->dirty(); sizes->dirty(); indices->dirty();
         mGeometry->setInitialBound(bounds);
         mGeometry->dirtyBound();
-        mTransform->setMatrix(osg::Matrixf::inverse(worldMatrix(*mRoot)));
+        mTransform->setMatrix(osg::Matrixd::translate(osg::Vec3d(origin)) * osg::Matrixd::inverse(worldMatrix(*mRoot)));
     }
 }

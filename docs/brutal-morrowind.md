@@ -1,8 +1,41 @@
-# Brutal Morrowind 0.7.0-preview.6
+# Brutal Morrowind 0.7.0-preview.7
 
 This blood update starts from the exact stable preview.2 source revision
 `a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
 experimental changes from other branches. Combat calculations are unchanged.
+
+## Corrections after preview.6
+
+Grounded wounds establish their shared puddle on the first emitted blood drop,
+instead of first filling its footprint with a quarter-second of separate impact
+decals. Deposits prefer an existing pool, including its fitted faces on curved
+ground. Growing pools absorb fully contained details using a bounded union-of-
+faces containment proof; holes and separate floors cannot be absorbed by radius
+alone. The arbitrary eight-neighbor rejection is removed: actual overlap work
+remains bounded, and no more than two blood layers cover a receiver point.
+Receiver matching accounts for float precision at distant exterior coordinates,
+where clipped narrow triangles previously escaped the overlap test.
+
+Static surface snapshots are refreshed in their existing shared cache slots,
+rather than appending duplicates that evict another bleeding body's receiver.
+Nearby exterior cells in the same worldspace share snapshots. Unchanged snapshots
+are reused for two seconds; the two-builds-per-frame limit remains, and a valid
+old snapshot stays usable if that frame's refresh budget is exhausted. Explicit
+movement, deletion and cell invalidation still invalidate affected receivers.
+
+Ballistic sprite fountains no longer also spawn legacy NIF blood effects at
+every wound pulse. The billboard vertices now use a local origin with a double-
+precision transform, preserving their visibility at large exterior coordinates.
+Fallback callers without a ballistic trail retain their original blood effect.
+Blood amount, stain lifetime, the original wall/floor artwork and combat rules
+retain their preview.6 settings.
+
+Regression checks compare twelve bleeding wounds on three corpses on flat tiled
+floors and curved, densely tessellated ground at distant world coordinates. They
+sample the two-layer bound, substantial pool growth and comparable ground
+coverage. The ten-corpse stress check rejects duplicate legacy NIF spawning, and
+actual normal/reversed-Z GL checks render the billboards at exterior coordinates.
+These checks do not substitute for an in-game FPS measurement with user assets.
 
 ## Pool overdraw and sprite droplets
 
@@ -13,7 +46,7 @@ hash finds nearby stains of any age without repeatedly scanning the full cache.
 Overlapping stacks from older saves are compacted while preserving saved ages.
 
 Repeated floor impacts feed one growing pool. Growth is projected again onto
-the visible receiver mesh at most four times per second, up to a configurable
+the visible receiver mesh at most four times per second, up to a
 96-unit radius. Dense native impacts are routed before triangle projection, so
 redundant drops do not repeatedly tessellate the same floor. Texture identity is
 preserved as the pool grows. The existing total stain and geometry caps remain.

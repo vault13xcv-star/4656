@@ -292,17 +292,17 @@ namespace
             bool covered = false;
             for (std::size_t corner = 0; corner + 2 < stain.mStamp.mTriangles.size(); corner += 3)
             {
-                const auto& a = stain.mStamp.mTriangles[corner];
-                const auto& b = stain.mStamp.mTriangles[corner + 1];
-                const auto& c = stain.mStamp.mTriangles[corner + 2];
+                const osg::Vec3d a(stain.mStamp.mTriangles[corner]);
+                const osg::Vec3d b(stain.mStamp.mTriangles[corner + 1]);
+                const osg::Vec3d c(stain.mStamp.mTriangles[corner + 2]);
                 auto normal = (b - a) ^ (c - a);
-                if (normal.normalize() < .000001f || std::abs((point - a) * normal) > .04f) continue;
-                const auto edge0 = b - a, edge1 = c - a, relative = point - a;
-                const float aa = edge0 * edge0, ab = edge0 * edge1, bb = edge1 * edge1;
-                const float ar = edge0 * relative, br = edge1 * relative, determinant = aa * bb - ab * ab;
-                if (std::abs(determinant) < .0000001f) continue;
-                const float u = (bb * ar - ab * br) / determinant;
-                const float v = (aa * br - ab * ar) / determinant;
+                if (normal.normalize() < .000001 || std::abs((osg::Vec3d(point) - a) * normal) > .04) continue;
+                const auto edge0 = b - a, edge1 = c - a, relative = osg::Vec3d(point) - a;
+                const double aa = edge0 * edge0, ab = edge0 * edge1, bb = edge1 * edge1;
+                const double ar = edge0 * relative, br = edge1 * relative, determinant = aa * bb - ab * ab;
+                if (determinant < 1e-12) continue;
+                const double u = (bb * ar - ab * br) / determinant;
+                const double v = (aa * br - ab * ar) / determinant;
                 if (u >= -.00001f && v >= -.00001f && u + v <= 1.00001f) { covered = true; break; }
             }
             layers += covered;
@@ -544,8 +544,9 @@ namespace
                 for (const auto& vertex : *vertices)
                 {
                     require(std::isfinite(vertex.length2()), "A blood spray emitted nonfinite visible geometry");
-                    result.mForward = std::max(result.mForward, vertex.x());
-                    minY = std::min(minY, vertex.y()); maxY = std::max(maxY, vertex.y());
+                    const auto world = vertex * worldMatrix(*mesh);
+                    result.mForward = std::max(result.mForward, world.x());
+                    minY = std::min(minY, world.y()); maxY = std::max(maxY, world.y());
                 }
                 const auto* sizes = static_cast<const osg::Vec2Array*>(mesh->getTexCoordArray(1));
                 require(vertices->size() == trail.particleCount() * MWRender::BloodTrail::SpriteVertices
@@ -666,6 +667,80 @@ namespace
         require(restingWounds(flat, false) == restingWounds(slope, true),
             "Ten outdoor resting wounds left substantially less floor blood than the interior equivalent");
         std::cout << "PASS equal interior/sloped-exterior pool formation for elevated lying wounds and bounded ground probing\n";
+    }
+
+    void bloodCrowdedUnevenGround()
+    {
+        const auto battle = [](bool outdoors) {
+            const osg::Vec3f origin = outdoors ? osg::Vec3f(507904, -188416, 512) : osg::Vec3f();
+            const auto height = [=](float x, float y) {
+                return outdoors ? .12f * x + .04f * y + .0008f * (x * x + y * y) : 0.f;
+            };
+            std::vector<osg::Vec3f> triangles;
+            const auto point = [&](float x, float y) { return origin + osg::Vec3f(x, y, height(x, y)); };
+            for (int x = -256; x < 256; x += 16)
+                for (int y = -256; y < 256; y += 16)
+                    for (const auto& corner : { point(x, y), point(x + 16, y), point(x + 16, y + 16),
+                             point(x, y), point(x + 16, y + 16), point(x, y + 16) })
+                        triangles.push_back(corner);
+            const auto surface = MWRender::BloodTrail::visualSurface(triangles);
+            require(bool(surface), "Uneven ground failed to build its visible blood surface");
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            MWRender::BloodDecals decals(*root);
+            std::vector<std::unique_ptr<MWRender::BloodTrail>> trails;
+            unsigned projections = 0;
+            for (int corpse = 0; corpse < 3; ++corpse)
+                trails.push_back(std::make_unique<MWRender::BloodTrail>(*root, surface.mRaycast,
+                    [&](const auto& stamp) { decals.add("battle", stamp); },
+                    [&](const auto& p, const auto& n, float r) { ++projections; return surface.mProjector(p, n, r); }, true));
+            for (unsigned frame = 0; frame < 600; ++frame)
+            {
+                decals.update(1.f / 60, 1200);
+                for (int corpse = 0; corpse < 3; ++corpse)
+                {
+                    std::vector<MWRender::BloodTrail::Source> wounds;
+                    for (int wound = 0; wound < 4; ++wound)
+                        wounds.push_back({ point((corpse - 1) * 112.f + (wound % 2) * 9.f,
+                            (wound / 2) * 12.f) + osg::Vec3f(0, 0, 28), { 0, 0, -1 }, .8f, false, true });
+                    trails[corpse]->update(1.f / 60, wounds, 3, frame / 60.f);
+                }
+            }
+            const auto states = decals.saveState();
+            float largest = 0;
+            for (const auto& state : states) largest = std::max(largest, state.mStamp.mRadius);
+            unsigned covered = 0;
+            for (int x = -180; x <= 180; x += 5)
+                for (int y = -60; y <= 60; y += 5)
+                {
+                    osg::Vec3f ground, normal;
+                    const auto p = point(x + .3f, y + .7f);
+                    require(surface.mRaycast(p + osg::Vec3f(0, 0, 10), p - osg::Vec3f(0, 0, 10), ground, normal),
+                        "Crowded ground coverage sample missed the receiver");
+                    const auto layers = bloodLayersAt(states, "battle", ground + normal * .03f);
+                    if (layers > 2)
+                    {
+                        std::cout << "BAD BLOOD " << outdoors << " x=" << x << " y=" << y << " layers=" << layers << std::endl;
+                        for (const auto& state : states)
+                            if (bloodLayersAt({state}, "battle", ground + normal * .03f))
+                                std::cout << "  radius=" << state.mStamp.mRadius << " center=" << state.mStamp.mCenter.x()
+                                          << ',' << state.mStamp.mCenter.y() << ',' << state.mStamp.mCenter.z()
+                                          << " vertices=" << state.mStamp.mTriangles.size() << std::endl;
+                    }
+                    require(layers <= 2, "Several wounds on uneven ground bypassed the two-layer limit");
+                    covered += layers > 0;
+                }
+            std::cout << "CROWDED BLOOD " << (outdoors ? "outdoors" : "indoors") << " stains=" << states.size()
+                      << " largest=" << largest << " covered=" << covered << " projections=" << projections << std::endl;
+            // Perimeter splashes remain separate; the sampled two-layer bound
+            // above, rather than a low cell-wide count, limits actual overdraw.
+            require(states.size() < 200, "Three stationary multi-wound corpses retained excessive tiny floor decals");
+            return std::pair(covered, largest);
+        };
+        const auto interior = battle(false), exterior = battle(true);
+        require(interior.second >= 32 && exterior.second >= 32,
+            "A sustained multi-wound fountain failed to grow a substantial pool");
+        require(exterior.first >= interior.first * .7f,
+            "Uneven outdoor terrain retained substantially less blood than an interior");
     }
 
     void bloodVisibleMeshReceiversAndProjection()
@@ -1807,7 +1882,7 @@ namespace
             }
             const unsigned before = sprites;
             for (auto& corpse : corpses) corpse->update(1.f / 60);
-            require(sprites - before <= corpses.size() * 2, "Severing more limbs multiplied whole NIF particle systems");
+            require(sprites == before, "A ballistic sprite fountain still spawned duplicate legacy NIF blood effects");
             decals.update(1.f / 60, 600);
             require(decals.size() <= MWRender::BloodDecals::MaxStains, "Concurrent wounds exceeded the blood memory limit");
             for (auto& fixture : fixtures)
@@ -2620,6 +2695,11 @@ int main(int argc, char** argv)
     try
     {
         std::cout << std::unitbuf;
+        if (argc > 1 && std::string(argv[1]) == "--blood-regression")
+        {
+            bloodCrowdedUnevenGround();
+            return 0;
+        }
         if (argc > 1 && std::string(argv[1]) == "--gore-benchmark")
         {
             goreLoadMeasurements(true);
@@ -2673,6 +2753,7 @@ int main(int argc, char** argv)
         bloodPoolHolesRemainEligibleForNewHits();
         bloodLaunchRangeAndVisibleWounds();
         bloodGroundPoolParity();
+        bloodCrowdedUnevenGround();
         bloodVisibleMeshReceiversAndProjection();
         bloodTexturesAndVisualIdentity();
         organicCreatureBloodAndDeathTrigger();
