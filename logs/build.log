@@ -1,79 +1,3 @@
-[786/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\inventorystore.cpp.obj
-[787/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionread.cpp.obj
-[788/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionopen.cpp.obj
-[789/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\timestamp.cpp.obj
-[790/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionalchemy.cpp.obj
-[791/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionharvest.cpp.obj
-[792/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionequip.cpp.obj
-[793/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionapply.cpp.obj
-[794/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actioneat.cpp.obj
-[795/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellstore.cpp.obj
-[796/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionrepair.cpp.obj
-[797/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionsoulgem.cpp.obj
-[798/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\livecellref.cpp.obj
-[799/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiondoor.cpp.obj
-[800/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\esmstore.cpp.obj
-[801/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\esmloader.cpp.obj
-[802/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontrap.cpp.obj
-[803/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\store.cpp.obj
-[804/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellref.cpp.obj
-[805/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\weather.cpp.obj
-[806/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellpreloader.cpp.obj
-[807/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\projectilemanager.cpp.obj
-[808/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\datetimemanager.cpp.obj
-[809/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\groundcoverstore.cpp.obj
-[810/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cell.cpp.obj
-[811/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\magiceffects.cpp.obj
-[812/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\trace.cpp.obj
-[813/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\itemphysics.cpp.obj
-D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(36): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(37): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-[814/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actor.cpp.obj
-[815/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\heightfield.cpp.obj
-[816/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\physicssystem.cpp.obj
-[817/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\closestnotmerayresultcallback.cpp.obj
-[818/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\stepper.cpp.obj
-[819/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\object.cpp.obj
-[820/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestresultcallback.cpp.obj
-[821/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectile.cpp.obj
-[822/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actorconvexcallback.cpp.obj
-[823/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestwrapper.cpp.obj
-[824/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectileconvexcallback.cpp.obj
-[825/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\movementsolver.cpp.obj
-[826/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\mtphysics.cpp.obj
-[827/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\activator.cpp.obj
-[828/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\classes.cpp.obj
-[829/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\weapon.cpp.obj
-[830/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creature.cpp.obj
-[831/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\potion.cpp.obj
-[832/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\npc.cpp.obj
-[833/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\armor.cpp.obj
-[834/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\apparatus.cpp.obj
-[835/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\book.cpp.obj
-[836/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\clothing.cpp.obj
-[837/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\container.cpp.obj
-[838/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\ingredient.cpp.obj
-[839/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\itemlevlist.cpp.obj
-[840/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\door.cpp.obj
-[841/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creaturelevlist.cpp.obj
-[842/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\lockpick.cpp.obj
-[843/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\light.cpp.obj
-[844/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\probe.cpp.obj
-[845/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\repair.cpp.obj
-[846/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\misc.cpp.obj
-[847/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\static.cpp.obj
-[848/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\bodypart.cpp.obj
-[849/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\actor.cpp.obj
-[850/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\esm4base.cpp.obj
-[851/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\esm4npc.cpp.obj
 [852/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\light4.cpp.obj
 [853/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\stat.cpp.obj
 [854/1004] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\magiceffects.cpp.obj
@@ -178,3 +102,79 @@ D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(37): warning C4244: '=': co
 [953/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\main.cpp.obj
 [954/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testutilpackage.cpp.obj
 [955/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\compression.cpp.obj
+[956/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\testendianness.cpp.obj
+[957/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testyaml.cpp.obj
+[958/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\progressreporter.cpp.obj
+[959/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\testmathutil.cpp.obj
+[960/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\testresourcehelpers.cpp.obj
+[961/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\misc\teststringops.cpp.obj
+[962/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\nif\testphysics.cpp.obj
+[963/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\nifosg\testnifloader.cpp.obj
+[964/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\nifloader\testbulletnifloader.cpp.obj
+[965/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\resource\testobjectcache.cpp.obj
+[966/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sceneutil\osgacontroller.cpp.obj
+[967/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\resource\testresourcesystem.cpp.obj
+[968/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sceneutil\testbloodexterior.cpp.obj
+D:\a\4656\4656\apps\components_tests\sceneutil\bloodterrainfixture.hpp(38): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+D:\a\4656\4656\apps\components_tests\sceneutil\bloodterrainfixture.hpp(38): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+D:\a\4656\4656\apps\components_tests\sceneutil\bloodterrainfixture.hpp(38): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+D:\a\4656\4656\apps\components_tests\sceneutil\bloodterrainfixture.hpp(38): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+D:\a\4656\4656\apps\components_tests\sceneutil\testbloodexterior.cpp(117): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\memory(3630): warning C4244: 'argument': conversion from '_Ty' to 'float', possible loss of data
+        with
+        [
+            _Ty=int
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\memory(3630): note: the template instantiation context (the oldest one first) is
+D:\a\4656\4656\apps\components_tests\sceneutil\bloodterrainfixture.hpp(90): note: see reference to function template instantiation 'std::unique_ptr<Terrain::QuadTreeWorld,std::default_delete<Terrain::QuadTreeWorld>> std::make_unique<Terrain::QuadTreeWorld,osg::ref_ptr<osg::Group>&,osg::ref_ptr<osg::Group>&,Resource::ResourceSystem*,BloodTest::ExteriorBloodStorage*,MWRender::VisMask,MWRender::VisMask,MWRender::VisMask,int,int,int,int,int,bool,const ESM::StringRefId&,int,0>(osg::ref_ptr<osg::Group> &,osg::ref_ptr<osg::Group> &,Resource::ResourceSystem *&&,BloodTest::ExteriorBloodStorage *&&,MWRender::VisMask &&,MWRender::VisMask &&,MWRender::VisMask &&,int &&,int &&,int &&,int &&,int &&,bool &&,const ESM::StringRefId &,int &&)' being compiled
+[969/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\binaryreader.cpp.obj
+[970/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\binarywriter.cpp.obj
+[971/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\sizeaccumulator.cpp.obj
+[972/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\serialization\integration.cpp.obj
+[973/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sceneutil\testbloodlighting.cpp.obj
+D:\a\4656\4656\.\apps/openmw/mwrender/brutalbloodlighting.hpp(51): warning C4244: '*=': conversion from '_Ty' to 'float', possible loss of data
+        with
+        [
+            _Ty=osg::Vec3d::value_type
+        ]
+D:\a\4656\4656\.\apps/openmw/mwrender/brutalbloodlighting.hpp(64): warning C4244: 'initializing': conversion from 'ptrdiff_t' to 'int', possible loss of data
+D:\a\4656\4656\.\apps/openmw/mwrender/brutalbloodlighting.hpp(64): warning C4244: 'initializing': conversion from 'ptrdiff_t' to 'const int', possible loss of data
+[974/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\settings\parser.cpp.obj
+[975/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\settings\shadermanager.cpp.obj
+[976/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\parsedefines.cpp.obj
+[977/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\parsefors.cpp.obj
+[978/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\parselinks.cpp.obj
+[979/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\settings\testvalues.cpp.obj
+[980/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\db.cpp.obj
+[981/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\shader\shadermanager.cpp.obj
+[982/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\statement.cpp.obj
+[983/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\transaction.cpp.obj
+[984/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\toutf8\toutf8.cpp.obj
+[985/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\__\openmw\mwrender\bloodsurface.cpp.obj
+[986/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\request.cpp.obj
+[987/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\__\openmw\mwrender\bloodsurfacevisitor.cpp.obj
+[988/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\main.cpp.obj
+[989/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\tooltips.cpp.obj
+[990/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwdialogue\testkeywordsearch.cpp.obj
+[991/1004] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\vfs\testpathutil.cpp.obj
+[992/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\weightedsearch.cpp.obj
+[993/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testduration.cpp.obj
+[994/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwscript\testscripts.cpp.obj
+[995/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
+[996/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testtimestamp.cpp.obj
+[997/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwphysics\testitems.cpp.obj
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(470): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(471): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(514): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
+[998/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
+[999/1004] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[1000/1004] Linking CXX executable components-tests.exe
+[1001/1004] Linking CXX executable openmw.exe
