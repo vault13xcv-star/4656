@@ -1560,6 +1560,7 @@ namespace MWRender
                     ? Misc::Rng::rollClosedProbability(MWBase::Environment::get().getWorld()->getPrng()) : 1.f;
                 config.mBleedDuration = 10.f * settings.mStatusDurationScale.get();
                 config.mBloodAmount = settings.mBloodAmount.get();
+                config.mBloodProjectionBudget=MWBase::Environment::get().getWorld()->getRenderingManager()->getBloodProjectionBudget();
                 if (mPtr.isInCell())
                 {
                     config.mBloodDeposit = [this](const BloodStamp& stamp) {

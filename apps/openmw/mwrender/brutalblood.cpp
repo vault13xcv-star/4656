@@ -14,6 +14,7 @@
 #include <array>
 #include <memory>
 #include <tuple>
+#include <chrono>
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
@@ -21,6 +22,33 @@
 
 namespace MWRender
 {
+    std::shared_ptr<BloodProjectionBudget::Client> BloodProjectionBudget::addClient()
+    {
+        auto client=std::make_shared<Client>();mClients.push_back(client);return client;
+    }
+    bool BloodProjectionBudget::take(const std::shared_ptr<Client>& client)
+    {
+        const auto frame=mFrame?mFrame():mManualFrame;
+        if (frame!=mLastFrame)
+        {
+            mLastFrame=frame;mJobs=0;mSpent=0;
+            std::erase_if(mClients,[](const auto& weak){return weak.expired();});
+            if (!mClients.empty()) mCursor%=mClients.size();
+        }
+        if (mJobs>=MaxJobs || mSpent>=MaxMilliseconds || mClients.empty()) return false;
+        for (std::size_t i=0;i<mClients.size();++i)
+        {
+            const auto next=mClients[mCursor].lock();
+            if (next && next->mPending)
+            {
+                if (next!=client) return false;
+                mCursor=(mCursor+1)%mClients.size();++mJobs;return true;
+            }
+            mCursor=(mCursor+1)%mClients.size();
+        }
+        return false;
+    }
+
     namespace
     {
         osg::Vec3f unit(osg::Vec3f v, osg::Vec3f fallback = { 0, 0, 1 })
@@ -418,7 +446,7 @@ namespace MWRender
     {
         const auto batch=mBatches.find(cell);
         if (batch==mBatches.end()) return {};
-        const auto& buckets=stamp.mPool ? batch->second.mPools : batch->second.mSpatial;
+        const auto& buckets=batch->second.mSpatial;
         const float reach=stamp.mRadius+batch->second.mMaxRadius;
         const osg::Vec3f extent(reach,reach,reach);
         const auto lo=spatialKey(stamp.mCenter-extent), hi=spatialKey(stamp.mCenter+extent);
@@ -444,7 +472,6 @@ namespace MWRender
         stain.mFullSquare=fullSquare(stain.mStamp);
         auto& batch=mBatches[stain.mCell];
         batch.mSpatial[spatialKey(stain.mStamp.mCenter)].push_back(&stain);
-        if (stain.mStamp.mPool) batch.mPools[spatialKey(stain.mStamp.mCenter)].push_back(&stain);
         batch.mMaxRadius=std::max(batch.mMaxRadius,stain.mStamp.mRadius);
     }
     void BloodDecals::unindex(const Stain& stain)
@@ -454,12 +481,6 @@ namespace MWRender
         if (it==buckets.end()) return;
         std::erase(it->second,&stain);
         if (it->second.empty()) buckets.erase(it);
-        if (stain.mStamp.mPool)
-        {
-            auto& pools=mBatches.find(stain.mCell)->second.mPools;
-            const auto pool=pools.find(spatialKey(stain.mStamp.mCenter));
-            if (pool!=pools.end()) {std::erase(pool->second,&stain);if (pool->second.empty()) pools.erase(pool);}
-        }
     }
     bool BloodDecals::redundant(const BloodStamp& stamp, const std::vector<Stain*>& neighbours) const
     {
@@ -516,34 +537,11 @@ namespace MWRender
 
     void BloodDecals::add(const std::string& cell, const BloodStamp& stamp)
     {
-        if (!validStamp(stamp)) return;
+        if (stamp.mPool || !validStamp(stamp)) return;
         BloodStamp chosen=stamp;
         if (!chosen.mVisualSeed) chosen.mVisualSeed=nextSeed(mRandom);
-        const auto neighbours=(mAtlas || stamp.mPool) ? nearby(cell,chosen) : std::vector<Stain*>{};
+        const auto neighbours=mAtlas ? nearby(cell,chosen) : std::vector<Stain*>{};
         if (redundant(chosen,neighbours)) return;
-        if (stamp.mPool)
-        {
-            Stain* newest=nullptr;
-            for (auto* it : neighbours)
-                if (it->mStamp.mPool && it->mStamp.mNormal * stamp.mNormal > .95f
-                    && (it->mStamp.mCenter - stamp.mCenter).length2() < std::pow(std::min(stamp.mRadius, it->mStamp.mRadius) * .7f, 2))
-                    if (!newest || it->mSequence>newest->mSequence) newest=it;
-            if (auto* it=newest)
-                {
-                    if (stamp.mRadius > it->mStamp.mRadius
-                        && mVertexCount - it->mStamp.mTriangles.size() + stamp.mTriangles.size() <= MaxVertices)
-                    {
-                        mVertexCount -= it->mStamp.mTriangles.size();
-                        unindex(*it);
-                        it->mStamp = chosen;
-                        mVertexCount += it->mStamp.mTriangles.size();
-                        index(*it);
-                    }
-                    it->mAge = 0;
-                    dirty(*it);
-                    return;
-                }
-        }
         // Bounded memory even with hundreds of simultaneous gore emitters.
         while (!mStains.empty() && (mStains.size() >= MaxStains
             || mVertexCount + stamp.mTriangles.size() > MaxVertices))
@@ -707,7 +705,7 @@ namespace MWRender
             for (auto& [id, chunk] : batch.mChunks)
                 if (chunk.mTransform) mParent->removeChild(chunk.mTransform);
             batch.mChunks.clear();
-            batch.mSpatial.clear(); batch.mPools.clear(); batch.mMaxRadius=0;
+            batch.mSpatial.clear(); batch.mMaxRadius=0;
         }
         mStains.clear();
         mVertexCount = 0;
@@ -715,6 +713,7 @@ namespace MWRender
         mTimeUniform->set(0.f);
         for (auto stain : state)
         {
+            if (stain.mStamp.mPool) continue; // Retire old procedural pools, including saved ones.
             if (!std::isfinite(stain.mAge) || stain.mAge < 0 || stain.mAge >= 1800) continue;
             if (mStains.size() >= MaxStains || !validStamp(stain.mStamp)
                 || mVertexCount + stain.mStamp.mTriangles.size() > MaxVertices) continue;
@@ -759,12 +758,13 @@ namespace MWRender
         restoreState(state);
     }
 
-    BloodTrail::BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector, Raycast poolRaycast,
-        std::function<bool()> ready)
+    BloodTrail::BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector,
+        std::function<bool()> ready, std::shared_ptr<BloodProjectionBudget> budget)
         : mRoot(&root), mTransform(new osg::MatrixTransform)
         , mGeometry(geometry(new osg::Vec3Array, new osg::Vec3Array, new osg::Vec4Array))
-        , mRaycast(std::move(raycast)), mPoolRaycast(std::move(poolRaycast)), mProjector(std::move(projector)), mReady(std::move(ready))
+        , mRaycast(std::move(raycast)), mProjector(std::move(projector)), mReady(std::move(ready))
         , mDeposit(std::move(deposit))
+        , mBudget(std::move(budget)), mBudgetClient(mBudget?mBudget->addClient():nullptr)
     {
         mTransform->setName("Brutal Morrowind ballistic blood");
         mTransform->setNodeMask(Mask_Effect);
@@ -853,58 +853,27 @@ namespace MWRender
         return { ray, [ray](const auto& p, const auto& n, float r) { return collisionSplat(ray,p,n,r); } };
     }
 
-    void BloodTrail::stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool)
+    void BloodTrail::stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius)
     {
         if (!mDeposit || !mRaycast) return;
-        const auto& ray = pool && mPoolRaycast ? mPoolRaycast : mRaycast;
         BloodStamp stamp;
-        stamp.mCenter = position;
-        stamp.mNormal = unit(normal);
-        stamp.mRadius = radius;
-        stamp.mPool = pool;
-        if (!pool)
-        {
-            stamp.mVisualSeed = nextSeed(mRandom);
-            stamp.mRadius *= 3.f * (.9f + random() * .2f);
-            stamp.mTriangles = mProjector ? mProjector(position, stamp.mNormal, stamp.mRadius)
-                : collisionSplat(ray, position, stamp.mNormal, stamp.mRadius);
-            if (validStamp(stamp)) mDeposit(stamp);
-            return;
-        }
-        const auto u = unit(stamp.mNormal ^ osg::Vec3f(0, 0, 1), { 1, 0, 0 });
-        const auto v = unit(stamp.mNormal ^ u);
-        std::vector<osg::Vec3f> rim;
-        std::vector<bool> valid;
-        for (int i = 0; i < 16; ++i)
-        {
-            const float angle = i * 6.2831853f / 16;
-            const float r = radius * (.76f + random() * .24f);
-            const auto p = position + (u * std::cos(angle) + v * std::sin(angle)) * r;
-            osg::Vec3f projected, n;
-            const bool hit = ray(p + stamp.mNormal * 2.f, p - stamp.mNormal * 3.f, projected, n)
-                && unit(n) * stamp.mNormal > .8f && std::abs((projected - position) * stamp.mNormal) < 2.f;
-            valid.push_back(hit);
-            rim.push_back(projected + stamp.mNormal * .06f);
-        }
-        for (unsigned i = 0; i < rim.size(); ++i)
-        {
-            const auto next = (i + 1) % rim.size();
-            if (!valid[i] || !valid[next]) continue;
-            stamp.mTriangles.insert(stamp.mTriangles.end(), { position + stamp.mNormal * .06f, rim[i], rim[next] });
-        }
-        if (!stamp.mTriangles.empty()) mDeposit(stamp);
+        stamp.mCenter=position;stamp.mNormal=unit(normal);
+        stamp.mVisualSeed=nextSeed(mRandom);
+        stamp.mRadius=radius*3.f*(.9f+random()*.2f);
+        stamp.mTriangles=mProjector?mProjector(position,stamp.mNormal,stamp.mRadius)
+            :collisionSplat(mRaycast,position,stamp.mNormal,stamp.mRadius);
+        if (validStamp(stamp)) mDeposit(stamp);
     }
     void BloodTrail::update(float duration, const std::vector<Source>& sources, float amount, float age)
     {
         if (!std::isfinite(duration) || duration <= 0) return;
         const float dt = std::min(duration, .1f);
-        const float poolAmount = Ragdoll::bloodAmountMultiplier(amount);
         const float emission = Ragdoll::bloodEmissionScale(amount);
         const float launchScale = Ragdoll::bloodLaunchScale(amount);
         const float spreadScale = Ragdoll::bloodSpreadScale(amount);
         const float sizeScale = std::sqrt(emission);
         const auto sourceCount = std::min(sources.size(), MaxSources);
-        mRemainders.resize(sourceCount, 0); mPoolTimes.resize(sourceCount, 0); mPoolRemainders.resize(sourceCount, 0);
+        mRemainders.resize(sourceCount,0);
         mPendingDrops.assign(sourceCount, 0);
         unsigned pending = 0;
         for (std::size_t i=0;i<sourceCount;++i)
@@ -916,20 +885,6 @@ namespace MWRender
             mRemainders[i] += dt * emission * rate;
             const auto count = static_cast<unsigned>(mRemainders[i]);
             mRemainders[i] -= count; mPendingDrops[i] = count; pending += count;
-            mPoolRemainders[i] += dt * poolAmount * (source.mNeck ? 60.f : 14.f);
-            const auto poolCount = static_cast<unsigned>(mPoolRemainders[i]);
-            mPoolRemainders[i] -= poolCount;
-            // Stable preview.2 pool timing, probe, shape and radius formula.
-            mPoolTimes[i] += dt;
-            if (poolAmount > 0 && poolCount > 0 && mPoolTimes[i] >= .25f)
-            {
-                mPoolTimes[i] = 0;
-                osg::Vec3f point, normal;
-                const auto& ray = mPoolRaycast ? mPoolRaycast : mRaycast;
-                if (ray && ray(source.mPosition, source.mPosition-osg::Vec3f(0,0,18), point, normal)
-                    && normal.z() > .65f)
-                    stamp(point,normal,std::min(28.f,(3.f+std::sqrt(std::max(0.f,age))*5.f)*std::sqrt(poolAmount)),true);
-            }
         }
         if (sourceCount) mNextSource %= sourceCount;
         while (pending && mDrops.size() < MaxParticles)
@@ -948,8 +903,11 @@ namespace MWRender
             mDrops.push_back({source.mPosition,direction*speed*launchScale*std::clamp(source.mPressure,.15f,1.f),0,width});
             ++mEmitted;
         }
+        if (emission<=0) {mDrops.clear();mImpacts.clear();}
+        for (auto& impact:mImpacts) impact.mAge+=duration;
+        std::erase_if(mImpacts,[](const auto& impact){return impact.mAge>MaxPendingAge;});
         unsigned splats=0;
-        const bool ready = !mReady || mReady();
+        const bool ready=(!mDrops.empty() || !mImpacts.empty()) && (!mReady || mReady());
         for (auto& drop:mDrops)
         {
             if (!ready) { drop.mAge += dt; continue; }
@@ -957,8 +915,21 @@ namespace MWRender
             osg::Vec3f point,normal;
             if (mRaycast && mRaycast(drop.mPosition,next,point,normal))
             {
-                if (emission>0 && splats++<MaxImpactSplats)
-                    stamp(point,normal,(1.f+random()*3.2f)*std::sqrt(emission),false);
+                if (emission>0 && mDeposit && splats++<MaxImpactSplats)
+                {
+                    const float radius=(1.f+random()*3.2f)*std::sqrt(emission);
+                    // Combine nearby pending impacts before any expensive
+                    // surface projection. Other positions remain independent.
+                    auto same=std::find_if(mImpacts.begin(),mImpacts.end(),[&](const auto& impact) {
+                        return (impact.mPosition-point).length2()<9.f && impact.mNormal*normal>.98f;
+                    });
+                    if (same!=mImpacts.end()) same->mRadius=std::max(same->mRadius,radius);
+                    else
+                    {
+                        if (mImpacts.size()>=MaxQueuedImpacts) mImpacts.pop_front();
+                        mImpacts.push_back({point,normal,radius,0});
+                    }
+                }
                 drop.mAge=MaxDropAge+1;
             }
             else
@@ -967,6 +938,16 @@ namespace MWRender
             }
         }
         std::erase_if(mDrops,[](const auto& drop){return drop.mAge>MaxDropAge;});
+        if (mBudgetClient) mBudgetClient->mPending=ready && !mImpacts.empty();
+        for (unsigned i=0;ready && i<MaxProjectionsPerUpdate && !mImpacts.empty();++i)
+        {
+            if (mBudget && !mBudget->take(mBudgetClient)) break;
+            const auto impact=mImpacts.front();mImpacts.pop_front();
+            const auto start=std::chrono::steady_clock::now();
+            stamp(impact.mPosition,impact.mNormal,impact.mRadius);
+            if (mBudget) mBudget->complete(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
+            if (mBudgetClient) mBudgetClient->mPending=!mImpacts.empty();
+        }
         auto* vertices = static_cast<osg::Vec3Array*>(mGeometry->getVertexArray());
         auto* normals = static_cast<osg::Vec3Array*>(mGeometry->getNormalArray());
         auto* colors = static_cast<osg::Vec4Array*>(mGeometry->getColorArray());

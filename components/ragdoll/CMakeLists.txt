@@ -58,6 +58,7 @@ if(RAGDOLL_TEST_RENDERING)
         ../sceneutil/skeleton.cpp
         ../sceneutil/riggeometry.cpp
         ../sceneutil/morphgeometry.cpp
+        ../sceneutil/workqueue.cpp
         ../debug/debuglog.cpp
         ../files/conversion.cpp)
     target_compile_features(ragdoll-render-tests PRIVATE cxx_std_20)

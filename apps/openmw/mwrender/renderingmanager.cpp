@@ -257,6 +257,10 @@ namespace MWRender
         mResourceSystem->getSceneManager()->setIncrementalCompileOperation(mViewer->getIncrementalCompileOperation());
 
         mEffectManager = std::make_unique<EffectManager>(sceneRoot, mResourceSystem);
+        mBloodProjectionBudget=std::make_shared<BloodProjectionBudget>(
+            [viewer=osg::observer_ptr<osgViewer::Viewer>(mViewer)] {
+                return viewer.valid() && viewer->getFrameStamp() ? std::uint64_t(viewer->getFrameStamp()->getFrameNumber()) : 0;
+            });
         mBloodDecals = std::make_unique<BloodDecals>(*sceneRoot);
         const auto loadBloodTextures = [this](std::initializer_list<const char*> paths) {
             std::vector<osg::ref_ptr<osg::Image>> images;
@@ -707,6 +711,7 @@ namespace MWRender
             mBloodSurfaceTime += std::max(0.f, dt);
             mEffectManager->update(dt);
             mBloodDecals->update(dt, Settings::ragdoll().mBloodLifetime.get());
+            if (Settings::ragdoll().mBloodAmount.get()<=0) mBloodBursts.clear();
             unsigned bloodSnapshots = 0;
             for (auto& burst : mBloodBursts)
             {
@@ -743,7 +748,11 @@ namespace MWRender
                     ? std::vector<BloodTrail::Source>{ burst.mSource } : std::vector<BloodTrail::Source>{};
                 burst.mTrail->update(dt, source, Settings::ragdoll().mBloodAmount.get(), burst.mAge);
             }
-            std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > burst.mEmissionDuration + BloodTrail::MaxDropAge + .25f; });
+            std::erase_if(mBloodBursts, [](const auto& burst) {
+                return burst.mAge>burst.mEmissionDuration
+                    && ((!burst.mTrail->particleCount() && !burst.mTrail->queuedImpacts())
+                        || burst.mAge>burst.mEmissionDuration+BloodTrail::MaxDropAge+BloodTrail::MaxPendingAge+.25f);
+            });
             mSky->update(dt);
 
             const MWWorld::Ptr& player = mPlayerAnimation->getPtr();
@@ -1179,6 +1188,7 @@ namespace MWRender
             // All active users hold a wrapper of this slot. Invalidating it
             // immediately prevents projecting onto a moved/deleted receiver.
             *it->mSurface = {};
+            if (it->mBuild) it->mBuild->abort();
             it = mBloodSurfaceSnapshots.erase(it);
         }
     }
@@ -1202,10 +1212,6 @@ namespace MWRender
                 [slot](const auto& point, const auto& normal, float size) {
                     return slot->mProjector ? slot->mProjector(point, normal, size) : std::vector<osg::Vec3f>{};
                 },
-                [slot](const auto& from, const auto& to, auto& point, auto& normal) {
-                    const auto& ray = slot->mPoolRaycast ? slot->mPoolRaycast : slot->mRaycast;
-                    return ray && ray(from, to, point, normal);
-                },
                 [slot] { return bool(*slot); }
             };
         };
@@ -1217,6 +1223,12 @@ namespace MWRender
                 && it->mCell->getCell()->getWorldSpace() == cell->getCell()->getWorldSpace());
             if (sameWorld && distance + radius <= it->mRadius)
             {
+                if (it->mBuild)
+                {
+                    if (!it->mBuild->isDone()) return wrap(it->mSurface);
+                    *it->mSurface=it->mBuild->takeResult();
+                    it->mBuild=nullptr;
+                }
                 // World-object moves/deletions explicitly invalidate these
                 // slots. Reusing unchanged ground longer avoids building a
                 // separate terrain BVH twice a second for every open wound.
@@ -1232,7 +1244,7 @@ namespace MWRender
                 break;
             }
         }
-        if (mBloodSurfacesBuilt >= 2) return {};
+        if (mBloodSurfacesBuilt >= 1) return {};
         ++mBloodSurfacesBuilt;
         const auto filter = [cell](const osg::Node& node) {
             if (cell->isExterior()) return true;
@@ -1246,11 +1258,17 @@ namespace MWRender
         };
         const auto captureCenter = reusable == mBloodSurfaceSnapshots.end() ? center : reusable->mCenter;
         const float captureRadius = reusable == mBloodSurfaceSnapshots.end() ? radius + 128.f : reusable->mRadius;
-        const auto collisionTriangles = MWBase::Environment::get().getWorld()->getRagdollCollisionTriangles(captureCenter, captureRadius);
-        const auto triangles = cell->isExterior() ? collisionTriangles
+        auto triangles = cell->isExterior()
+            ? MWBase::Environment::get().getWorld()->getRagdollCollisionTriangles(captureCenter, captureRadius)
             : collectBloodSurfaceTriangles(*mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp(), false);
-        auto surface = cell->isExterior() ? BloodTrail::collisionSurface(triangles) : BloodTrail::visualSurface(triangles);
-        surface.mPoolRaycast = cell->isExterior() ? surface.mRaycast : BloodTrail::collisionRaycast(collisionTriangles);
+        if (triangles.empty()) return {};
+        auto surface = cell->isExterior() ? BloodTrail::collisionSurface(triangles) : BloodTrail::Surface{};
+        osg::ref_ptr<BloodSurfaceBuild> build;
+        if (!cell->isExterior())
+        {
+            build=new BloodSurfaceBuild(std::move(triangles));
+            mWorkQueue->addWorkItem(build,/*front=*/true);
+        }
         if (cell->isExterior() && mBloodSurfaceTime - mBloodSurfaceWarningTime >= 10)
         {
             osg::Vec3f ground, normal;
@@ -1263,13 +1281,14 @@ namespace MWRender
                     << " radius=" << captureRadius << " receiver triangles=" << triangles.size() / 3;
             }
         }
-        if (!surface) return {};
+        if (!surface && !build) return {};
         if (reusable != mBloodSurfaceSnapshots.end())
         {
             // Refresh the slot in place. Appending an equivalent snapshot used
             // to evict other corpses' still-live receivers from the 16 slots,
             // intermittently dropping their outdoor ray hits and floor stains.
             *reusable->mSurface = std::move(surface);
+            reusable->mBuild=std::move(build);
             reusable->mTime = mBloodSurfaceTime;
             const auto result = wrap(reusable->mSurface);
             auto recent = std::move(*reusable);
@@ -1281,9 +1300,10 @@ namespace MWRender
         if (mBloodSurfaceSnapshots.size() >= 16)
         {
             *mBloodSurfaceSnapshots.front().mSurface = {};
+            if (mBloodSurfaceSnapshots.front().mBuild) mBloodSurfaceSnapshots.front().mBuild->abort();
             mBloodSurfaceSnapshots.pop_front();
         }
-        mBloodSurfaceSnapshots.push_back({ cell, center, captureRadius, mBloodSurfaceTime, slot });
+        mBloodSurfaceSnapshots.push_back({ cell, center, captureRadius, mBloodSurfaceTime, slot,std::move(build) });
         return wrap(slot);
     }
 
@@ -1325,10 +1345,7 @@ namespace MWRender
             }, [this, cell](const auto& stamp) { mBloodDecals->add(cell, stamp); },
             [surface = burst.mSurface](const auto& p, const auto& n, float r) {
                 return surface->mProjector ? surface->mProjector(p, n, r) : std::vector<osg::Vec3f>{};
-            }, [surface = burst.mSurface](const auto& from, const auto& to, auto& point, auto& normal) {
-                const auto& ray = surface->mPoolRaycast ? surface->mPoolRaycast : surface->mRaycast;
-                return ray && ray(from, to, point, normal);
-            }, [surface = burst.mSurface] { return bool(*surface); });
+            }, [surface = burst.mSurface] { return bool(*surface); },mBloodProjectionBudget);
         if (mBloodBursts.size() >= 32)
         {
             const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),
@@ -1373,10 +1390,7 @@ namespace MWRender
             }, [this, cell = burst.mDepositCell](const auto& stamp) { mBloodDecals->add(*cell, stamp); },
             [surface = burst.mSurface](const auto& p, const auto& n, float r) {
                 return surface->mProjector ? surface->mProjector(p, n, r) : std::vector<osg::Vec3f>{};
-            }, [surface = burst.mSurface](const auto& from, const auto& to, auto& point, auto& normal) {
-                const auto& ray = surface->mPoolRaycast ? surface->mPoolRaycast : surface->mRaycast;
-                return ray && ray(from, to, point, normal);
-            }, [surface = burst.mSurface] { return bool(*surface); });
+            }, [surface = burst.mSurface] { return bool(*surface); },mBloodProjectionBudget);
         if (mBloodBursts.size() >= 32)
         {
             const auto disposable = std::find_if(mBloodBursts.begin(), mBloodBursts.end(),

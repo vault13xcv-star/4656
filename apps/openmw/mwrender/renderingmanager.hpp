@@ -5,6 +5,7 @@
 #include "renderinginterface.hpp"
 #include "rendermode.hpp"
 #include "brutalblood.hpp"
+#include "bloodsurfacebuild.hpp"
 #include <components/ragdoll/impact.hpp>
 
 #include <components/settings/settings.hpp>
@@ -208,6 +209,7 @@ namespace MWRender
 
         void removeEffect(std::string_view effectId);
         void addBloodDecal(const std::string& cell, const BloodStamp& stamp);
+        std::shared_ptr<BloodProjectionBudget> getBloodProjectionBudget() const { return mBloodProjectionBudget; }
         void emitBloodHit(const MWWorld::Ptr& victim, const Ragdoll::Impact& hit);
         void emitCreatureDeathBlood(const MWWorld::Ptr& victim);
         BloodTrail::Surface getBloodSurface(const MWWorld::CellStore* cell,
@@ -356,6 +358,7 @@ namespace MWRender
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
         std::unique_ptr<BloodDecals> mBloodDecals;
+        std::shared_ptr<BloodProjectionBudget> mBloodProjectionBudget;
         struct BloodSurfaceSnapshot
         {
             const MWWorld::CellStore* mCell = nullptr;
@@ -363,6 +366,7 @@ namespace MWRender
             float mRadius = 0;
             double mTime = 0;
             std::shared_ptr<BloodTrail::Surface> mSurface;
+            osg::ref_ptr<BloodSurfaceBuild> mBuild;
         };
         std::deque<BloodSurfaceSnapshot> mBloodSurfaceSnapshots;
         double mBloodSurfaceTime = 0;

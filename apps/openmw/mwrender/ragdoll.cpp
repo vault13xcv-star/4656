@@ -624,12 +624,11 @@ namespace MWRender
                         refreshBloodSurface(mBodyMatrices.front().getTrans());
                         return mBloodSurface.mProjector ? mBloodSurface.mProjector(point,normal,radius) : std::vector<osg::Vec3f>{};
                     }} : BloodTrail::Projector{},
-                    [this](const auto& a,const auto& b,auto& point,auto& normal){return bloodRay(a,b,point,normal);},
                     [this] {
                         if (!mSettings.mBloodSurface) return true;
                         refreshBloodSurface(mBodyMatrices.front().getTrans());
                         return bool(mBloodSurface);
-                    });
+                    },mSettings.mBloodProjectionBudget);
             if (mBlood)
             {
                 std::vector<BloodTrail::Source> sources;
@@ -661,7 +660,7 @@ namespace MWRender
                 }
                 mBlood->update(duration, sources, mSettings.mBloodAmount, mElapsed);
             }
-            if (mElapsed >= mSettings.mBleedDuration + BloodTrail::MaxDropAge + .25f)
+            if (mElapsed >= mSettings.mBleedDuration + BloodTrail::MaxDropAge + BloodTrail::MaxPendingAge + .25f)
             {
                 mBlood.reset();
                 mBloodColliders.clear();
@@ -813,7 +812,7 @@ namespace MWRender
 
         void freeze()
         {
-            if (mSettings.mBloodDeposit && mWounds.any() && mElapsed < mSettings.mBleedDuration + BloodTrail::MaxDropAge + .25f)
+            if (!mSettings.mBloodSurface && mSettings.mBloodDeposit && mWounds.any() && mElapsed < mSettings.mBleedDuration + BloodTrail::MaxDropAge + BloodTrail::MaxPendingAge + .25f)
                 mBloodColliders = makeCollisionMesh(mCollisionVertices);
             // Keep the final matrices and pose overrides, but release physics world and mesh memory.
             mSimulation.reset();

@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <array>
 #include <list>
+#include <deque>
+#include <memory>
 #include <functional>
 #include <map>
 #include <string>
@@ -19,6 +21,30 @@
 
 namespace MWRender
 {
+    // Shared by every bleeding corpse and hit burst. Work is served in round
+    // robin order; one detailed piece of furniture must not monopolize a frame.
+    class BloodProjectionBudget
+    {
+    public:
+        static constexpr unsigned MaxJobs = 4;
+        static constexpr double MaxMilliseconds = 1.5;
+        struct Client { bool mPending=false; };
+        using Frame = std::function<std::uint64_t()>;
+        explicit BloodProjectionBudget(Frame frame = {}) : mFrame(std::move(frame)) {}
+        std::shared_ptr<Client> addClient();
+        void setFrame(std::uint64_t frame) { mManualFrame=frame; }
+        bool take(const std::shared_ptr<Client>& client);
+        void complete(double milliseconds) { mSpent+=milliseconds; }
+        unsigned jobs() const { return mJobs; }
+    private:
+        Frame mFrame;
+        std::vector<std::weak_ptr<Client>> mClients;
+        std::uint64_t mLastFrame=~std::uint64_t(0), mManualFrame=0;
+        std::size_t mCursor=0;
+        unsigned mJobs=0;
+        double mSpent=0;
+    };
+
     struct BloodStamp
     {
         using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
@@ -74,7 +100,6 @@ namespace MWRender
         {
             std::map<std::uint64_t, Chunk> mChunks;
             std::map<SpatialKey, std::vector<Stain*>> mSpatial;
-            std::map<SpatialKey, std::vector<Stain*>> mPools;
             float mMaxRadius = 0;
             bool mActive = false;
         };
@@ -115,6 +140,9 @@ namespace MWRender
         static constexpr std::size_t MaxSources = 32;
         static constexpr float MaxDropAge = 4.f;
         static constexpr unsigned MaxImpactSplats = 8;
+        static constexpr unsigned MaxQueuedImpacts = 32;
+        static constexpr unsigned MaxProjectionsPerUpdate = 2;
+        static constexpr float MaxPendingAge = .5f;
         using Raycast = std::function<bool(const osg::Vec3f&, const osg::Vec3f&, osg::Vec3f&, osg::Vec3f&)>;
         using Deposit = std::function<void(const BloodStamp&)>;
         using Projector = BloodStamp::Projector;
@@ -122,7 +150,6 @@ namespace MWRender
         {
             Raycast mRaycast;
             Projector mProjector;
-            Raycast mPoolRaycast;
             std::function<bool()> mValid;
             explicit operator bool() const { return bool(mRaycast) && (!mValid || mValid()); }
         };
@@ -133,8 +160,8 @@ namespace MWRender
             bool mNeck = false;
             bool mMajorWound = false;
         };
-        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {}, Raycast poolRaycast = {},
-            std::function<bool()> ready = {});
+        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {},
+            std::function<bool()> ready = {}, std::shared_ptr<BloodProjectionBudget> budget = {});
         static Raycast collisionRaycast(const std::vector<osg::Vec3f>& triangles);
         static Surface visualSurface(const std::vector<osg::Vec3f>& triangles);
         static Surface collisionSurface(const std::vector<osg::Vec3f>& triangles);
@@ -142,6 +169,7 @@ namespace MWRender
         void update(float duration, const std::vector<Source>& sources, float amount, float age);
         std::size_t particleCount() const { return mDrops.size(); }
         std::size_t emittedCount() const { return mEmitted; }
+        std::size_t queuedImpacts() const { return mImpacts.size(); }
 
     private:
         struct Drop { osg::Vec3f mPosition, mVelocity; float mAge = 0, mSize = 1; };
@@ -149,18 +177,21 @@ namespace MWRender
         osg::ref_ptr<osg::MatrixTransform> mTransform;
         osg::ref_ptr<osg::Geometry> mGeometry;
         Raycast mRaycast;
-        Raycast mPoolRaycast;
         Projector mProjector;
         std::function<bool()> mReady;
         Deposit mDeposit;
         std::vector<Drop> mDrops;
-        std::vector<float> mRemainders, mPoolTimes, mPoolRemainders;
+        std::vector<float> mRemainders;
+        struct Impact { osg::Vec3f mPosition,mNormal; float mRadius=1,mAge=0; };
+        std::deque<Impact> mImpacts;
+        std::shared_ptr<BloodProjectionBudget> mBudget;
+        std::shared_ptr<BloodProjectionBudget::Client> mBudgetClient;
         std::vector<unsigned> mPendingDrops;
         std::size_t mNextSource = 0;
         std::size_t mEmitted = 0;
         unsigned mRandom = 0x91a37u;
         float random();
-        void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool);
+        void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius);
     };
 
     osg::ref_ptr<osg::StateSet> createWetGoreState(bool decal = false);

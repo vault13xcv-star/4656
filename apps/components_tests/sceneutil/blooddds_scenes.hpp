@@ -122,7 +122,7 @@ namespace BloodDDS
             const auto black=scene.read();
             require(std::all_of(black.begin(),black.end(),[](auto v){return v<=1;}),"DDS blood glowed without any scene light");
         }
-        // Pool output must be identical with or without the supplied artwork.
+        // Legacy procedural pool geometry must never reach the renderer.
         Scene scene(viewer,reversed,true);
         std::vector<unsigned char> reference;
         for(bool textured:{false,true})
@@ -137,11 +137,12 @@ namespace BloodDDS
                 pool.mTriangles.insert(pool.mTriangles.end(),{osg::Vec3f(),osg::Vec3f(std::cos(a)*36,std::sin(a)*36,0),osg::Vec3f(std::cos(b)*36,std::sin(b)*36,0)});
             }
             blood.add("pool",pool);blood.update(.1f,600);
+            require(blood.size()==0,"Procedural blood pool geometry is still rendered");
             const auto image=scene.read(textured?"stable-pool":"");
             if(!textured)reference=image;
             else require(image==reference,"DDS textures changed the stable untextured pool material");
         }
-        std::cout<<"PASS six uploaded DXT5 files, native ImageManager, visible floor/wall DDS, darkness and unchanged untextured pools\n";
+        std::cout<<"PASS six uploaded DXT5 files, native ImageManager, visible floor/wall DDS, darkness and removed legacy untextured pools\n";
     }
 
     void spray(osgViewer::Viewer& viewer,bool reversed)

@@ -73,6 +73,7 @@ namespace MWRender
             float mBloodAmount = 1.f;
             std::function<void(const BloodStamp&)> mBloodDeposit;
             std::function<BloodTrail::Surface(const osg::Vec3f&, float)> mBloodSurface;
+            std::shared_ptr<BloodProjectionBudget> mBloodProjectionBudget;
             std::function<void(const osg::Vec3f&)> mBloodEffect;
         };
 

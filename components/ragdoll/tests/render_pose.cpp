@@ -3,6 +3,7 @@
 #include <apps/openmw/mwrender/brutalgore.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
 #include <apps/openmw/mwrender/bloodsurfacevisitor.hpp>
+#include <apps/openmw/mwrender/bloodsurfacebuild.hpp>
 #include <apps/openmw/mwrender/vismask.hpp>
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
 #include <btBulletDynamicsCommon.h>
@@ -113,6 +114,63 @@ namespace
             { -1000, 1000, 0 } };
     }
 
+    void bloodWorkBenchmark()
+    {
+        using Clock=std::chrono::steady_clock;
+        using Trail=MWRender::BloodTrail;
+        const auto milliseconds=[](auto start) {return std::chrono::duration<double,std::milli>(Clock::now()-start).count();};
+        std::vector<osg::Vec3f> room;
+        const auto quad=[&](float x,float y,float z,float size) {
+            room.insert(room.end(),{{x,y,z},{x+size,y,z},{x+size,y+size,z},{x,y,z},{x+size,y+size,z},{x,y+size,z}});
+        };
+        for (int y=0;y<96;++y) for (int x=0;x<96;++x) quad(x*4-192,y*4-192,0,4);
+        // Dense carpets, low furniture, steps and stacked occluding faces.
+        for (int layer=0;layer<4;++layer)
+            for (int y=0;y<36;++y) for (int x=0;x<36;++x)
+                quad(x*3-54,y*3-54,2+layer*3,3);
+        const auto capture=Clock::now();
+        const auto indoor=Trail::visualSurface(room);
+        const auto outdoor=Trail::collisionSurface(floorSnapshot({},1000));
+        std::cout<<"BLOOD receiver_triangles="<<room.size()/3<<" capture_ms="<<milliseconds(capture)<<std::endl;
+        for (bool interior : {false,true}) for (float amount : {0.f,1.f,3.f})
+        {
+            osg::ref_ptr<osg::Group> root=new osg::Group;
+            const auto& surface=interior?indoor:outdoor;
+            std::size_t rays=0,projects=0,stains=0,pools=0;
+            double projectMs=0,total=0,maximum=0;
+            std::vector<double> frames;
+            std::vector<std::unique_ptr<Trail>> trails;
+            auto budget=std::make_shared<MWRender::BloodProjectionBudget>();
+            for (int i=0;i<5;++i)
+                trails.push_back(std::make_unique<Trail>(*root,
+                    [&](const auto& a,const auto& b,auto& p,auto& n){++rays;return surface.mRaycast(a,b,p,n);},
+                    [&](const auto& stamp){++stains;pools+=stamp.mPool;},
+                    [&](const auto& p,const auto& n,float r){const auto start=Clock::now();++projects;
+                        auto result=surface.mProjector(p,n,r);projectMs+=milliseconds(start);return result;},
+                    std::function<bool()>{},budget));
+            for (int frame=0;frame<480;++frame)
+            {
+                budget->setFrame(frame);
+                const auto start=Clock::now();
+                for (unsigned i=0;i<trails.size();++i)
+                {
+                    const float x=float(i)*12-24;
+                    const auto sources=frame<240 ? std::vector<Trail::Source>{
+                        {{x,0,20},{0,0,1},1,true,true},{{x,0,16},{1,0,.2f},1,false,true},
+                        {{x,0,16},{-1,0,.2f},1,false,true}} : std::vector<Trail::Source>{};
+                    trails[i]->update(1.f/60,sources,amount,frame/60.f);
+                }
+                require(budget->jobs()<=MWRender::BloodProjectionBudget::MaxJobs,"Blood projections escaped the global frame budget");
+                const double elapsed=milliseconds(start);
+                total+=elapsed;maximum=std::max(maximum,elapsed);frames.push_back(elapsed);
+            }
+            std::sort(frames.begin(),frames.end());
+            std::cout<<"BLOOD interior="<<interior<<" amount="<<amount<<" mean_ms="<<total/480
+                <<" p95_ms="<<frames[456]<<" max_ms="<<maximum<<" rays="<<rays<<" projects="<<projects
+                <<" project_ms="<<projectMs<<" stains="<<stains<<" pools="<<pools<<std::endl;
+        }
+    }
+
     void brutalBloodAndPersistence()
     {
         const auto ray = [](const osg::Vec3f& a, const osg::Vec3f& b, osg::Vec3f& p, osg::Vec3f& n) {
@@ -182,8 +240,7 @@ namespace
             overlapping.mStains.back().mAge = 500;
             MWRender::BloodDecals restored(*root);
             restored.loadSaveRecord(overlapping);
-            require(restored.size() == 2 && restored.saveState()[0].mAge == 599 && restored.saveState()[1].mAge == 500,
-                "Restoring overlapping pools merged them or renewed the ten-minute timer");
+            require(restored.size()==0,"Old procedural blood pools survived loading");
         }
         decals.clear(); decals.setCellActive("interior:a", true); decals.loadSaveRecord(record);
         require(decals.size() == 1 && std::abs(decals.saveState().front().mAge - 599) < .01f, "Blood save/load renewed or lost its age");
@@ -262,32 +319,26 @@ namespace
         for (const auto& v : curved) { minX = std::min(minX,v.x()); maxX = std::max(maxX,v.x()); }
         require(maxX-minX > .5f, "Interior column blood was projected onto a flat invisible box");
 
-        // Pools deliberately keep the original physics probe even when spray
-        // splatters are projected onto a higher visual carpet.
+        // Only actual visible receivers are queried; procedural pool probes
+        // must not add a second floor/collision workload.
         osg::ref_ptr<osg::Group> particles = new osg::Group;
         std::vector<MWRender::BloodStamp> deposits;
         bool ready = true;
         Trail spray(*particles, surface.mRaycast, [&](const auto& stamp) { deposits.push_back(stamp); },
-            surface.mProjector, Trail::collisionRaycast(floorSnapshot({},100)), [&] { return ready; });
+            surface.mProjector,[&] { return ready; });
         const std::vector<Trail::Source> source{ {{0,0,8},{0,0,-1},1,false} };
         for (int i=0; i<60; ++i) spray.update(1.f/60,source,1,i/60.f);
-        bool pool = false, splatter = false;
+        bool splatter = false;
         for (const auto& stamp : deposits)
         {
-            if (stamp.mPool)
-            {
-                pool = true;
-                require(std::abs(stamp.mCenter.z()) < .001f && stamp.mRadius <= 8.01f,
-                    "Stable pool probe/radius changed with interior visual projection");
-            }
-            else
+            require(!stamp.mPool,"Procedural pools are still generated");
             {
                 splatter = true;
                 require(std::abs(stamp.mCenter.z()-2) < .001f || std::abs(stamp.mCenter.z()) < .001f,
                     "Flying drop did not leave blood at its actual receiver");
             }
         }
-        require(pool && splatter, "Pool/splatter receiver separation produced no blood");
+        require(splatter,"Visible-surface blood impacts produced no decals");
 
         // Snapshot invalidation must not silently let particles fall through.
         deposits.clear(); ready = false;
@@ -317,7 +368,7 @@ namespace
         require(Ragdoll::bloodLaunchScale(3) > Ragdoll::bloodLaunchScale(1)
                 && Ragdoll::bloodSpreadScale(3) > Ragdoll::bloodSpreadScale(1),
             "Blood quantity no longer increases launch distance and spread");
-        std::cout << "PASS visible carpet/stairs/column, actor exclusion, stable collision pools, receiver invalidation, sprite geometry and doubled emission\n";
+        std::cout << "PASS visible carpet/stairs/column, actor exclusion, no procedural pools, receiver invalidation, sprite geometry and doubled emission\n";
     }
 
     void organicBloodRules()
@@ -394,15 +445,73 @@ namespace
                 osg::Vec3f(std::cos(a)*28,std::sin(a)*28,.06f),osg::Vec3f(std::cos(b)*28,std::sin(b)*28,.06f)});
         }
         blood.add("room",pool);
+        require(blood.size()==0,"Legacy untextured pools are still accepted");
         for (int i=0;i<1000;++i) blood.add("room",stamp({},8));
-        require(blood.size()==1 && blood.saveState().front().mStamp.mTriangles==pool.mTriangles,
-            "Blood stacked under an established pool or changed the stable pool geometry");
+        require(blood.size()==2,"Textured floor decals lost their local density limit");
         blood.update(590,600); blood.add("room",stamp({100,0,0},8)); blood.update(20,600);
         for (int i=0;i<100;++i) blood.add("room",stamp({100,0,0},8));
         require(blood.size()==2,"Expired blood left stale spatial-index entries");
         blood.update(600,600);
         require(blood.size()==0,"Density-managed blood no longer expires");
-        std::cout<<"PASS alpha-aware local density, untouched geometry, separate surfaces/cells, loaded-save compaction, pool suppression, precompile and index expiry\n";
+        std::cout<<"PASS alpha-aware local density, untouched geometry, separate surfaces/cells, loaded-save compaction, legacy pool removal, precompile and index expiry\n";
+    }
+
+    void bloodProjectionScheduling()
+    {
+        using Budget=MWRender::BloodProjectionBudget;
+        Budget budget;
+        std::array<std::shared_ptr<Budget::Client>,5> clients;
+        std::array<unsigned,5> served{};
+        for (auto& client:clients) {client=budget.addClient();client->mPending=true;}
+        for (unsigned frame=0;frame<50;++frame)
+        {
+            budget.setFrame(frame);
+            for (unsigned i=0;i<clients.size();++i)
+                if (budget.take(clients[i])) {++served[i];budget.complete(Budget::MaxMilliseconds+1);}
+            require(budget.jobs()==1,"Slow furniture projections bypassed the shared time budget");
+        }
+        for (auto count:served) require(count>=9,"Blood work ordering starved a later corpse");
+        budget.setFrame(100);
+        for (auto& client:clients) client->mPending=false;
+        require(!budget.take(clients[0]),"An empty blood queue consumed projection work");
+
+        osg::ref_ptr<osg::Group> root=new osg::Group;
+        auto shared=std::make_shared<Budget>();
+        const auto surface=MWRender::BloodTrail::visualSurface(floorSnapshot({},1000));
+        unsigned deposits=0;
+        MWRender::BloodTrail trail(*root,surface.mRaycast,[&](const auto& stamp) {
+            require(!stamp.mPool,"Queued blood generated an untextured pool");++deposits;
+        },surface.mProjector,{},shared);
+        const std::vector<MWRender::BloodTrail::Source> sources{{{0,0,20},{0,0,-1},1,true,true}};
+        for (unsigned frame=0;frame<120;++frame)
+        {
+            shared->setFrame(frame);trail.update(1.f/60,sources,3,frame/60.f);
+            require(trail.queuedImpacts()<=MWRender::BloodTrail::MaxQueuedImpacts,"Blood pending impacts grew without bound");
+        }
+        require(deposits>0,"Budgeted flying blood never left floor decals");
+        shared->setFrame(121);trail.update(1.f/60,sources,0,2);
+        require(trail.particleCount()==0 && trail.queuedImpacts()==0,"Blood amount 0 retained live fountain work");
+        const auto stopped=deposits;
+        for (unsigned frame=122;frame<150;++frame) {shared->setFrame(frame);trail.update(1.f/60,{},0,frame/60.f);}
+        require(deposits==stopped,"Disabled blood continued projecting decals");
+        std::cout<<"PASS shared projection time/count budgets, corpse fairness, bounded impact queue, floor deposits and immediate blood-zero shutdown\n";
+    }
+
+    void backgroundBloodSurface()
+    {
+        osg::ref_ptr<SceneUtil::WorkQueue> queue=new SceneUtil::WorkQueue(1);
+        osg::ref_ptr<MWRender::BloodSurfaceBuild> build=new MWRender::BloodSurfaceBuild(floorSnapshot({},1000));
+        require(!build->takeResult(),"Pending blood geometry was exposed before its worker completed");
+        queue->addWorkItem(build);
+        build->waitTillDone(); // Tests may wait; the renderer only polls isDone().
+        auto surface=build->takeResult();
+        osg::Vec3f point,normal;
+        require(surface && surface.mRaycast({0,0,10},{0,0,-10},point,normal) && std::abs(point.z())<.001f,
+            "Background surface build lost its owned receiver triangles");
+        osg::ref_ptr<MWRender::BloodSurfaceBuild> removed=new MWRender::BloodSurfaceBuild(floorSnapshot({},1000));
+        removed->abort();queue->addWorkItem(removed);removed->waitTillDone();
+        require(!removed->takeResult(),"Invalidated background blood geometry was published");
+        std::cout<<"PASS asynchronous immutable blood BVH, completion publication and invalidated-job cancellation\n";
     }
 
     void brutalMeshClipAndPose()
@@ -1971,6 +2080,10 @@ int main(int argc, char** argv)
 {
     try
     {
+        if (argc>1 && std::string(argv[1])=="--blood-work-benchmark")
+        {
+            bloodWorkBenchmark();return 0;
+        }
         if (argc > 1 && std::string(argv[1]) == "--gore-benchmark")
         {
             goreLoadMeasurements(true);
@@ -2023,6 +2136,8 @@ int main(int argc, char** argv)
         bloodReceiversAndSprites();
         organicBloodRules();
         bloodDensityAndLoading();
+        bloodProjectionScheduling();
+        backgroundBloodSurface();
         brutalMeshClipAndPose();
         brutalPhysicalWounds();
         bloodCacheCapacityAndBuffers();

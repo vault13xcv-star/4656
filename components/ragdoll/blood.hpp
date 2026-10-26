@@ -12,7 +12,7 @@ namespace Ragdoll
 {
     // The setting is a multiplier of the new blood baseline: 100% emits
     // twice as much as the original baseline, and 300% emits six times as much.
-    // Pool formation keeps the stable preview.2 multiplier separately.
+    // Procedural pool generation has been removed; floor blood uses DDS decals.
     inline float bloodAmountMultiplier(float amount)
     {
         return std::isfinite(amount) ? std::clamp(amount, 0.f, 3.f) : 1.f;
