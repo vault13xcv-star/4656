@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <tuple>
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
@@ -58,6 +59,49 @@ namespace MWRender
             state ^= state << 13; state ^= state >> 17; state ^= state << 5;
             if (!state) state = 0x9f673bbdu;
             return state;
+        }
+        std::array<int,3> spatialKey(const osg::Vec3f& point)
+        {
+            return { int(std::floor(point.x()/64)), int(std::floor(point.y()/64)), int(std::floor(point.z()/64)) };
+        }
+        auto bloodAxes(const BloodStamp& stamp)
+        {
+            const osg::Vec3f up = stamp.mNormal.z() >= .7f ? osg::Vec3f(0,1,0) : osg::Vec3f(0,0,1);
+            const auto vertical = unit(up - stamp.mNormal * (up * stamp.mNormal), {0,1,0});
+            return std::pair(unit(vertical ^ stamp.mNormal, {1,0,0}), vertical);
+        }
+        bool fullSquare(const BloodStamp& stamp)
+        {
+            float twiceArea=0;
+            const float depth=(stamp.mTriangles.front()-stamp.mCenter)*stamp.mNormal;
+            for (const auto& point : stamp.mTriangles)
+                if (std::abs((point-stamp.mCenter)*stamp.mNormal-depth)>.005f) return false;
+            for (std::size_t i=0;i<stamp.mTriangles.size();i+=3)
+                twiceArea+=((stamp.mTriangles[i+1]-stamp.mTriangles[i])^(stamp.mTriangles[i+2]-stamp.mTriangles[i])).length();
+            return twiceArea>=stamp.mRadius*stamp.mRadius*7.99f;
+        }
+        // Intersect along the decal projector axis, then test the actual
+        // receiver triangles. Bounding squares alone would suppress visible
+        // blood on an adjacent stair or across a transparent DDS hole.
+        bool onStamp(const BloodStamp& stamp, const osg::Vec3f& point, osg::Vec3f& surface, float tolerance)
+        {
+            for (std::size_t i=0; i<stamp.mTriangles.size(); i+=3)
+            {
+                const auto a=stamp.mTriangles[i], ab=stamp.mTriangles[i+1]-a, ac=stamp.mTriangles[i+2]-a;
+                const auto normal=ab^ac;
+                const float denom=normal*stamp.mNormal;
+                if (std::abs(denom)<.00000001f) continue;
+                const float depth=((a-point)*normal)/denom;
+                if (std::abs(depth)>tolerance) continue;
+                const auto p=point+stamp.mNormal*depth;
+                const auto offset=p-a;
+                const float d00=ab*ab, d01=ab*ac, d11=ac*ac, d20=offset*ab, d21=offset*ac;
+                const float determinant=d00*d11-d01*d01;
+                if (determinant<.00000001f) continue;
+                const float u=(d11*d20-d01*d21)/determinant, v=(d00*d21-d01*d20)/determinant;
+                if (u>=-.0001f && v>=-.0001f && u+v<=1.0001f) {surface=p;return true;}
+            }
+            return false;
         }
         osg::Texture2D* bloodSpriteTexture()
         {
@@ -147,7 +191,9 @@ namespace MWRender
             "vec3 V=-pos/max(.0001,length(pos));vec3 L=brutalBloodSunDirection/max(.0001,length(brutalBloodSunDirection));"
             "float shadow=unshadowedLightRatio(length(pos));"
             "vec3 light=gl_LightModel.ambient.rgb+brutalBloodSunDiffuse*bloodDiffuse(N,L)*shadow;"
-            "spec=brutalBloodSunDiffuse*bloodSpec(N,L,V)*shadow;"
+            "float sunExposure=clamp(max(brutalBloodSunDiffuse.r,max(brutalBloodSunDiffuse.g,brutalBloodSunDiffuse.b))"
+            "*bloodDiffuse(N,L)*shadow,0.0,1.0);"
+            "spec=brutalBloodSunDiffuse*bloodSpec(N,L,V)*shadow*.15;"
             "for(int i=0;i<8;++i){if(i>=brutalBloodPointCount)break;"
             "vec3 delta=brutalBloodPointPosition[i]-pos;float dist=length(delta);"
             "vec4 att=brutalBloodPointAttenuation[i];"
@@ -157,7 +203,10 @@ namespace MWRender
             "L=delta/max(.0001,dist);light+=(brutalBloodPointAmbient[i]+brutalBloodPointDiffuse[i]*bloodDiffuse(N,L))*power;"
             "spec+=brutalBloodPointDiffuse[i]*bloodSpec(N,L,V)*power;}"
             "light=max(vec3(0.0),light);spec=max(vec3(0.0),spec);"
-            "if(brutalBloodClamp)light=min(vec3(1.0),light);return light;}"
+            // Blood absorbs more of direct daylight than a bright diffuse
+            // texture. Apply after the native clamp, preserving room/torch
+            // illumination when no sunlight reaches the surface.
+            "if(brutalBloodClamp)light=min(vec3(1.0),light);return light*(1.0-.35*sunExposure);}"
             "vec3 bloodFog(vec3 color,vec3 pos){if(brutalBloodFogMode==0)return color;"
             "float dist=brutalBloodFogRadial?length(pos):abs(pos.z);float f=0.0;"
             "if(brutalBloodFogMode==2){float start=gl_Fog.start*.5;"
@@ -234,6 +283,24 @@ namespace MWRender
         return new osg::StateSet(*state, osg::CopyOp::SHALLOW_COPY);
     }
 
+    osg::ref_ptr<osg::Node> BloodDecals::createPrecompileNode()
+    {
+        osg::ref_ptr<osg::Group> root=new osg::Group;
+        // Compile the shared programs/atlas during loading instead of the
+        // first severing frame. This graph is never attached to the world.
+        for (unsigned kind=0;kind<4;++kind)
+        {
+            osg::ref_ptr<osg::Geode> node=new osg::Geode;
+            auto state=kind==3 ? createBloodSpriteState() : createWetGoreState(kind==2);
+            if (kind==2 && mAtlas)
+                state->setTextureAttributeAndModes(0,mAtlas,osg::StateAttribute::ON);
+            node->setStateSet(state);
+            if (kind) attachBloodLighting(*node,*mParent);
+            root->addChild(node);
+        }
+        return root;
+    }
+
     BloodDecals::BloodDecals(osg::Group& parent)
         : mParent(&parent), mTimeUniform(new osg::Uniform("brutalBloodTime", 0.f))
         , mLifetimeUniform(new osg::Uniform("brutalBloodLifetime", 600.f)) {}
@@ -256,11 +323,11 @@ namespace MWRender
                 if (++accepted == 8) break;
             }
         }
-        mFloorTiles.clear(); mWallTiles.clear(); mAtlas = nullptr;
+        mFloorTiles.clear(); mWallTiles.clear(); mFloorInk.clear(); mWallInk.clear(); mAtlas = nullptr;
         if (!tiles.empty())
         {
             // A fixed tile size bounds GPU/CPU memory independently of uploaded
-            // image dimensions. Letterboxing retains each PNG's aspect ratio.
+            // image dimensions. Letterboxing retains the artwork's aspect ratio.
             constexpr int tileSize = 512, gutter = 4, inner = tileSize - gutter * 2;
             const int columns = tiles.size() <= 2 ? 2 : 4;
             int rows = 1;
@@ -296,6 +363,17 @@ namespace MWRender
                 const osg::Vec4f rect(float(x + .5f) / width, float(y + .5f) / height,
                     float(x + tileSize - .5f) / width, float(y + tileSize - .5f) / height);
                 (tile.mFloor ? mFloorTiles : mWallTiles).push_back(rect);
+                std::vector<osg::Vec2f> ink;
+                for (int row=0;row<32;++row) for (int column=0;column<32;++column)
+                {
+                    const osg::Vec2f uv((column+.5f)/32,(row+.5f)/32);
+                    if (atlas->getColor(x+int(uv.x()*(tileSize-1)),y+int(uv.y()*(tileSize-1))).a()>.15f)
+                        ink.push_back(uv);
+                }
+                std::vector<osg::Vec2f> samples;
+                for (std::size_t i=0;i<std::min<std::size_t>(24,ink.size());++i)
+                    samples.push_back(ink[i*ink.size()/std::min<std::size_t>(24,ink.size())]);
+                (tile.mFloor ? mFloorInk : mWallInk).push_back(std::move(samples));
             }
             mAtlas = new osg::Texture2D(atlas);
             mAtlas->setResizeNonPowerOfTwoHint(false);
@@ -336,36 +414,148 @@ namespace MWRender
         mBatches[stain.mCell].mChunks[stain.mSequence / 128].mDirty = true;
     }
 
+    std::vector<BloodDecals::Stain*> BloodDecals::nearby(const std::string& cell, const BloodStamp& stamp) const
+    {
+        const auto batch=mBatches.find(cell);
+        if (batch==mBatches.end()) return {};
+        const auto& buckets=stamp.mPool ? batch->second.mPools : batch->second.mSpatial;
+        const float reach=stamp.mRadius+batch->second.mMaxRadius;
+        const osg::Vec3f extent(reach,reach,reach);
+        const auto lo=spatialKey(stamp.mCenter-extent), hi=spatialKey(stamp.mCenter+extent);
+        std::vector<Stain*> result;
+        for (int x=lo[0];x<=hi[0];++x) for (int y=lo[1];y<=hi[1];++y) for (int z=lo[2];z<=hi[2];++z)
+        {
+            const auto bucket=buckets.find({x,y,z});
+            if (bucket==buckets.end()) continue;
+            for (auto* stain : bucket->second)
+            {
+                const auto& other=stain->mStamp;
+                const float radius=(other.mRadius+stamp.mRadius)*1.5f;
+                if (other.mNormal*stamp.mNormal>.95f && (other.mCenter-stamp.mCenter).length2()<=radius*radius)
+                    result.push_back(stain);
+            }
+        }
+        return result;
+    }
+    void BloodDecals::index(Stain& stain)
+    {
+        std::tie(stain.mHorizontal,stain.mVertical)=bloodAxes(stain.mStamp);
+        stain.mPlaneDepth=(stain.mStamp.mTriangles.front()-stain.mStamp.mCenter)*stain.mStamp.mNormal;
+        stain.mFullSquare=fullSquare(stain.mStamp);
+        auto& batch=mBatches[stain.mCell];
+        batch.mSpatial[spatialKey(stain.mStamp.mCenter)].push_back(&stain);
+        if (stain.mStamp.mPool) batch.mPools[spatialKey(stain.mStamp.mCenter)].push_back(&stain);
+        batch.mMaxRadius=std::max(batch.mMaxRadius,stain.mStamp.mRadius);
+    }
+    void BloodDecals::unindex(const Stain& stain)
+    {
+        auto& buckets=mBatches.find(stain.mCell)->second.mSpatial;
+        const auto it=buckets.find(spatialKey(stain.mStamp.mCenter));
+        if (it==buckets.end()) return;
+        std::erase(it->second,&stain);
+        if (it->second.empty()) buckets.erase(it);
+        if (stain.mStamp.mPool)
+        {
+            auto& pools=mBatches.find(stain.mCell)->second.mPools;
+            const auto pool=pools.find(spatialKey(stain.mStamp.mCenter));
+            if (pool!=pools.end()) {std::erase(pool->second,&stain);if (pool->second.empty()) pools.erase(pool);}
+        }
+    }
+    bool BloodDecals::redundant(const BloodStamp& stamp, const std::vector<Stain*>& neighbours) const
+    {
+        if (stamp.mPool || !mAtlas || neighbours.empty()) return false;
+        const bool floor=stamp.mNormal.z()>=.7f;
+        const auto& tiles=floor ? mFloorTiles : mWallTiles;
+        const auto& masks=floor ? mFloorInk : mWallInk;
+        if (tiles.empty()) return false;
+        const auto& samples=masks[(stamp.mVisualSeed>>2)%tiles.size()];
+        const auto [horizontal,vertical]=bloodAxes(stamp);
+        const bool square=fullSquare(stamp);
+        const float depth=(stamp.mTriangles.front()-stamp.mCenter)*stamp.mNormal;
+        unsigned tested=0,covered=0;
+        for (auto uv : samples)
+        {
+            if (stamp.mVisualSeed&1) uv.x()=1-uv.x();
+            if (floor && (stamp.mVisualSeed&2)) uv.set(1-uv.x(),1-uv.y());
+            const auto probe=stamp.mCenter+(horizontal*(uv.x()-.5f)+vertical*(uv.y()-.5f))*(stamp.mRadius*2);
+            osg::Vec3f point=probe+stamp.mNormal*depth;
+            if (!square && !onStamp(stamp,probe,point,stamp.mRadius)) continue;
+            ++tested;
+            unsigned layers=0;
+            for (const auto* other : neighbours)
+            {
+                const auto& old=other->mStamp;
+                const auto relative=point-old.mCenter;
+                osg::Vec2f at(.5f+(relative*other->mHorizontal)/(old.mRadius*2),.5f+(relative*other->mVertical)/(old.mRadius*2));
+                if (old.mNormal.z()>=.7f && (old.mVisualSeed&2)) at.set(1-at.x(),1-at.y());
+                if (old.mVisualSeed&1) at.x()=1-at.x();
+                if (at.x()<0 || at.x()>1 || at.y()<0 || at.y()>1 || other->mAge>=mLifetime-10) continue;
+                if (!old.mPool)
+                {
+                    const auto& oldTiles=old.mNormal.z()>=.7f ? mFloorTiles : mWallTiles;
+                    if (oldTiles.empty()) continue;
+                    const auto tile=oldTiles[(old.mVisualSeed>>2)%oldTiles.size()];
+                    const auto* image=mAtlas->getImage();
+                    const int x=std::clamp(int((tile.x()+at.x()*(tile.z()-tile.x()))*image->s()),0,image->s()-1);
+                    const int y=std::clamp(int((tile.y()+at.y()*(tile.w()-tile.y()))*image->t()),0,image->t()-1);
+                    if (image->data(x,y)[3]<=38) continue;
+                }
+                if (other->mFullSquare)
+                {
+                    if (std::abs(relative*old.mNormal-other->mPlaneDepth)>.3f) continue;
+                }
+                else {osg::Vec3f p;if (!onStamp(old,point,p,.3f)) continue;}
+                layers+=old.mPool ? 2 : 1;
+                if (layers>=2) {++covered;break;}
+            }
+        }
+        // Never carve squares out of artwork. Keep the complete new decal
+        // unless almost all of its actual opaque ink is already saturated.
+        return tested>=4 && covered*10>=tested*9;
+    }
+
     void BloodDecals::add(const std::string& cell, const BloodStamp& stamp)
     {
         if (!validStamp(stamp)) return;
+        BloodStamp chosen=stamp;
+        if (!chosen.mVisualSeed) chosen.mVisualSeed=nextSeed(mRandom);
+        const auto neighbours=(mAtlas || stamp.mPool) ? nearby(cell,chosen) : std::vector<Stain*>{};
+        if (redundant(chosen,neighbours)) return;
         if (stamp.mPool)
-            for (auto it = mStains.rbegin(); it != mStains.rend(); ++it)
-                if (it->mCell == cell && it->mStamp.mPool && it->mStamp.mNormal * stamp.mNormal > .95f
+        {
+            Stain* newest=nullptr;
+            for (auto* it : neighbours)
+                if (it->mStamp.mPool && it->mStamp.mNormal * stamp.mNormal > .95f
                     && (it->mStamp.mCenter - stamp.mCenter).length2() < std::pow(std::min(stamp.mRadius, it->mStamp.mRadius) * .7f, 2))
+                    if (!newest || it->mSequence>newest->mSequence) newest=it;
+            if (auto* it=newest)
                 {
                     if (stamp.mRadius > it->mStamp.mRadius
                         && mVertexCount - it->mStamp.mTriangles.size() + stamp.mTriangles.size() <= MaxVertices)
                     {
                         mVertexCount -= it->mStamp.mTriangles.size();
-                        it->mStamp = stamp;
+                        unindex(*it);
+                        it->mStamp = chosen;
                         mVertexCount += it->mStamp.mTriangles.size();
+                        index(*it);
                     }
                     it->mAge = 0;
                     dirty(*it);
                     return;
                 }
+        }
         // Bounded memory even with hundreds of simultaneous gore emitters.
         while (!mStains.empty() && (mStains.size() >= MaxStains
             || mVertexCount + stamp.mTriangles.size() > MaxVertices))
         {
             dirty(mStains.front());
+            unindex(mStains.front());
             mVertexCount -= mStains.front().mStamp.mTriangles.size();
             mStains.pop_front(); // O(1), including when a fountain fills the cap.
         }
-        mStains.push_back({ { cell, stamp, 0 }, mNextSequence++ });
-        if (!mStains.back().mStamp.mVisualSeed) mStains.back().mStamp.mVisualSeed = nextSeed(mRandom);
+        mStains.push_back({ { cell, std::move(chosen), 0 }, mNextSequence++ });
         mVertexCount += stamp.mTriangles.size();
+        index(mStains.back());
         dirty(mStains.back());
     }
 
@@ -382,13 +572,14 @@ namespace MWRender
         {
             stain.mAge += duration;
         }
-        mStains.erase(std::remove_if(mStains.begin(), mStains.end(),
-            [&](const auto& stain) {
-                if (stain.mAge < mLifetime) return false;
-                dirty(stain);
-                mVertexCount -= stain.mStamp.mTriangles.size();
-                return true;
-            }), mStains.end());
+        for (auto it=mStains.begin();it!=mStains.end();)
+            if (it->mAge>=mLifetime)
+            {
+                dirty(*it); unindex(*it);
+                mVertexCount-=it->mStamp.mTriangles.size();
+                it=mStains.erase(it);
+            }
+            else ++it;
         if (mSinceBatch >= .1f)
         {
             rebuild();
@@ -516,20 +707,23 @@ namespace MWRender
             for (auto& [id, chunk] : batch.mChunks)
                 if (chunk.mTransform) mParent->removeChild(chunk.mTransform);
             batch.mChunks.clear();
+            batch.mSpatial.clear(); batch.mPools.clear(); batch.mMaxRadius=0;
         }
         mStains.clear();
         mVertexCount = 0;
         mNextSequence = 0; mTime = 0; mSinceBatch = 1;
         mTimeUniform->set(0.f);
-        for (const auto& stain : state)
+        for (auto stain : state)
         {
             if (!std::isfinite(stain.mAge) || stain.mAge < 0 || stain.mAge >= 1800) continue;
             if (mStains.size() >= MaxStains || !validStamp(stain.mStamp)
                 || mVertexCount + stain.mStamp.mTriangles.size() > MaxVertices) continue;
+            if (!stain.mStamp.mVisualSeed) stain.mStamp.mVisualSeed=nextSeed(mRandom);
+            if (mAtlas && redundant(stain.mStamp,nearby(stain.mCell,stain.mStamp))) continue;
             // Loading is not a new deposit: never merge/rejuvenate saved pools.
             mStains.push_back({ stain, mNextSequence++ });
-            if (!mStains.back().mStamp.mVisualSeed) mStains.back().mStamp.mVisualSeed = nextSeed(mRandom);
             mVertexCount += stain.mStamp.mTriangles.size();
+            index(mStains.back());
             dirty(mStains.back());
         }
         rebuild();

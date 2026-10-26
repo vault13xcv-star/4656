@@ -196,6 +196,8 @@ int main(int argc, char** argv)
 
         if(argc>2 && std::string(argv[2])=="dds") {BloodDDS::materials(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="spray") {BloodDDS::spray(viewer,reversed);return 0;}
+        if(argc>2 && std::string(argv[2])=="density-benchmark") {BloodDDS::densityBenchmark(viewer,reversed);return 0;}
+        if(argc>2 && std::string(argv[2])=="density") {BloodDDS::densityBenchmark(viewer,reversed,true);return 0;}
 
         const auto sample = [&] {
             viewer.frame(); glFinish();

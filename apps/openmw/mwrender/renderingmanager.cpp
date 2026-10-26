@@ -272,9 +272,11 @@ namespace MWRender
             return images;
         };
         mBloodDecals->setTextures(
-            loadBloodTextures({ "textures/brutal/blood/floor (6).dds", "textures/brutal/blood/floor (7).dds" }),
+            loadBloodTextures({ "textures/brutal/blood/floor (1).dds", "textures/brutal/blood/floor (2).dds", "textures/brutal/blood/floor (3).dds" }),
             loadBloodTextures({ "textures/brutal/blood/wall (1).dds", "textures/brutal/blood/wall (2).dds",
-                "textures/brutal/blood/wall (3).dds", "textures/brutal/blood/wall (4).dds" }));
+                "textures/brutal/blood/walll.dds" }));
+        if (auto* compile=mViewer->getIncrementalCompileOperation())
+            compile->add(mBloodDecals->createPrecompileNode());
 
         const std::string& normalMapPattern = Settings::shaders().mNormalMapPattern;
         const std::string& heightMapPattern = Settings::shaders().mNormalHeightMapPattern;
@@ -1218,7 +1220,7 @@ namespace MWRender
                 // World-object moves/deletions explicitly invalidate these
                 // slots. Reusing unchanged ground longer avoids building a
                 // separate terrain BVH twice a second for every open wound.
-                if (mBloodSurfaceTime - it->mTime < 2 || mBloodSurfacesBuilt >= 2)
+                if (*it->mSurface)
                 {
                     const auto result = wrap(it->mSurface);
                     auto recent = std::move(*it);

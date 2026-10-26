@@ -10,7 +10,8 @@
 #include <osg/Texture2D>
 #include <components/esm3/brutalbloodstate.hpp>
 #include <cstdint>
-#include <deque>
+#include <array>
+#include <list>
 #include <functional>
 #include <map>
 #include <string>
@@ -56,6 +57,7 @@ namespace MWRender
         std::size_t size() const;
         void setTextures(const std::vector<osg::ref_ptr<osg::Image>>& floor,
             const std::vector<osg::ref_ptr<osg::Image>>& wall);
+        osg::ref_ptr<osg::Node> createPrecompileNode();
 
     private:
         struct Chunk
@@ -66,21 +68,30 @@ namespace MWRender
             osg::ref_ptr<osg::Geometry> mGeometry;
             bool mDirty = true;
         };
+        struct Stain;
+        using SpatialKey = std::array<int, 3>;
         struct Batch
         {
             std::map<std::uint64_t, Chunk> mChunks;
+            std::map<SpatialKey, std::vector<Stain*>> mSpatial;
+            std::map<SpatialKey, std::vector<Stain*>> mPools;
+            float mMaxRadius = 0;
             bool mActive = false;
         };
         struct Stain : BloodStainState
         {
             std::uint64_t mSequence;
+            osg::Vec3f mHorizontal, mVertical;
+            float mPlaneDepth=0;
+            bool mFullSquare=false;
         };
         osg::ref_ptr<osg::Group> mParent;
-        std::deque<Stain> mStains;
+        std::list<Stain> mStains;
         std::map<std::string, Batch> mBatches;
         osg::ref_ptr<osg::Uniform> mTimeUniform, mLifetimeUniform;
         osg::ref_ptr<osg::Texture2D> mAtlas;
         std::vector<osg::Vec4f> mFloorTiles, mWallTiles;
+        std::vector<std::vector<osg::Vec2f>> mFloorInk, mWallInk;
         std::size_t mVertexCount = 0;
         std::uint32_t mRandom = 0x9f673bbdu;
         std::uint64_t mNextSequence = 0;
@@ -89,6 +100,10 @@ namespace MWRender
         float mLifetime = 600;
         void dirty(const Stain& stain);
         void rebuild();
+        std::vector<Stain*> nearby(const std::string& cell, const BloodStamp& stamp) const;
+        bool redundant(const BloodStamp& stamp, const std::vector<Stain*>& nearby) const;
+        void index(Stain& stain);
+        void unindex(const Stain& stain);
     };
 
     class BloodTrail

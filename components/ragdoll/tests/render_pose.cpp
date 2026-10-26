@@ -27,6 +27,7 @@
 #include <osgUtil/UpdateVisitor>
 #include <osgUtil/CullVisitor>
 #include <osgUtil/LineSegmentIntersector>
+#include <osgUtil/IncrementalCompileOperation>
 
 #include <array>
 #include <cmath>
@@ -334,6 +335,74 @@ namespace
             "Fresh death failed to emit exactly one fountain");
         require(!trigger.update(false) && trigger.update(true), "Resurrected creature cannot bleed on its next death");
         std::cout << "PASS organic creature classification and fresh-death fountain lifecycle\n";
+    }
+
+    void bloodDensityAndLoading()
+    {
+        osg::ref_ptr<osg::Group> root=new osg::Group;
+        osg::ref_ptr<osg::Image> left=new osg::Image, right=new osg::Image;
+        for (auto* image : {left.get(),right.get()})
+        {
+            image->allocateImage(32,32,1,GL_RGBA,GL_UNSIGNED_BYTE);
+            for (int y=0;y<32;++y) for (int x=0;x<32;++x)
+                image->setColor({.4f,0,0,float((x<16)==(image==left))},x,y);
+        }
+        MWRender::BloodDecals blood(*root);
+        blood.setTextures({left,right},{left,right}); blood.setCellActive("room",true);
+        const auto stamp=[](osg::Vec3f center,unsigned seed) {
+            MWRender::BloodStamp s; s.mCenter=center;s.mNormal={0,0,1};s.mRadius=8;s.mVisualSeed=seed;
+            const osg::Vec3f x(8,0,0),y(0,8,0),z(0,0,.03f);
+            s.mTriangles={center-x-y+z,center+x-y+z,center+x+y+z,center-x-y+z,center+x+y+z,center-x+y+z};
+            return s;
+        };
+        for (int i=0;i<1000;++i) blood.add("room",stamp({},8));
+        require(blood.size()==2,"Identical blood splatters stacked without a local density limit");
+        blood.add("room",stamp({},4));
+        require(blood.size()==3,"Density filtering treated transparent DDS holes as opaque blood");
+        for (int i=0;i<1000;++i) blood.add("room",stamp({},4));
+        require(blood.size()==4,"Different artwork escaped the local ink-density limit");
+        blood.add("room",stamp({24,0,0},8));
+        blood.add("room",stamp({0,0,10},8));
+        blood.add("other-room",stamp({},8));
+        require(blood.size()==7,"Local blood density suppressed fresh areas, another stair height or another interior");
+        for (const auto& state : blood.saveState())
+            require(state.mStamp.mTriangles==stamp(state.mStamp.mCenter,state.mStamp.mVisualSeed).mTriangles,
+                "Density filtering cut holes into existing blood geometry");
+        auto oldSave=blood.saveState();
+        for (int i=0;i<1000;++i) oldSave.push_back(oldSave.front());
+        blood.restoreState(oldSave);
+        require(blood.size()==7,"Loading an older dense blood save bypassed overlap suppression");
+        auto legacy=oldSave;
+        for (auto& state : legacy) state.mStamp.mVisualSeed=0;
+        blood.restoreState(legacy);
+        const auto legacyRestored=blood.saveState();
+        require(blood.size()<20 && std::all_of(legacyRestored.begin(),legacyRestored.end(),[](const auto& stain) {
+            return stain.mStamp.mVisualSeed!=0 && stain.mAge==0;
+        }),"Legacy blood seeds were assigned after density filtering or renewed saved ages");
+
+        osgUtil::StateToCompile compile(osgUtil::GLObjectsVisitor::COMPILE_STATE_ATTRIBUTES,nullptr);
+        blood.createPrecompileNode()->accept(compile);
+        require(compile._programs.size()==3 && compile._textures.size()>=2,
+            "Loading does not precompile the shared gore/decal/sprite programs and textures");
+        blood.clear(); blood.setCellActive("room",true);
+        auto pool=stamp({},8);pool.mPool=true;pool.mRadius=30;
+        pool.mTriangles.clear();
+        for (int i=0;i<16;++i)
+        {
+            const float a=i*6.2831853f/16,b=(i+1)*6.2831853f/16;
+            pool.mTriangles.insert(pool.mTriangles.end(),{osg::Vec3f(0,0,.06f),
+                osg::Vec3f(std::cos(a)*28,std::sin(a)*28,.06f),osg::Vec3f(std::cos(b)*28,std::sin(b)*28,.06f)});
+        }
+        blood.add("room",pool);
+        for (int i=0;i<1000;++i) blood.add("room",stamp({},8));
+        require(blood.size()==1 && blood.saveState().front().mStamp.mTriangles==pool.mTriangles,
+            "Blood stacked under an established pool or changed the stable pool geometry");
+        blood.update(590,600); blood.add("room",stamp({100,0,0},8)); blood.update(20,600);
+        for (int i=0;i<100;++i) blood.add("room",stamp({100,0,0},8));
+        require(blood.size()==2,"Expired blood left stale spatial-index entries");
+        blood.update(600,600);
+        require(blood.size()==0,"Density-managed blood no longer expires");
+        std::cout<<"PASS alpha-aware local density, untouched geometry, separate surfaces/cells, loaded-save compaction, pool suppression, precompile and index expiry\n";
     }
 
     void brutalMeshClipAndPose()
@@ -1953,6 +2022,7 @@ int main(int argc, char** argv)
         brutalBloodAndPersistence();
         bloodReceiversAndSprites();
         organicBloodRules();
+        bloodDensityAndLoading();
         brutalMeshClipAndPose();
         brutalPhysicalWounds();
         bloodCacheCapacityAndBuffers();

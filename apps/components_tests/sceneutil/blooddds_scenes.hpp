@@ -6,6 +6,7 @@
 #include <osgDB/WriteFile>
 #include <cstdlib>
 #include <memory>
+#include <chrono>
 
 namespace BloodDDS
 {
@@ -19,7 +20,7 @@ namespace BloodDDS
         {
             mVfs.addArchive(std::make_unique<VFS::FileSystemArchive>(std::filesystem::path(OPENMW_PROJECT_SOURCE_DIR)/"files/data"));
             mVfs.buildIndex();
-            for (const auto* name : {"floor (6).dds","floor (7).dds","wall (1).dds","wall (2).dds","wall (3).dds","wall (4).dds"})
+            for (const auto* name : {"floor (1).dds","floor (2).dds","floor (3).dds","wall (1).dds","wall (2).dds","walll.dds"})
             {
                 auto image=mImages.getImage(VFS::Path::toNormalized(std::string("textures/brutal/blood/")+name));
                 require(image && image!=mImages.getWarningImage(),std::string("Uploaded DDS failed to load: ")+name);
@@ -35,6 +36,7 @@ namespace BloodDDS
                 require(empty>0 && ink>0,"DXT5 software sampling lost its alpha silhouette");
                 (std::string(name).starts_with("floor")?mFloor:mWall).push_back(image);
             }
+            require(mFloor.size()==3 && mWall.size()==3,"Uploaded wall/floor variant count is not three each");
         }
     };
 
@@ -103,6 +105,14 @@ namespace BloodDDS
             unsigned pixels=0;
             for(std::size_t i=0;i<bright.size();i+=3)pixels+=bright[i]>bright[i+1]+8&&bright[i]>bright[i+2]+8;
             require(pixels>80,"Uploaded DDS produced no substantial visible blood in the framebuffer");
+            osg::ref_ptr<osg::Light> sun=new osg::Light;
+            sun->setPosition(floor?osg::Vec4f(0,0,1,0):osg::Vec4f(0,-1,0,0));
+            sun->setDiffuse({1,1,1,1});scene.mRoot->setSunlight(sun);
+            const auto sunny=scene.read(floor?"floor-sun":"wall-sun");
+            unsigned long ambientRed=0,sunnyRed=0;
+            for (std::size_t i=0;i<bright.size();i+=3){ambientRed+=bright[i];sunnyRed+=sunny[i];}
+            require(sunnyRed<ambientRed*.8 && sunnyRed>ambientRed*.4,"Direct sunshine still washes blood out instead of darkening its material response");
+            sun->setDiffuse({0,0,0,1});
             scene.mAmbient->setAmbientIntensity({.02f,.02f,.02f,1});
             const auto dark=scene.read(floor?"floor-dark":"wall-dark");
             unsigned long litSum=0,darkSum=0;
@@ -164,5 +174,30 @@ namespace BloodDDS
         }
         require(reach[1]>reach[0]*1.3f,"300% blood increased concentration without increasing throw distance");
         std::cout<<"PASS stable collision receivers, swept sprite impacts and larger outdoor spread at 300%\n";
+    }
+
+    void densityBenchmark(osgViewer::Viewer& viewer, bool reversed, bool verify=false)
+    {
+        Assets assets;
+        for (unsigned count : {64u, 512u, 2048u})
+        {
+            Scene scene(viewer,reversed,true); scene.camera(true,48);
+            MWRender::BloodDecals blood(*scene.mRoot);
+            blood.setTextures(assets.mFloor,assets.mWall); blood.setCellActive("density",true);
+            const auto start=std::chrono::steady_clock::now();
+            for (unsigned i=0;i<count;++i)
+            {
+                const float x=float((i*17)%41)*.15f-3, y=float((i*13)%37)*.15f-3;
+                blood.add("density",quad(true,{x,y,0},20+(i%5),i*6151+8));
+            }
+            blood.update(.1f,600);
+            const double addMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+            scene.read();
+            const auto render=std::chrono::steady_clock::now();
+            for (int i=0;i<5;++i) {viewer.frame(); glFinish();}
+            const double frameMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-render).count()/5;
+            std::cout<<"DENSITY incoming="<<count<<" retained="<<blood.size()<<" add_ms="<<addMs<<" render_ms="<<frameMs<<std::endl;
+            if (verify) require(blood.size()<80,"Overlapping uploaded DDS splatters caused unbounded local overdraw");
+        }
     }
 }
