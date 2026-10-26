@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "sourceCommit": "c8382190ae52ad3a614840fbbdfcd4562b715ae3",
+  "sourceBranch": "experimental/ragdoll-brutal-blood-preview10",
+  "runId": "40289593509",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40289593509",
+  "resultsBranch": "build-results/ragdoll-c8382190ae52ad3a614840fbbdfcd4562b715ae3-40289593509-1",
+  "stage": "dependencies",
+  "result": "running",
+  "updatedUtc": "2026-10-26T08:03:02.1864789Z",
+  "releaseUrl": null,
+  "package": null
+}
