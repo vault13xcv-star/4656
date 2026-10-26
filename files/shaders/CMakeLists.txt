@@ -7,6 +7,8 @@ set(SDIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(DDIRRELATIVE resources/shaders)
 
 set(SHADER_FILES
+    compatibility/brutalblood_shadow.vert
+    compatibility/brutalblood_shadow.frag
     lib/water/fresnel.glsl
     lib/water/rain_ripples.glsl
     lib/water/ripples.glsl

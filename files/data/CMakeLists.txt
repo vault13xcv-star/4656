@@ -3,6 +3,12 @@ if (NOT DEFINED OPENMW_RESOURCES_ROOT)
 endif()
 
 set(BUILTIN_DATA_FILES
+    "textures/brutal/blood/floor (6).dds"
+    "textures/brutal/blood/floor (7).dds"
+    "textures/brutal/blood/wall (1).dds"
+    "textures/brutal/blood/wall (2).dds"
+    "textures/brutal/blood/wall (3).dds"
+    "textures/brutal/blood/wall (4).dds"
     textures/omw_map_color_palette.dds
     textures/omw_menu_scroll_down.dds
     textures/omw_menu_scroll_up.dds

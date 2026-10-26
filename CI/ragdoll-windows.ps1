@@ -120,6 +120,20 @@ switch ($Phase) {
             "-DLuaJit_INCLUDE_DIR=$prefix/include/luajit", "-DLuaJit_LIBRARY=$prefix/lib/lua51.lib"
         )
         Run 'cmake' ($options + $common) 'configure.log'
+        # Resource lists are explicit. Fail before compiling if installation
+        # would omit artwork or a shader needed by the blood renderer.
+        $bloodAssets = Get-Content (Join-Path $PSScriptRoot 'brutal-blood-dds-sha256.json') -Raw | ConvertFrom-Json
+        foreach ($asset in $bloodAssets.PSObject.Properties) {
+            $assetPath = Join-Path $build ("resources/vfs/textures/brutal/blood/" + $asset.Name)
+            if (-not (Test-Path $assetPath)) { throw "Blood DDS absent after configure: $($asset.Name)" }
+            if ((Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.Value) {
+                throw "Configured blood DDS differs from the uploaded original: $($asset.Name)"
+            }
+        }
+        foreach ($shader in @('brutalblood_shadow.vert', 'brutalblood_shadow.frag')) {
+            $assetPath = Join-Path $build "resources/shaders/compatibility/$shader"
+            if (-not (Test-Path $assetPath)) { throw "Blood shader absent after configure: $shader" }
+        }
         Run 'cmake' (@('-S', "$source/components/ragdoll", '-B', $tests,
             '-DRAGDOLL_TEST_RENDERING=ON', "-DCMAKE_PREFIX_PATH=$prefix") + $common) 'configure-ragdoll-tests.log'
     }
@@ -160,6 +174,14 @@ switch ($Phase) {
             if (-not (Test-Path $assetPath)) { throw "Missing blood DDS: $($asset.Name)" }
             if ((Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.Value) {
                 throw "Blood DDS differs from the uploaded original: $($asset.Name)"
+            }
+        }
+        foreach ($shader in @('brutalblood_shadow.vert', 'brutalblood_shadow.frag')) {
+            $assetPath = Join-Path $install "resources/shaders/compatibility/$shader"
+            if (-not (Test-Path $assetPath)) { throw "Missing installed blood shader: $shader" }
+            $expectedPath = Join-Path $source "files/shaders/compatibility/$shader"
+            if ((Get-FileHash $assetPath -Algorithm SHA256).Hash -ne (Get-FileHash $expectedPath -Algorithm SHA256).Hash) {
+                throw "Installed blood shader differs from source: $shader"
             }
         }
         Get-ChildItem $install -Filter '*.pdb' -Recurse | Remove-Item -Force

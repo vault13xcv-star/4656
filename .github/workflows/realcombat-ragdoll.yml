@@ -69,6 +69,19 @@ jobs:
           ./CI/ragdoll-report.ps1 -Stage tests -Result running
           ./CI/ragdoll-windows.ps1 -Phase Test
 
+      - name: Retain the compiled runtime before packaging
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Brutal-Morrowind-compiled-checkpoint-${{ github.sha }}
+          path: |
+            build/openmw.exe
+            build/defaults.bin
+            build/openmw.cfg
+            build/resources
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Package a standalone runtime and check its DLLs
         id: package
         # Retain the compiled candidate for diagnosis if a late test fails.
