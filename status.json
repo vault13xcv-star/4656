@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "sourceCommit": "7ff827e3f025708f791ea8d535939b083dd633d3",
+  "sourceBranch": "experimental/ragdoll-brutal-1.1",
+  "runId": "40419030172",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40419030172",
+  "resultsBranch": "build-results/ragdoll-7ff827e3f025708f791ea8d535939b083dd633d3-40419030172-1",
+  "stage": "dependencies",
+  "result": "running",
+  "updatedUtc": "2026-10-26T23:20:18.3989073Z",
+  "releaseUrl": null,
+  "package": null
+}
