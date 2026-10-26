@@ -105,7 +105,8 @@ openmw_add_executable(components-tests ${UNITTEST_SRC_FILES})
 
 target_sources(components-tests PRIVATE
     ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp
-    ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp)
+    ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp
+    ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodterrain.cpp)
 target_compile_definitions(components-tests PRIVATE BT_USE_DOUBLE_PRECISION)
 target_include_directories(components-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS})
 
@@ -126,7 +127,8 @@ if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalblood.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodcoverage.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp
-        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp)
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodterrain.cpp)
     target_compile_features(blood-native-gl-tests PRIVATE cxx_std_20)
     set_target_properties(blood-native-gl-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
     target_compile_definitions(blood-native-gl-tests PRIVATE BT_USE_DOUBLE_PRECISION
@@ -138,6 +140,8 @@ if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME brutal-native-blood-reversed COMMAND blood-native-gl-tests reversed)
     add_test(NAME brutal-native-exterior-normal COMMAND blood-native-gl-tests normal exterior)
     add_test(NAME brutal-native-exterior-reversed COMMAND blood-native-gl-tests reversed exterior)
+    add_test(NAME brutal-native-density-normal COMMAND blood-native-gl-tests normal density)
+    add_test(NAME brutal-native-density-reversed COMMAND blood-native-gl-tests reversed density)
 endif()
 
 if (WIN32)

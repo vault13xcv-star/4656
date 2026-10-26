@@ -1,6 +1,7 @@
 #include "bloodterrainfixture.hpp"
 #include <apps/openmw/mwrender/brutalblood.hpp>
 #include <apps/openmw/mwrender/bloodsurfacevisitor.hpp>
+#include <apps/openmw/mwrender/bloodterrain.hpp>
 #include <apps/openmw/mwrender/vismask.hpp>
 
 #include <components/esm3/loadcell.hpp>
@@ -21,6 +22,37 @@
 namespace
 {
     using BloodTest::ExteriorBloodScene;
+
+    TEST(BloodExteriorTerrain, directLandReceiversMatchNativeChunkHeightsAcrossWorldCoordinates)
+    {
+        for (const auto& cell : { osg::Vec2i(-4, -3), osg::Vec2i(0, 0), osg::Vec2i(62, -23) })
+        {
+            BloodTest::ExteriorBloodStorage storage(cell.x(), cell.y(), .2f, -.1f);
+            const auto center = storage.center();
+            const auto triangles = MWRender::collectBloodTerrainTriangles(storage,
+                ESM::Cell::sDefaultWorldspaceId, center + osg::Vec3f(0, 0, 80), 900);
+            ASSERT_FALSE(triangles.empty());
+            EXPECT_LE(storage.mFilledChunks, 16u);
+            const auto surface = MWRender::BloodTrail::visualSurface(triangles);
+            ASSERT_TRUE(bool(surface));
+            for (int x = -2; x <= 2; ++x)
+                for (int y = -2; y <= 2; ++y)
+                {
+                    const float px = center.x() + x * 147.25f, py = center.y() + y * 163.5f;
+                    const float height = storage.height(px, py);
+                    osg::Vec3f point, normal;
+                    ASSERT_TRUE(surface.mRaycast({ px, py, height + 100 }, { px, py, height - 100 }, point, normal));
+                    EXPECT_NEAR(point.z(), height, .08f);
+                    const auto projected = surface.mProjector(point, normal, 48);
+                    ASSERT_FALSE(projected.empty());
+                    for (const auto& vertex : projected)
+                        EXPECT_NEAR((vertex.z() - storage.height(vertex.x(), vertex.y()))
+                            / std::sqrt(1 + .2f * .2f + .1f * .1f), .03f, .045f);
+                }
+            EXPECT_TRUE(MWRender::collectBloodTerrainTriangles(storage,
+                ESM::Cell::sDefaultWorldspaceId, center, 0).empty());
+        }
+    }
 
     TEST(BloodExteriorTerrain, realNativeTerrainReceiversCoverLargeWorldPositionsAndCellBoundaries)
     {
@@ -142,5 +174,19 @@ namespace
         ASSERT_TRUE(surface.mRaycast(center + osg::Vec3f(0, 0, 80), center - osg::Vec3f(0, 0, 80), point, normal));
         EXPECT_NEAR(point.z(), center.z() + 64, .001f);
         EXPECT_FALSE(surface.mProjector(point, normal, 36).empty());
+
+        // Production combines direct LAND with visible objects. Paved streets
+        // and bridges must remain above LAND when duplicate terrain is skipped.
+        auto receivers = MWRender::collectBloodTerrainTriangles(scene.mStorage,
+            ESM::Cell::sDefaultWorldspaceId, center + osg::Vec3f(0, 0, 80), 900);
+        const auto objects = MWRender::collectBloodSurfaceTriangles(*scene.mRoot,
+            center + osg::Vec3f(0, 0, 80), 900, {}, nullptr, false);
+        receivers.insert(receivers.end(), objects.begin(), objects.end());
+        const auto directSurface = MWRender::BloodTrail::visualSurface(receivers);
+        ASSERT_TRUE(bool(directSurface));
+        ASSERT_TRUE(directSurface.mRaycast(center + osg::Vec3f(0, 0, 80),
+            center - osg::Vec3f(0, 0, 80), point, normal));
+        EXPECT_NEAR(point.z(), center.z() + 64, .001f);
+        EXPECT_FALSE(directSurface.mProjector(point, normal, 36).empty());
     }
 }

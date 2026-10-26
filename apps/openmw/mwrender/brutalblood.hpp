@@ -32,6 +32,10 @@ namespace MWRender
         // preflight. This callback is consumed immediately and never saved or
         // retained with the stain (it may refer to a short-lived corpse).
         Projector mProjector;
+        // Incoming blood volume determines the growth ceiling. This is an
+        // emission parameter; saved stains retain their actual fitted radius.
+        float mPoolLimit = 100;
+        std::uintptr_t mEmitter = 0;
     };
 
     struct BloodStainState
@@ -50,9 +54,10 @@ namespace MWRender
         static constexpr std::size_t MaxVertices = ESM::BrutalBloodState::MaxVertices;
         static constexpr std::size_t ChunkStains = 128;
         static constexpr unsigned MaxOverlappingLayers = 2;
-        static constexpr float MaxPoolRadius = 96.f;
+        static constexpr float MaxPoolRadius = 192.f;
         static constexpr float PoolGrowthInterval = .25f;
         static constexpr unsigned MaxNewDepositsPerFrame = 12;
+        static constexpr unsigned MaxProjectionAttemptsPerFrame = 24;
         static constexpr unsigned MaxPoolGrowthsPerFrame = 4;
         static constexpr unsigned MaxPoolAbsorptionChecksPerFrame = 8;
         explicit BloodDecals(osg::Group& parent);
@@ -107,7 +112,9 @@ namespace MWRender
         double mTime = 0;
         float mSinceBatch = 1;
         float mLifetime = 600;
-        unsigned mNewDeposits = 0, mPoolGrowths = 0, mPoolAbsorptionChecks = 0;
+        unsigned mNewDeposits = 0, mProjectionAttempts = 0, mPoolGrowths = 0, mPoolAbsorptionChecks = 0;
+        struct EmitterBudget { float mCredit = 1; double mLastSeen = 0; };
+        std::map<std::uintptr_t, EmitterBudget> mEmitters;
         void dirty(const Stain& stain);
         void rebuild();
         std::list<Stain>::iterator eraseStain(std::list<Stain>::iterator stain);
@@ -171,6 +178,7 @@ namespace MWRender
         std::vector<unsigned> mPendingDrops;
         std::size_t mNextSource = 0;
         std::size_t mEmitted = 0;
+        float mPoolLimit = 100;
         unsigned mRandom = 0x91a37u;
         float random();
         void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool);

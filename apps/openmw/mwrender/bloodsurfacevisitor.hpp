@@ -21,7 +21,7 @@ namespace MWRender
     std::vector<osg::Vec3f> collectBloodSurfaceTriangles(osg::Node& root,
         const osg::Vec3f& center, float radius,
         const std::function<bool(const osg::Node&)>& filter = {},
-        const osg::FrameStamp* frameStamp = nullptr);
+        const osg::FrameStamp* frameStamp = nullptr, bool includeTerrain = true);
 }
 
 #endif

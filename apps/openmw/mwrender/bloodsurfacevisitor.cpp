@@ -56,8 +56,8 @@ namespace MWRender
                 | Mask_Sky | Mask_Water | Mask_SimpleWater | Mask_Debug | Mask_RenderToTexture
                 | Mask_PreCompile | Mask_ParticleSystem | Mask_Groundcover);
             Collector(const osg::Vec3f& center, float radius,
-                const std::function<bool(const osg::Node&)>& filter)
-                : mCenter(center), mRadius(radius), mFilter(filter)
+                const std::function<bool(const osg::Node&)>& filter, bool includeTerrain)
+                : mCenter(center), mRadius(radius), mFilter(filter), mIncludeTerrain(includeTerrain)
             {
                 osg::Polytope bounds;
                 bounds.setToBoundingBox(osg::BoundingBox(center - osg::Vec3f(radius, radius, radius),
@@ -84,7 +84,7 @@ namespace MWRender
                 // A budget exception can leave the intersection/model stacks
                 // inside the interrupted branch. The second pass must start
                 // with a fresh visitor rather than inherit those transforms.
-                Collector objects(mCenter, mRadius, mFilter);
+                Collector objects(mCenter, mRadius, mFilter, mIncludeTerrain);
                 objects.mTerrainPass = false;
                 objects.setTraversalMask(ObjectMask & ~Mask_Terrain);
                 if (const auto* frame = getFrameStamp()) objects.setFrameStamp(new osg::FrameStamp(*frame));
@@ -179,6 +179,7 @@ namespace MWRender
                     if (mask & Mask_Terrain) { terrain = true; break; }
                 }
                 if (mTerrainPass != terrainRoot) return;
+                if (terrain && !mIncludeTerrain) return;
                 const auto* mesh = drawable.asGeometry();
                 if (!mesh) return;
                 const auto* positions = dynamic_cast<const osg::Vec3Array*>(mesh->getVertexArray());
@@ -292,6 +293,7 @@ namespace MWRender
             const std::function<bool(const osg::Node&)>& mFilter;
             std::size_t mNodes = 0, mScanned = 0, mMeshScanned = 0, mMeshScanLimit = MaxTrianglesPerMesh;
             bool mTerrainPass = true;
+            bool mIncludeTerrain;
         };
 
         void Triangles::operator()(unsigned a, unsigned b, unsigned c)
@@ -308,10 +310,10 @@ namespace MWRender
     std::vector<osg::Vec3f> collectBloodSurfaceTriangles(osg::Node& root,
         const osg::Vec3f& center, float radius,
         const std::function<bool(const osg::Node&)>& filter,
-        const osg::FrameStamp* frameStamp)
+        const osg::FrameStamp* frameStamp, bool includeTerrain)
     {
         if (!std::isfinite(center.length2()) || !std::isfinite(radius) || radius <= 0) return {};
-        Collector collector(center, std::min(radius, 2048.f), filter);
+        Collector collector(center, std::min(radius, 2048.f), filter, includeTerrain);
         if (frameStamp)
         {
             collector.setFrameStamp(new osg::FrameStamp(*frameStamp));

@@ -205,15 +205,12 @@ namespace
             const std::vector<MWRender::BloodTrail::Source> source{ { { 0, 0, 10 }, { 0, 0, 1 }, 1, false } };
             for (int frame = 0; frame < 4; ++frame) larger.update(.1f, source, 1, 4);
             require(!pools.empty(), "Grounded wound did not create a pool for decal size regression");
-            // At age four preview.3's former 200% default had radius
-            // (3 + sqrt(4)*5)*sqrt(2). New 100% keeps that doubled base.
-            // The added 1.75 scale and existing +/-12% variation stay in
-            // the user's requested 1.5 to 2 times linear size range.
-            const float previousDefaultRadius = 13.f * std::sqrt(2.f);
+            // A grounded wound at age four must create a substantial pool,
+            // rather than a few centimetres of opaque artwork inside a quad.
             for (const auto& pool : pools)
             {
-                require(pool.mRadius >= previousDefaultRadius * 1.5f && pool.mRadius <= previousDefaultRadius * 2.f,
-                    "Projected blood pool was not enlarged by 1.5 to 2 times");
+                require(pool.mRadius >= 50 && pool.mRadius <= 90,
+                    "A four-second blood pool remained undersized at the default quantity");
                 float extent = 0;
                 for (const auto& vertex : pool.mTriangles)
                 {
@@ -518,7 +515,35 @@ namespace
             require(mode != 1 || failedGrowths > 0,
                 "Failed pool reprojection regression did not exercise the failing world projector");
         }
-        std::cout << "PASS partial pool holes accept visible new hits during cooldown, failed reprojection and exhausted native budgets\n";
+        {
+            osg::ref_ptr<osg::Group> scene = new osg::Group;
+            MWRender::BloodDecals decals(*scene);
+            std::array<unsigned, 8> accepted{};
+            for (unsigned frame = 0; frame < 20; ++frame)
+            {
+                decals.update(1.f / 60, 1200);
+                unsigned projections = 0;
+                for (unsigned emitter = 0; emitter < accepted.size(); ++emitter)
+                    for (unsigned attempt = 0; attempt < (emitter == 0 ? 100u : 1u); ++attempt)
+                    {
+                        auto stamp = quad({ emitter * 100.f, frame * 5.f, 0 }, 1);
+                        stamp.mEmitter = emitter + 1;
+                        stamp.mTriangles.clear();
+                        stamp.mProjector = [&](const auto& center, const auto&, float radius) {
+                            ++projections;
+                            if (emitter == 0) return std::vector<osg::Vec3f>{};
+                            ++accepted[emitter];
+                            return quad(center, radius).mTriangles;
+                        };
+                        decals.add("fair-projection", stamp);
+                    }
+                require(projections <= MWRender::BloodDecals::MaxProjectionAttemptsPerFrame,
+                    "Sharing projection work exceeded the global attempt budget");
+            }
+            require(std::all_of(accepted.begin() + 1, accepted.end(), [](unsigned count) { return count >= 15; }),
+                "One body's rejected deposits starved the other bleeding bodies");
+        }
+        std::cout << "PASS partial pool holes and fair bounded projection work across bleeding bodies\n";
     }
 
     void bloodLaunchRangeAndVisibleWounds()

@@ -1,6 +1,7 @@
 #include "renderingmanager.hpp"
 #include "brutalbloodlighting.hpp"
 #include "bloodsurfacevisitor.hpp"
+#include "bloodterrain.hpp"
 
 #include <cstdlib>
 #include <limits>
@@ -1239,8 +1240,11 @@ namespace MWRender
         };
         const auto captureCenter = reusable == mBloodSurfaceSnapshots.end() ? center : reusable->mCenter;
         const float captureRadius = reusable == mBloodSurfaceSnapshots.end() ? radius + 128.f : reusable->mRadius;
-        auto triangles = collectBloodSurfaceTriangles(
-            *mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp());
+        auto triangles = cell->isExterior() ? collectBloodTerrainTriangles(*mTerrainStorage,
+            cell->getCell()->getWorldSpace(), captureCenter, captureRadius) : std::vector<osg::Vec3f>{};
+        auto objects = collectBloodSurfaceTriangles(
+            *mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp(), triangles.empty());
+        triangles.insert(triangles.end(), objects.begin(), objects.end());
         auto surface = BloodTrail::visualSurface(triangles);
         if (cell->isExterior() && mBloodSurfaceTime - mBloodSurfaceWarningTime >= 10)
         {

@@ -130,11 +130,12 @@ namespace MWRender
         state->setRenderingHint(transparent ? osg::StateSet::TRANSPARENT_BIN : osg::StateSet::OPAQUE_BIN);
         osg::ref_ptr<osg::Program> program = new osg::Program;
         const std::string vertex =
-            "#version 120\nuniform mat4 projectionMatrix; varying vec4 tint; varying vec3 n; varying vec3 p; varying vec2 uv;varying vec2 bloodInfo;"
+            "#version 120\nuniform mat4 projectionMatrix; varying vec4 tint; varying vec3 n; varying vec3 p; varying vec4 uv;"
             "void setupShadowCoords(vec4 viewPos,vec3 viewNormal);"
             "void main(){mat4 proj=projectionMatrix; if(proj[0][0]==0.0)proj=gl_ProjectionMatrix;"
             "vec4 eye=gl_ModelViewMatrix*gl_Vertex;gl_Position=proj*eye;n=gl_NormalMatrix*gl_Normal;"
-            "p=eye.xyz;tint=gl_Color;uv=gl_MultiTexCoord0.xy;bloodInfo=gl_MultiTexCoord1.xy;"
+            "p=eye.xyz;tint=" + std::string(decal ? "vec4(gl_Color.r,gl_Color.b,gl_MultiTexCoord1.xy)" : "gl_Color") + ";"
+            "uv=vec4(gl_MultiTexCoord0.xy,gl_MultiTexCoord2.xy);"
             "setupShadowCoords(eye,normalize(n));}";
         const std::string spriteVertex =
             "#version 120\nuniform mat4 projectionMatrix;varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
@@ -189,20 +190,24 @@ namespace MWRender
         const std::string decalFragment =
             "uniform float brutalBloodTime;uniform float brutalBloodLifetime;"
             "uniform sampler2D brutalBloodAtlas;"
-            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;varying vec2 bloodInfo;"
+            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec4 uv;"
             "void main(){vec3 N=normalize(n);"
-            "float age=max(0.0,brutalBloodTime-bloodInfo.x);float dry=min(1.0,age/90.0);"
-            "vec4 c=tint;"
-            "if(bloodInfo.y>.5){vec4 texel=texture2D(brutalBloodAtlas,uv);"
+            "float age=max(0.0,brutalBloodTime-tint.z);float dry=min(1.0,age/90.0);"
+            "vec3 shade=vec3(tint.x,tint.x*(tint.w>.5?.72413793:.036363636),tint.y);vec4 c=vec4(shade,.94);"
+            "if(tint.w>.5){vec4 texel=texture2D(brutalBloodAtlas,uv.xy);"
             "vec3 pigment=vec3(texel.r,texel.g,max(texel.b,texel.r*.11));"
-            "c=vec4(pigment*tint.rgb,texel.a*tint.a);}"
+            "c=vec4(pigment*shade,texel.a*.94);"
+            "if(tint.w>1.5){vec2 local=uv.zw*2.0-1.0;"
+            "float edge=.79+.045*sin(local.x*11.0+sin(local.y*9.0));"
+            "float fill=1.0-smoothstep(edge-.18,edge,length(local*vec2(.95,1.08)));"
+            "c.rgb=mix(vec3(.34,.009,.036),c.rgb,texel.a);c.a=max(c.a,fill*.96);}}"
             "c.rgb*=1.0-.5*dry;c.a*=clamp((brutalBloodLifetime-age)/10.0,0.0,1.0);"
             "if(c.a<.003)discard;"
             "vec3 spec;vec3 light=bloodLighting(N,p,spec);"
             "gl_FragColor=vec4(bloodFog(c.rgb*light+spec*.035*c.a,p),c.a);}";
         const std::string solidFragment =
             "uniform bool brutalBloodWorldLighting;"
-            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
+            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec4 uv;"
             "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
             "float fold=.92+.08*sin(uv.x*110.0);float vein=pow(max(0.0,sin(uv.x*47.0+sin(uv.y*17.0)*2.0)),24.0);"
             "vec3 flesh=mix(tint.rgb,vec3(.23,.025,.045),vein*.5);"
@@ -558,7 +563,7 @@ namespace MWRender
         for (Stain* candidate : nearby.mStains)
         {
             const auto& existing = candidate->mStamp;
-            if (existing.mNormal.z() < .7f || existing.mNormal * stamp.mNormal < .98f) continue;
+            if (!existing.mPool || existing.mNormal.z() < .7f || existing.mNormal * stamp.mNormal < .98f) continue;
             const auto offset = stamp.mCenter - existing.mCenter;
             const auto tangent = offset - existing.mNormal * (offset * existing.mNormal);
             const float reach = std::max(6.f, existing.mRadius * .8f + stamp.mRadius * .3f);
@@ -578,7 +583,16 @@ namespace MWRender
         // Nominal radius alone is not coverage: earlier clipping can leave
         // holes or disconnected receiver pieces. Never swallow an impact in
         // such a hole merely because this anchor is nearby.
-        const bool coveredBefore = CoverageIndex::coversPoint(pool->mStamp, stamp.mCenter);
+        const auto denseCoverage = [&](const BloodStamp& target) {
+            const auto offset = stamp.mCenter - target.mCenter;
+            const auto tangent = offset - target.mNormal * (offset * target.mNormal);
+            return tangent.length2() < target.mRadius * target.mRadius * .2f
+                && CoverageIndex::coversPoint(target, stamp.mCenter);
+        };
+        const bool coveredBefore = denseCoverage(pool->mStamp);
+        // Ballistic detail is merged only where opaque liquid already exists.
+        // Outside that core it must leave its own visible splash.
+        if (!stamp.mPool && !coveredBefore) return false;
         const auto touch = [&]() {
             if (mTime >= pool->mNextWetRefresh)
             {
@@ -588,11 +602,12 @@ namespace MWRender
             }
         };
         if (coveredBefore) touch();
-        const float volume = stamp.mRadius * stamp.mRadius * (stamp.mPool ? .01f : .12f);
-        pool->mAccumulatedArea = std::min(MaxPoolRadius * MaxPoolRadius, pool->mAccumulatedArea + volume);
+        const float volume = stamp.mRadius * stamp.mRadius * .12f;
+        const float limit = std::clamp(stamp.mPoolLimit, 1.f, MaxPoolRadius);
+        pool->mAccumulatedArea = std::min(limit * limit, pool->mAccumulatedArea + volume);
         if (mTime < pool->mNextGrowth || mPoolGrowths >= MaxPoolGrowthsPerFrame) return coveredBefore;
         const float oldRadius = pool->mStamp.mRadius;
-        const float desired = std::min({ std::max(oldRadius, MaxPoolRadius), oldRadius + 8.f,
+        const float desired = std::min({ std::max(oldRadius, limit), oldRadius + 8.f,
             std::max(stamp.mPool ? stamp.mRadius : oldRadius,
                 std::sqrt(oldRadius * oldRadius + pool->mAccumulatedArea)) });
         if (desired < oldRadius + .5f)
@@ -630,6 +645,14 @@ namespace MWRender
             if (!insideOldBox && !CoverageIndex::containsBounds(grownBounds, otherBounds)) continue;
             ++mPoolAbsorptionChecks;
             const auto& covering = insideOldBox ? pool->mStamp : grown;
+            // The decal square includes transparent margins. Only absorb
+            // detail fully inside the opaque fluid, never its dry perimeter.
+            if (!other->mStamp.mPool && !std::all_of(other->mStamp.mTriangles.begin(), other->mStamp.mTriangles.end(),
+                [&](const osg::Vec3f& vertex) {
+                    const auto offset = vertex - covering.mCenter;
+                    const auto tangent = offset - covering.mNormal * (offset * covering.mNormal);
+                    return tangent.length2() < covering.mRadius * covering.mRadius * .2f;
+                })) continue;
             if (!bloodStampContains(covering, other->mStamp)) continue;
             if (insideOldBox) eraseStain(other->mSelf);
             else absorbed.push_back(other);
@@ -657,9 +680,9 @@ namespace MWRender
         pool->mStamp = std::move(grown);
         mVertexCount += pool->mStamp.mTriangles.size();
         mCoverage->insert(*pool);
-        pool->mAccumulatedArea = 0;
+        pool->mAccumulatedArea = std::max(0.f, pool->mAccumulatedArea - (desired * desired - oldRadius * oldRadius));
         dirty(*pool);
-        const bool coveredAfter = CoverageIndex::coversPoint(pool->mStamp, stamp.mCenter);
+        const bool coveredAfter = denseCoverage(pool->mStamp);
         if (coveredAfter) touch();
         return coveredAfter;
     }
@@ -670,11 +693,20 @@ namespace MWRender
         // Deferred deposits are accepted only with a live, ephemeral projector;
         // empty saved geometry cannot enter this path during restoration.
         if (stamp.mTriangles.empty() && !stamp.mProjector) return;
+        EmitterBudget* emitter = nullptr;
+        if (stamp.mProjector && stamp.mTriangles.empty())
+        {
+            if (mEmitters.size() >= 128 && !mEmitters.contains(stamp.mEmitter)) return;
+            emitter = &mEmitters[stamp.mEmitter];
+            emitter->mLastSeen = mTime;
+        }
         if (feedPool(cell, stamp)) return;
         if (stamp.mProjector && stamp.mTriangles.empty())
         {
-            if (mNewDeposits >= MaxNewDepositsPerFrame) return;
-            ++mNewDeposits;
+            if (mNewDeposits >= MaxNewDepositsPerFrame || mProjectionAttempts >= MaxProjectionAttemptsPerFrame
+                || emitter->mCredit < 1) return;
+            emitter->mCredit -= 1;
+            ++mProjectionAttempts;
         }
         BloodStamp incoming = stamp;
         incoming.mProjector = {};
@@ -694,6 +726,7 @@ namespace MWRender
         mStains.push_back({ { cell, std::move(incoming), 0 }, mNextSequence++ });
         auto& added = mStains.back();
         added.mSelf = std::prev(mStains.end());
+        if (stamp.mProjector) ++mNewDeposits;
         if (!added.mStamp.mVisualSeed) added.mStamp.mVisualSeed = nextSeed(mRandom);
         added.mNextGrowth = added.mNextWetRefresh = mTime + PoolGrowthInterval;
         mVertexCount += added.mStamp.mTriangles.size();
@@ -707,8 +740,11 @@ namespace MWRender
         mLifetime = std::clamp(lifetime, 300.f, 1800.f);
         mLifetimeUniform->set(mLifetime);
         if (!std::isfinite(duration) || duration <= 0) return;
-        mNewDeposits = mPoolGrowths = mPoolAbsorptionChecks = 0;
+        mNewDeposits = mProjectionAttempts = mPoolGrowths = mPoolAbsorptionChecks = 0;
         mTime += duration;
+        std::erase_if(mEmitters, [&](const auto& item) { return mTime - item.second.mLastSeen > 1; });
+        const float share = float(MaxProjectionAttemptsPerFrame) / std::max<std::size_t>(1, mEmitters.size());
+        for (auto& [id, emitter] : mEmitters) emitter.mCredit = std::min(4.f, emitter.mCredit + share);
         mTimeUniform->set(static_cast<float>(mTime));
         mSinceBatch += duration;
         for (auto& stain : mStains)
@@ -739,12 +775,14 @@ namespace MWRender
                     chunk.mGeometry = geometry(new osg::Vec3Array, new osg::Vec3Array, new osg::Vec4Array);
                     chunk.mGeometry->setTexCoordArray(0, new osg::Vec2Array);
                     chunk.mGeometry->setTexCoordArray(1, new osg::Vec2Array);
+                    chunk.mGeometry->setTexCoordArray(2, new osg::Vec2Array);
                 }
                 static_cast<osg::Vec3Array*>(chunk.mGeometry->getVertexArray())->clear();
                 static_cast<osg::Vec3Array*>(chunk.mGeometry->getNormalArray())->clear();
                 static_cast<osg::Vec4Array*>(chunk.mGeometry->getColorArray())->clear();
                 static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(0))->clear();
                 static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(1))->clear();
+                static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(2))->clear();
                 dirtyChunks.emplace_back(&chunk, batch.mActive);
             }
         if (dirtyChunks.empty()) return;
@@ -757,6 +795,7 @@ namespace MWRender
             auto* colors = static_cast<osg::Vec4Array*>(chunk.mGeometry->getColorArray());
             auto* coords = static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(0));
             auto* births = static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(1));
+            auto* localCoords = static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(2));
             const auto& stamp = stain.mStamp;
             if (!chunk.mTransform)
             {
@@ -801,7 +840,8 @@ namespace MWRender
                 normals->push_back(surfaceNormal);
                 colors->push_back(tint);
                 coords->push_back({ tile.x() + u * (tile.z() - tile.x()), tile.y() + v * (tile.w() - tile.y()) });
-                births->push_back({ static_cast<float>(mTime - stain.mAge), textured ? 1.f : 0.f });
+                births->push_back({ static_cast<float>(mTime - stain.mAge), textured ? (floor && stamp.mPool ? 2.f : 1.f) : 0.f });
+                localCoords->push_back({ u, v });
             }
         }
         constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
@@ -827,6 +867,7 @@ namespace MWRender
             chunk->mGeometry->getColorArray()->dirty();
             chunk->mGeometry->getTexCoordArray(0)->dirty();
             chunk->mGeometry->getTexCoordArray(1)->dirty();
+            chunk->mGeometry->getTexCoordArray(2)->dirty();
             static_cast<osg::DrawArrays*>(chunk->mGeometry->getPrimitiveSet(0))->setCount(vertices->getNumElements());
             chunk->mGeometry->dirtyBound();
             chunk->mNode->setNodeMask(active ? unsigned(Mask_Effect) : 0u);
@@ -851,10 +892,11 @@ namespace MWRender
                 if (chunk.mTransform) mParent->removeChild(chunk.mTransform);
         mBatches.clear();
         mCoverage->clear();
+        mEmitters.clear();
         mStains.clear();
         mVertexCount = 0;
         mNextSequence = 0; mTime = 0; mSinceBatch = 1;
-        mNewDeposits = mPoolGrowths = mPoolAbsorptionChecks = 0;
+        mNewDeposits = mProjectionAttempts = mPoolGrowths = mPoolAbsorptionChecks = 0;
         mTimeUniform->set(0.f);
     }
     std::vector<BloodStainState> BloodDecals::saveState() const { return { mStains.begin(), mStains.end() }; }
@@ -868,10 +910,11 @@ namespace MWRender
             batch.mChunks.clear();
         }
         mCoverage->clear();
+        mEmitters.clear();
         mStains.clear();
         mVertexCount = 0;
         mNextSequence = 0; mTime = 0; mSinceBatch = 1;
-        mNewDeposits = mPoolGrowths = mPoolAbsorptionChecks = 0;
+        mNewDeposits = mProjectionAttempts = mPoolGrowths = mPoolAbsorptionChecks = 0;
         mTimeUniform->set(0.f);
         // Prefer the newest visible blood when compacting an old save that
         // stacked dozens of deposits at one location. Restore chronological
@@ -1001,6 +1044,8 @@ namespace MWRender
         stamp.mRadius = radius * DecalScale * (.88f + .24f * random());
         radius = stamp.mRadius;
         stamp.mPool = pool;
+        stamp.mPoolLimit = mPoolLimit;
+        stamp.mEmitter = reinterpret_cast<std::uintptr_t>(this);
         if (mProjector)
         {
             stamp.mProjector = mProjector;
@@ -1046,7 +1091,8 @@ namespace MWRender
         const float dt = std::min(duration, .1f);
         const float launchScale = Ragdoll::bloodLaunchScale(amount);
         const float spreadScale = Ragdoll::bloodSpreadScale(amount);
-        const float sizeScale = .85f + .15f * std::sqrt(Ragdoll::bloodAmountMultiplier(amount));
+        mPoolLimit = 100.f * std::sqrt(Ragdoll::bloodAmountMultiplier(amount));
+        const float sizeScale = std::sqrt(Ragdoll::bloodEmissionScale(amount));
         amount = Ragdoll::bloodEmissionScale(amount);
         const auto sourceCount = std::min(sources.size(), MaxSources);
         mRemainders.resize(sourceCount, 0);
@@ -1076,7 +1122,7 @@ namespace MWRender
                 osg::Vec3f point, normal;
                 if (mRaycast && mRaycast(source.mPosition, source.mPosition - osg::Vec3f(0, 0, GroundPoolProbe), point, normal)
                     && normal.z() > .65f)
-                    stamp(point, normal, std::min(28.f, (3.f + std::sqrt(std::max(0.f, age)) * 5.f) * std::sqrt(amount)), true);
+                    stamp(point, normal, std::min(36.f, 6.f + std::sqrt(std::max(0.f, age)) * 10.f) * std::sqrt(amount), true);
             }
         }
         // Share the finite particle budget between all open wounds. A neck or
@@ -1111,7 +1157,7 @@ namespace MWRender
                 // A low frame rate must not turn hundreds of simultaneous
                 // impacts into thousands of perimeter raycasts in one update.
                 if (amount > 0 && splats++ < MaxImpactSplats)
-                    stamp(point, normal, (1.f + random() * 3.2f) * std::sqrt(amount), false);
+                    stamp(point, normal, (4.f + random() * 7.f) * std::sqrt(amount), false);
                 drop.mAge = 4;
             }
             else

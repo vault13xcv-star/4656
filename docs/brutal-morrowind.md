@@ -1,64 +1,44 @@
-# Brutal Morrowind 0.7.0-preview.8
+# Brutal Morrowind 0.7.0-preview.9
 
-This blood update starts from the exact stable preview.2 source revision
-`a76508441a8dd4a791a38cab140f04bf7c2a2323`. It does not include subsequent
-experimental changes from other branches. Combat calculations are unchanged.
+This blood update retains the stable preview.2 combat implementation from
+`a76508441a8dd4a791a38cab140f04bf7c2a2323`.
 
-## Exterior receiver traversal fix after preview.7
+## Blood coverage corrections
 
-Blood sprites could remain visible while the ground receiver query returned no
-land triangles. Object roots are inserted before terrain in the game graph;
-the snapshot's node limit could be spent before terrain was visited. Sorting
-the already collected meshes afterwards did not repair that missing data.
+Outdoor ground receivers now come directly from the LAND vertex and index data
+used by the terrain renderer. Blood does not depend on finding a loaded terrain
+chunk through the object tree. Visible pavement, bridges, floors, walls and
+carpets still use their actual rendered meshes, above the underlying land;
+physics-only collision boxes are not decal receivers.
 
-Land and paged static receivers now have a dedicated bounded traversal before
-the general object tree. Distant references are rejected against the query
-before spending the nearby-node budget. Paged pavement below a terrain root
-and unpaged floors/bridges remain receivers above the underlying land. The
-existing triangle, particle and two-layer limits are retained. A rate-limited
-log warning records exterior receiver-query failures and their world positions.
+Pools now contain opaque liquid within an irregular central footprint. Previously,
+stretching the sparse floor artwork left most of a nominally large pool transparent,
+while merging treated that empty area as blood and discarded subsequent hits.
+Ballistic splashes are merged only inside an existing pool's dense, fitted core.
+Hits outside that core retain separate original artwork around the perimeter.
+Small splashes are absorbed only after proving actual surface containment and
+opaque pool coverage. Repeated bleeding retains unused volume as the pool grows.
 
-The regression reproduces zero captured ground vertices in preview.7 with
-18,000 preceding distant references. Additional native EGL checks cover the
-default TerrainGrid and distant QuadTreeWorld, using their actual chunk buffers
-and draw/cull path, both depth modes and the original floor PNGs. They run the
-whole receiver -> droplet -> decal -> framebuffer path and require visible
-decal pixels after all flying particles have expired. The normal/reversed native
-GL checks are registered when BRUTAL_TEST_NATIVE_GL is enabled. These synthetic
-scenes are not a playtest with a user's Morrowind installation.
+The Blood amount slider increases actual footprint area, drop size and emission,
+in addition to spray speed and spread. Its pool growth limit is 100 world units
+at 100% and about 173 at 300%; the former shared size ceiling is removed. Initial
+floor splashes and grounded-wound deposits are larger at the default amount.
+The six supplied PNGs remain unchanged, including their wall/floor selection,
+orientation and mirroring rules. The central liquid fill complements that artwork.
 
-## Corrections after preview.6
+Projection attempts are shared between bleeding bodies, so early emitters cannot
+consume the entire frame budget with rejected deposits. Two overlapping surface
+layers, bounded particle/geometry allocation, save/load age and existing retention
+settings remain in force.
 
-Grounded wounds establish their shared puddle on the first emitted blood drop,
-instead of first filling its footprint with a quarter-second of separate impact
-decals. Deposits prefer an existing pool, including its fitted faces on curved
-ground. Growing pools absorb fully contained details using a bounded union-of-
-faces containment proof; holes and separate floors cannot be absorbed by radius
-alone. The arbitrary eight-neighbor rejection is removed: actual overlap work
-remains bounded, and no more than two blood layers cover a receiver point.
-Receiver matching accounts for float precision at distant exterior coordinates,
-where clipped narrow triangles previously escaped the overlap test.
-
-Static surface snapshots are refreshed in their existing shared cache slots,
-rather than appending duplicates that evict another bleeding body's receiver.
-Nearby exterior cells in the same worldspace share snapshots. Unchanged snapshots
-are reused for two seconds; the two-builds-per-frame limit remains, and a valid
-old snapshot stays usable if that frame's refresh budget is exhausted. Explicit
-movement, deletion and cell invalidation still invalidate affected receivers.
-
-Ballistic sprite fountains no longer also spawn legacy NIF blood effects at
-every wound pulse. The billboard vertices now use a local origin with a double-
-precision transform, preserving their visibility at large exterior coordinates.
-Fallback callers without a ballistic trail retain their original blood effect.
-Blood amount, stain lifetime, the original wall/floor artwork and combat rules
-retain their preview.6 settings.
-
-Regression checks compare twelve bleeding wounds on three corpses on flat tiled
-floors and curved, densely tessellated ground at distant world coordinates. They
-sample the two-layer bound, substantial pool growth and comparable ground
-coverage. The ten-corpse stress check rejects duplicate legacy NIF spawning, and
-actual normal/reversed-Z GL checks render the billboards at exterior coordinates.
-These checks do not substitute for an in-game FPS measurement with user assets.
+Native EGL regression scenes use actual TerrainGrid and QuadTreeWorld chunk
+buffers and draw/cull paths, both depth conventions and the original floor PNGs.
+They simulate three falling bodies with three wounds each, drain all flying
+particles, then measure visible ground blood at 100% and 300%. The larger setting
+must at least double visible coverage. Additional checks cover interior/exterior
+pool growth, multiple wounds, receiver heights across cell borders, overlap,
+saves, lighting and shadows. These synthetic scenes are not an in-game Balmora
+playtest; no Morrowind game assets are available in this build environment.
 
 ## Pool overdraw and sprite droplets
 
@@ -70,11 +50,11 @@ Overlapping stacks from older saves are compacted while preserving saved ages.
 
 Repeated floor impacts feed one growing pool. Growth is projected again onto
 the visible receiver mesh at most four times per second, up to a
-96-unit radius. Dense native impacts are routed before triangle projection, so
+100-unit radius at 100% or about 173 at 300% (a hard safety limit is 192). Dense native impacts are routed before triangle projection, so
 redundant drops do not repeatedly tessellate the same floor. Texture identity is
 preserved as the pool grows. The existing total stain and geometry caps remain.
-Per update, native effects can project at most twelve new deposits and four pool
-growths; eight bounded containment checks can absorb smaller covered stains.
+Per update, native effects can attempt at most twenty-four projections, accept
+twelve new deposits and perform four pool growths; eight bounded containment checks can absorb smaller covered stains.
 Complex redundant deposits are rejected within a small geometry-work budget.
 Uncovered holes remain eligible for new hits when a pool cannot grow. These
 limits apply to live effects; loading retains a separate bounded compaction
@@ -139,8 +119,7 @@ orientation or a 180-degree turn. Both groups may mirror horizontally; variants
 and modest size variation are random. The visual seed is saved with each stain,
 so loading a save does not reshuffle the artwork.
 
-Blood amount defaults to 100% of a doubled baseline. At 100%, emission and the
-existing pool-size response match the former 200% setting; 300% emits six times
+Blood amount defaults to 100% of a doubled baseline. At 100%, emission doubles the original baseline; 300% emits six times
 the original preview.2 baseline, subject to the same particle/work limits. New
 decal footprints are additionally 1.75 times larger in each direction. Blood
 is tinted dark burgundy, with subtle per-stain brightness and shade differences
@@ -163,7 +142,7 @@ custom models may require extending this classification.
 
 The cache holds up to 32768 stains while retaining preview.2's aggregate geometry
 budget of 1572864 vertices. New stamps use at most 192 vertices, dirty batches
-are rebuilt in one cache pass, and pool merging examines a bounded recent window.
+are rebuilt in one cache pass, and pool merging uses a bounded spatial index.
 Hit/death sprays, droplets and intestinal physics retain explicit work budgets.
 
 Preview.2 blood saves can be loaded. New blood records use version 2 to preserve
