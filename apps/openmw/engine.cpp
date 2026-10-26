@@ -526,6 +526,7 @@ void OMW::Engine::createWindow()
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24));
+    checkSDLError(SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8));
     if (Debug::shouldDebugOpenGL())
         checkSDLError(SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG));
 

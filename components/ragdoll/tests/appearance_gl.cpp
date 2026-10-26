@@ -58,7 +58,7 @@ int main(int argc, char** argv)
         EGLint major, minor;
         check(eglInitialize(display, &major, &minor) && eglBindAPI(EGL_OPENGL_API), "EGL initialization failed");
         const EGLint attributes[] = { EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-            EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_DEPTH_SIZE, 24, EGL_NONE };
+            EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8, EGL_NONE };
         EGLConfig config; EGLint count;
         check(eglChooseConfig(display, attributes, &config, 1, &count) && count, "EGL config missing");
         const EGLint size[] = { EGL_WIDTH, width, EGL_HEIGHT, height, EGL_NONE };
@@ -504,7 +504,8 @@ int main(int argc, char** argv)
                 // stain to be replaced by another redundant layer.
                 check(blood.size() <= MWRender::BloodDecals::MaxStains
                     && blood.size() >= MWRender::BloodDecals::MaxStains * 9 / 10
-                    && root->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 10, "Full GPU blood cache grew without bound");
+                    && root->getNumChildren() <= 2 * (MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1) + 10,
+                    "Full GPU blood cache grew without bound");
                 viewer.frame();
                 check(glGetError() == GL_NO_ERROR, "Full blood cache caused an OpenGL error");
             }

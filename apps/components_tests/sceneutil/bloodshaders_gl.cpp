@@ -52,7 +52,8 @@ namespace
             EGLint major = 0, minor = 0;
             require(eglInitialize(mDisplay, &major, &minor) && eglBindAPI(EGL_OPENGL_API), "EGL initialization failed");
             const EGLint attributes[] = { EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-                EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 24, EGL_NONE };
+                EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 24,
+                EGL_STENCIL_SIZE, 8, EGL_NONE };
             EGLConfig config;
             EGLint count = 0;
             require(eglChooseConfig(mDisplay, attributes, &config, 1, &count) && count, "EGL configuration missing");
@@ -110,10 +111,90 @@ namespace
         return nullptr;
     }
 
-    unsigned drawNativeExteriorBlood(osgViewer::Viewer& viewer, bool reversed, bool distant,
-        float amount = 1, int corpseCount = 1, unsigned frames = 120)
+    void drawNativeOverlapBlood(osgViewer::Viewer& viewer, bool reversed, bool perimeter)
     {
-        BloodTest::ExteriorBloodScene terrain(-4, -3, .2f, .1f, distant);
+        osg::ref_ptr<SceneUtil::LightManager> scene = new SceneUtil::LightManager(SceneUtil::LightSettings{});
+        MWRender::installNativeBloodLighting(*scene, false, true, 0, false);
+        auto* state = scene->getOrCreateStateSet();
+        osg::ref_ptr<osg::LightModel> ambient = new osg::LightModel;
+        ambient->setAmbientIntensity({ 1, 1, 1, 1 });
+        state->setAttributeAndModes(ambient, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+        auto* camera = viewer.getCamera();
+        camera->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+        camera->setViewMatrixAsLookAt({ 0, 0, 500 }, { 0, 0, 0 }, { 0, 1, 0 });
+        camera->setProjectionMatrixAsOrtho(-128, 128, -96, 96, 1, 1000);
+        camera->setClearColor({ .3f, .3f, .3f, 1 });
+        auto projection = camera->getProjectionMatrix();
+        if (reversed) for (int row = 0; row < 4; ++row) projection(row, 2) = -projection(row, 2);
+        state->addUniform(new osg::Uniform("projectionMatrix", osg::Matrixf(projection)));
+        const auto surface = MWRender::BloodTrail::visualSurface({
+            { -512, -512, 0 }, { 512, -512, 0 }, { 512, 512, 0 },
+            { -512, -512, 0 }, { 512, 512, 0 }, { -512, 512, 0 } });
+        MWRender::BloodDecals blood(*scene);
+        std::vector<osg::ref_ptr<osg::Image>> floor;
+        for (const auto* name : { "floor06.png", "floor07.png" })
+            floor.push_back(osgDB::readRefImageFile((std::filesystem::path(OPENMW_PROJECT_SOURCE_DIR)
+                / "files/data/textures/brutal/blood" / name).string()));
+        blood.setTextures(floor, {}); blood.setCellActive("overlap", true);
+        const auto add = [&](osg::Vec3f position, float radius, bool pool, unsigned seed) {
+            MWRender::BloodStamp stamp;
+            stamp.mCenter = position; stamp.mNormal = { 0, 0, 1 }; stamp.mRadius = radius;
+            stamp.mPool = pool; stamp.mVisualSeed = seed;
+            stamp.mTriangles = surface.mProjector(position, stamp.mNormal, radius);
+            blood.add("overlap", stamp);
+        };
+        if (perimeter)
+        {
+            add({ -40, -10, 0 }, 100, true, 8);
+            add({ 40, -10, 0 }, 100, true, 12);
+        }
+        else
+        {
+            add({}, 24, false, 8); add({}, 24, false, 12);
+            add({}, 80, true, 16);
+        }
+        const auto sample = [&] {
+            blood.update(.11f, 1200);
+            viewer.setSceneData(scene); viewer.frame(); viewer.frame(); glFinish();
+            std::vector<unsigned char> pixels(Width * Height * 3);
+            glReadPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+            require(glGetError() == GL_NO_ERROR, "Overlap framebuffer read failed");
+            return pixels;
+        };
+        const auto before = sample();
+        if (perimeter) add({ 0, 82, 0 }, 14, false, 20);
+        const auto after = perimeter ? sample() : before;
+        unsigned emptyCore = 0, changed = 0;
+        for (int y = 0; y < Height; ++y)
+            for (int x = 0; x < Width; ++x)
+            {
+                const float px = (x + .5f) / Width * 256 - 128;
+                const float py = (y + .5f) / Height * 192 - 96;
+                const auto i = std::size_t(y * Width + x) * 3;
+                const bool red = after[i] > after[i + 1] + 6 && after[i] > after[i + 2] + 6;
+                if (px * px + py * py < 25 * 25 && !red) ++emptyCore;
+                if (std::abs(px) < 15 && std::abs(py - 82) < 15 && red
+                    && (std::abs(int(after[i]) - int(before[i]))
+                        + std::abs(int(after[i + 1]) - int(before[i + 1])) > 5)) ++changed;
+            }
+        if (const char* directory = std::getenv("BRUTAL_TEST_OUTPUT"))
+        {
+            osg::ref_ptr<osg::Image> screenshot = new osg::Image;
+            screenshot->readPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE);
+            osgDB::writeImageFile(*screenshot, (std::filesystem::path(directory)
+                / (std::string(perimeter ? "perimeter-" : "overlap-") + (reversed ? "reversed" : "normal") + ".png")).string());
+        }
+        std::cout << "Overlap dry core pixels=" << emptyCore << " perimeter changed pixels=" << changed << '\n';
+        require(perimeter ? changed > 20 : emptyCore == 0,
+            perimeter ? "Transparent pool rectangles suppressed a new splash on dry ground"
+                      : "Sparse splash rectangles cut square dry holes in a larger pool");
+        viewer.setSceneData(nullptr);
+    }
+
+    unsigned drawNativeExteriorBlood(osgViewer::Viewer& viewer, bool reversed, bool distant,
+        float amount = 1, int corpseCount = 1, unsigned frames = 120, bool rough = false, bool onlySplashes = false)
+    {
+        BloodTest::ExteriorBloodScene terrain(-4, -3, .2f, .1f, distant, rough);
         const auto center = terrain.mStorage.center();
         osg::ref_ptr<SceneUtil::LightManager> scene = new SceneUtil::LightManager(SceneUtil::LightSettings{});
         scene->setNodeMask(MWRender::Mask_Scene);
@@ -199,7 +280,9 @@ namespace
         std::vector<std::unique_ptr<MWRender::BloodTrail>> fountains;
         for (int corpse = 0; corpse < corpseCount; ++corpse)
             fountains.push_back(std::make_unique<MWRender::BloodTrail>(*scene, surface.mRaycast,
-                [&](const auto& stamp) { blood.add("Esm3ExteriorCell:-3:-2", stamp); }, surface.mProjector, true));
+                [&](const auto& stamp) {
+                    if (!onlySplashes || !stamp.mPool) blood.add("Esm3ExteriorCell:-3:-2", stamp);
+                }, surface.mProjector, true));
         for (unsigned frame = 0; frame < frames; ++frame)
         {
             blood.update(1.f / 60, 1200);
@@ -253,16 +336,79 @@ namespace
             red += pixels[i] > pixels[i + 1] + 6 && pixels[i] > pixels[i + 2] + 6;
         require(red > 20, "Exterior blood existed in CPU memory but no original floor decal pixels reached the native terrain framebuffer");
         std::cout << "PASS native " << (distant ? "quadtree" : "default grid") << " terrain + 18000 objects -> ray -> fountain -> "
-                  << blood.size() << " decals -> " << red << " blood pixels; amount=" << amount << " corpses=" << corpseCount << '\n';
+                  << blood.size() << " decals -> " << red << " blood pixels; amount=" << amount << " corpses=" << corpseCount
+                  << " rough=" << rough << " splashes-only=" << onlySplashes << '\n';
         if (const char* directory = std::getenv("BRUTAL_TEST_OUTPUT"))
         {
             osg::ref_ptr<osg::Image> screenshot = new osg::Image;
             screenshot->readPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE);
             osgDB::writeImageFile(*screenshot, (std::filesystem::path(directory)
-                / (std::string(distant ? "quadtree-" : "grid-") + std::to_string(int(amount * 100)) + ".png")).string());
+                / (std::string(distant ? "quadtree-" : "grid-") + (rough ? "rough-" : "")
+                    + (onlySplashes ? "splashes-" : "") + std::to_string(int(amount * 100)) + ".png")).string());
         }
         viewer.setSceneData(nullptr);
         return red;
+    }
+
+    void drawNativeLayerCounter(osgViewer::Viewer& viewer, bool reversed)
+    {
+        osg::ref_ptr<SceneUtil::LightManager> scene = new SceneUtil::LightManager(SceneUtil::LightSettings{});
+        MWRender::installNativeBloodLighting(*scene, false, true, 0, false);
+        auto* camera = viewer.getCamera();
+        camera->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+        camera->setViewMatrixAsLookAt({ 0, 0, 500 }, {}, { 0, 1, 0 });
+        camera->setProjectionMatrixAsOrtho(-128, 128, -96, 96, 1, 1000);
+        camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        camera->setClearStencil(0xa0);
+        auto projection = camera->getProjectionMatrix();
+        if (reversed) for (int row = 0; row < 4; ++row) projection(row, 2) = -projection(row, 2);
+        scene->getOrCreateStateSet()->addUniform(new osg::Uniform("projectionMatrix", osg::Matrixf(projection)));
+        osg::ref_ptr<osg::Image> opaque = new osg::Image;
+        opaque->allocateImage(1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+        opaque->setColor({ 1, 0, 0, 1 }, 0, 0);
+        MWRender::BloodDecals blood(*scene);
+        blood.setTextures({ opaque }, {}); blood.setCellActive("counter", true);
+        MWRender::BloodStamp stamp;
+        stamp.mCenter = {}; stamp.mNormal = { 0, 0, 1 }; stamp.mRadius = 60;
+        stamp.mTriangles = { { -60, -60, .03f }, { 60, -60, .03f }, { 60, 60, .03f },
+            { -60, -60, .03f }, { 60, 60, .03f }, { -60, 60, .03f } };
+        for (unsigned i = 1; i <= 300; ++i) { stamp.mVisualSeed = i; blood.add("counter", stamp); }
+        require(blood.size() == 300, "Layer-counter regression did not retain the hundreds of source quads");
+        blood.update(.11f, 1200);
+        struct Probe : osg::Drawable::DrawCallback
+        {
+            mutable unsigned mMaximum = 0, mCount = 0;
+            void drawImplementation(osg::RenderInfo&, const osg::Drawable*) const override
+            {
+                std::vector<unsigned char> stencil(Width * Height);
+                glReadPixels(0, 0, Width, Height, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, stencil.data());
+                for (const auto value : stencil)
+                {
+                    require((value & 0xfc) == 0xa0, "Blood changed stencil bits reserved for other scene effects");
+                    mMaximum = std::max(mMaximum, unsigned(value & 3));
+                }
+                ++mCount;
+            }
+        };
+        osg::ref_ptr<Probe> probe = new Probe;
+        osg::ref_ptr<osg::Geode> node = new osg::Geode;
+        node->getOrCreateStateSet()->setRenderBinDetails(9, "BrutalBloodBin");
+        osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
+        osg::ref_ptr<osg::Vec3Array> points = new osg::Vec3Array;
+        points->push_back({ -1, -1, 0 }); points->push_back({ 1, -1, 0 }); points->push_back({ 0, 1, 0 });
+        geometry->setVertexArray(points); geometry->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, 3));
+        geometry->getOrCreateStateSet()->setRenderBinDetails(2, "RenderBin");
+        geometry->setUseDisplayList(false); geometry->setDrawCallback(probe);
+        node->addDrawable(geometry); scene->addChild(node);
+        viewer.setSceneData(scene); viewer.frame(); viewer.frame(); glFinish();
+        require(probe->mCount > 0 && probe->mMaximum == 2, "Blood's visible fragment counter did not enforce exactly two layers");
+        std::vector<unsigned char> stencil(Width * Height);
+        glReadPixels(0, 0, Width, Height, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, stencil.data());
+        require(std::all_of(stencil.begin(), stencil.end(), [](auto value) { return value == 0xa0; }),
+            "Blood left its counter bits in the scene after drawing");
+        require(glGetError() == GL_NO_ERROR, "Blood layer counter raised an OpenGL error");
+        std::cout << "PASS 300 overlapping quads -> maximum two visible layers; scene stencil preserved\n";
+        viewer.setSceneData(nullptr);
     }
 }
 
@@ -348,6 +494,30 @@ int main(int argc, char** argv)
         auto* program = bloodProgram(*root);
         require(program && program->getNumShaders() == 4, "Native factory did not replace blood's fallback shadow libraries");
         viewer.setSceneData(root); viewer.realize();
+
+        if (argc > 2 && std::string(argv[2]) == "counter")
+        {
+            drawNativeLayerCounter(viewer, reversed);
+            return 0;
+        }
+
+        if (argc > 2 && std::string(argv[2]) == "landscape")
+        {
+            for (const bool distant : { false, true })
+            {
+                const auto flat = drawNativeExteriorBlood(viewer, reversed, distant, 1, 3, 300, false, true);
+                const auto rough = drawNativeExteriorBlood(viewer, reversed, distant, 1, 3, 300, true, true);
+                require(rough >= 200 && rough >= flat * .6f,
+                    "Ballistic splashes disappeared on rough native LAND without any pools");
+            }
+            return 0;
+        }
+
+        if (argc > 2 && (std::string(argv[2]) == "overlap" || std::string(argv[2]) == "perimeter"))
+        {
+            drawNativeOverlapBlood(viewer, reversed, std::string(argv[2]) == "perimeter");
+            return 0;
+        }
 
         if (argc > 2 && std::string(argv[2]) == "exterior")
         {

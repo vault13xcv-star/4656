@@ -356,6 +356,7 @@ namespace MWRender
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
         std::unique_ptr<BloodDecals> mBloodDecals;
+        std::map<std::string, const MWWorld::CellStore*> mBloodCells;
         struct BloodSurfaceSnapshot
         {
             const MWWorld::CellStore* mCell = nullptr;

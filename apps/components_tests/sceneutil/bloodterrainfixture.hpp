@@ -24,14 +24,18 @@ namespace BloodTest
         int mX, mY;
         float mSlopeX, mSlopeY;
         unsigned mFilledChunks = 0;
+        bool mRough = false;
 
-        ExteriorBloodStorage(int x, int y, float slopeX, float slopeY)
-            : mX(x), mY(y), mSlopeX(slopeX), mSlopeY(slopeY) {}
+        ExteriorBloodStorage(int x, int y, float slopeX, float slopeY, bool rough = false)
+            : mX(x), mY(y), mSlopeX(slopeX), mSlopeY(slopeY), mRough(rough) {}
 
         osg::Vec3f center() const { return { (mX + 1.f) * 8192.f, (mY + 1.f) * 8192.f, 512.f }; }
         float height(float x, float y) const
         {
-            return 512.f + (x - center().x()) * mSlopeX + (y - center().y()) * mSlopeY;
+            const float dx = x - center().x(), dy = y - center().y();
+            return 512.f + dx * mSlopeX + dy * mSlopeY
+                + (mRough ? 18.f * std::sin(dx / 96.f) * std::cos(dy / 128.f)
+                    + 12.f * std::sin((dx + dy) / 180.f) : 0.f);
         }
         void getBounds(float& minX, float& maxX, float& minY, float& maxY, ESM::RefId) override
         {
@@ -41,7 +45,7 @@ namespace BloodTest
             float& minimum, float& maximum) override
         {
             const float heightAtCenter = height(chunk.x() * 8192.f, chunk.y() * 8192.f);
-            const float variation = (std::abs(mSlopeX) + std::abs(mSlopeY)) * size * 4096.f;
+            const float variation = (std::abs(mSlopeX) + std::abs(mSlopeY)) * size * 4096.f + (mRough ? 64.f : 0.f);
             minimum = heightAtCenter - variation; maximum = heightAtCenter + variation;
             return true;
         }
@@ -80,8 +84,8 @@ namespace BloodTest
         ExteriorBloodStorage mStorage;
         std::unique_ptr<Terrain::World> mTerrain;
 
-        ExteriorBloodScene(int x, int y, float slopeX = 0, float slopeY = 0, bool distant = true)
-            : mStorage(x, y, slopeX, slopeY)
+        ExteriorBloodScene(int x, int y, float slopeX = 0, float slopeY = 0, bool distant = true, bool rough = false)
+            : mStorage(x, y, slopeX, slopeY, rough)
         {
             // Empty RefId means an ESM4 world to OpenMW. This must use the
             // actual TES3 worldspace so both storage and tree use 8192 units.

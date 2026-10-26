@@ -59,6 +59,7 @@ namespace MWRender
         static constexpr unsigned MaxNewDepositsPerFrame = 12;
         static constexpr unsigned MaxProjectionAttemptsPerFrame = 24;
         static constexpr unsigned MaxPoolGrowthsPerFrame = 4;
+        static constexpr unsigned MaxSplashGrowthsPerFrame = 2;
         static constexpr unsigned MaxPoolAbsorptionChecksPerFrame = 8;
         explicit BloodDecals(osg::Group& parent);
         ~BloodDecals();
@@ -70,6 +71,8 @@ namespace MWRender
         void restoreState(const std::vector<BloodStainState>& state);
         ESM::BrutalBloodState getSaveRecord() const;
         void loadSaveRecord(const ESM::BrutalBloodState& state);
+        void repairPools(const std::function<BloodStamp::Projector(
+            const std::string&, const osg::Vec3f&, float)>& surface);
         std::size_t size() const;
         // Files are sorted by the caller; an absent group retains the legacy
         // procedural material. All variants share one bounded RGBA atlas.
@@ -96,6 +99,7 @@ namespace MWRender
             float mAccumulatedArea = 0;
             double mNextGrowth = 0, mNextWetRefresh = 0;
             mutable std::uint64_t mCoverageVisit = 0;
+            bool mNeedsRepair = false;
             std::list<Stain>::iterator mSelf{};
         };
         struct CoverageIndex;
@@ -107,18 +111,20 @@ namespace MWRender
         osg::ref_ptr<osg::Texture2D> mAtlas;
         std::vector<osg::Vec4f> mFloorTiles, mWallTiles;
         std::size_t mVertexCount = 0;
+        std::size_t mPendingPoolRepairs = 0;
         std::uint32_t mRandom = 0x9f673bbdu;
         std::uint64_t mNextSequence = 0;
         double mTime = 0;
         float mSinceBatch = 1;
         float mLifetime = 600;
-        unsigned mNewDeposits = 0, mProjectionAttempts = 0, mPoolGrowths = 0, mPoolAbsorptionChecks = 0;
+        unsigned mNewDeposits = 0, mProjectionAttempts = 0, mPoolGrowths = 0, mSplashGrowths = 0, mPoolAbsorptionChecks = 0;
         struct EmitterBudget { float mCredit = 1; double mLastSeen = 0; };
         std::map<std::uintptr_t, EmitterBudget> mEmitters;
         void dirty(const Stain& stain);
         void rebuild();
         std::list<Stain>::iterator eraseStain(std::list<Stain>::iterator stain);
         bool feedPool(const std::string& cell, const BloodStamp& stamp);
+        bool feedSplash(const std::string& cell, const BloodStamp& stamp);
     };
 
     class BloodTrail

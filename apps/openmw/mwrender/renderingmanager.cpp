@@ -570,6 +570,7 @@ namespace MWRender
     {
         invalidateBloodSurfaces(nullptr, store);
         mBloodDecals->setCellActive(store->getCell()->getId().serializeText(), true);
+        mBloodCells[store->getCell()->getId().serializeText()] = store;
         mPathgrid->addCell(store);
 
         mWater->changeCell(store);
@@ -584,6 +585,7 @@ namespace MWRender
     {
         invalidateBloodSurfaces(nullptr, store);
         const auto bloodCell = store->getCell()->getId().serializeText();
+        mBloodCells.erase(bloodCell);
         std::erase_if(mBloodBursts, [&](const auto& burst) { return burst.mCell == bloodCell; });
         mBloodDecals->setCellActive(store->getCell()->getId().serializeText(), false);
         mPathgrid->removeCell(store);
@@ -743,6 +745,11 @@ namespace MWRender
                 burst.mTrail->update(dt, source, Settings::ragdoll().mBloodAmount.get(), burst.mAge);
             }
             std::erase_if(mBloodBursts, [](const auto& burst) { return burst.mAge > burst.mEmissionDuration + 3.25f; });
+            mBloodDecals->repairPools([this](const std::string& cell, const osg::Vec3f& center, float radius) {
+                const auto found = mBloodCells.find(cell);
+                return found == mBloodCells.end() ? BloodStamp::Projector{}
+                    : getBloodSurface(found->second, center, radius * 2 + 64).mProjector;
+            });
             mSky->update(dt);
 
             const MWWorld::Ptr& player = mPlayerAnimation->getPtr();
@@ -1398,6 +1405,7 @@ namespace MWRender
     void RenderingManager::clear()
     {
         mBloodDecals->clear();
+        mBloodCells.clear();
         mBloodBursts.clear();
         mSky->setMoonColour(false);
 

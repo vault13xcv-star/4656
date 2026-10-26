@@ -15,6 +15,8 @@
 
 #include <osg/FrameStamp>
 #include <osg/Group>
+#include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
+#include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 
 #include <cmath>
 #include <memory>
@@ -22,6 +24,85 @@
 namespace
 {
     using BloodTest::ExteriorBloodScene;
+
+    TEST(BloodExteriorTerrain, unevenLandMatchesTheActualPhysicsHeightfieldAndVisibleTerrain)
+    {
+        for (const bool distant : { false, true })
+        {
+            ExteriorBloodScene scene(-4, -3, .12f, .06f, distant, true);
+            const auto center = scene.mStorage.center();
+            const auto visible = scene.surface();
+            const auto land = MWRender::BloodTrail::visualSurface(MWRender::collectBloodTerrainTriangles(scene.mStorage,
+                ESM::Cell::sDefaultWorldspaceId, center + osg::Vec3f(0, 0, 80), 900));
+            ASSERT_TRUE(bool(visible)); ASSERT_TRUE(bool(land));
+            struct Field
+            {
+                std::vector<btScalar> mHeights;
+                std::unique_ptr<btHeightfieldTerrainShape> mShape;
+                btCollisionObject mObject;
+            };
+            std::vector<std::unique_ptr<Field>> fields;
+            for (int x = -4; x <= -3; ++x)
+                for (int y = -3; y <= -2; ++y)
+                {
+                    auto field = std::make_unique<Field>();
+                    field->mHeights.resize(65 * 65);
+                    for (int row = 0; row < 65; ++row)
+                        for (int col = 0; col < 65; ++col)
+                            field->mHeights[row * 65 + col] = scene.mStorage.height(x * 8192.f + col * 128,
+                                y * 8192.f + row * 128);
+                    const auto [minimum, maximum] = std::minmax_element(field->mHeights.begin(), field->mHeights.end());
+                    field->mShape = std::make_unique<btHeightfieldTerrainShape>(65, 65, field->mHeights.data(),
+                        1, *minimum, *maximum, 2, PHY_DOUBLE, false);
+                    // These are the same tessellation, scale and world shift
+                    // used by MWPhysics::HeightField for TES3 LAND.
+                    field->mShape->setUseDiamondSubdivision(true);
+                    field->mShape->setLocalScaling({ 128, 128, 1 });
+                    field->mObject.setCollisionShape(field->mShape.get());
+                    field->mObject.setWorldTransform(btTransform(btQuaternion::getIdentity(),
+                        { (x + .5f) * 8192, (y + .5f) * 8192, (*minimum + *maximum) * .5 }));
+                    fields.push_back(std::move(field));
+                }
+            for (int x = -3; x <= 3; ++x)
+                for (int y = -3; y <= 3; ++y)
+                {
+                    const float px = center.x() + x * 107.25f, py = center.y() + y * 103.5f;
+                    const float height = scene.mStorage.height(px, py);
+                    const btVector3 from(px, py, height + 120);
+                    osg::Vec3f p, n, v, vn;
+                    ASSERT_TRUE(land.mRaycast({ px, py, height + 120 }, { px, py, height - 120 }, p, n));
+                    ASSERT_TRUE(visible.mRaycast({ px, py, height + 120 }, { px, py, height - 120 }, v, vn));
+                    struct Triangles : btTriangleCallback
+                    {
+                        btVector3 mOrigin;
+                        std::vector<osg::Vec3f> mVertices;
+                        void processTriangle(btVector3* vertices, int, int) override
+                        {
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                const auto point = vertices[i] + mOrigin;
+                                mVertices.emplace_back(float(point.x()), float(point.y()), float(point.z()));
+                            }
+                        }
+                    } triangles;
+                    for (const auto& field : fields)
+                    {
+                        triangles.mOrigin = field->mObject.getWorldTransform().getOrigin();
+                        field->mShape->processAllTriangles(&triangles, from - btVector3(20, 20, 240) - triangles.mOrigin,
+                            from + btVector3(20, 20, 20) - triangles.mOrigin);
+                    }
+                    const auto physicsMesh = MWRender::BloodTrail::visualSurface(triangles.mVertices);
+                    ASSERT_TRUE(bool(physicsMesh));
+                    osg::Vec3f meshPoint, meshNormal;
+                    ASSERT_TRUE(physicsMesh.mRaycast({ px, py, height + 120 }, { px, py, height - 120 }, meshPoint, meshNormal));
+                    EXPECT_NEAR(p.z(), meshPoint.z(), .08);
+                    EXPECT_NEAR(p.z(), v.z(), .08);
+                    EXPECT_GT(n * vn, .99);
+                    EXPECT_FALSE(land.mProjector(p, n, 16).empty());
+                    EXPECT_FALSE(visible.mProjector(v, vn, 16).empty());
+                }
+        }
+    }
 
     TEST(BloodExteriorTerrain, directLandReceiversMatchNativeChunkHeightsAcrossWorldCoordinates)
     {
