@@ -1,5 +1,9 @@
 #include "brutalblood.hpp"
 #include "vismask.hpp"
+#include "brutalbloodlightingbase.hpp"
+#include <components/ragdoll/blood.hpp>
+#include <osg/Texture2D>
+#include <osg/PrimitiveSet>
 #include <components/sceneutil/depth.hpp>
 #include <osg/BlendFunc>
 #include <osg/Geode>
@@ -22,10 +26,10 @@ namespace MWRender
         {
             return std::isfinite(v.length2()) && v.normalize() > .0001f ? v : fallback;
         }
-        osg::Matrixf worldMatrix(osg::Node& root)
+        osg::Matrixd worldMatrix(osg::Node& root)
         {
             const auto paths = root.getParentalNodePaths();
-            return paths.empty() ? osg::Matrixf::identity() : osg::Matrixf(osg::computeLocalToWorld(paths.front()));
+            return paths.empty() ? osg::Matrixd::identity() : osg::computeLocalToWorld(paths.front());
         }
         osg::ref_ptr<osg::Geometry> geometry(osg::Vec3Array* vertices, osg::Vec3Array* normals,
             osg::Vec4Array* colors)
@@ -49,48 +53,169 @@ namespace MWRender
             return std::all_of(stamp.mTriangles.begin(), stamp.mTriangles.end(),
                 [](const auto& v) { return std::isfinite(v.length2()); });
         }
+        std::uint32_t nextSeed(std::uint32_t& state)
+        {
+            state ^= state << 13; state ^= state >> 17; state ^= state << 5;
+            if (!state) state = 0x9f673bbdu;
+            return state;
+        }
+        osg::Texture2D* bloodSpriteTexture()
+        {
+            // One small immutable RGBA mask is shared by every airborne spray.
+            // The colour remains in the particle tint, so the same native light
+            // and shadow response applies to the whole droplet texture.
+            static const osg::ref_ptr<osg::Texture2D> texture = [] {
+                constexpr int width = 64, height = 128;
+                osg::ref_ptr<osg::Image> image = new osg::Image;
+                image->allocateImage(width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+                image->setOrigin(osg::Image::BOTTOM_LEFT);
+                for (int y = 0; y < height; ++y)
+                    for (int x = 0; x < width; ++x)
+                    {
+                        const float u = (x + .5f) * 2.f / width - 1.f;
+                        const float v = (y + .5f) * 2.f / height - 1.f;
+                        // A narrow leading tip and a rounded trailing body.
+                        const float radius = std::sqrt(std::max(0.f, 1.f - v * v)) * (.65f - .25f * v);
+                        const float alpha = std::clamp((radius - std::abs(u)) * width * .25f, 0.f, 1.f);
+                        image->setColor({ 1, 1, 1, alpha }, x, y);
+                    }
+                osg::ref_ptr<osg::Texture2D> result = new osg::Texture2D(image);
+                result->setResizeNonPowerOfTwoHint(false);
+                result->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+                result->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
+                result->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+                result->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+                result->setUseHardwareMipMapGeneration(false);
+                return result;
+            }();
+            return texture;
+        }
     }
 
-    static osg::ref_ptr<osg::StateSet> makeWetGoreState(bool decal)
+    static osg::ref_ptr<osg::StateSet> makeWetGoreState(bool decal, bool sprite = false)
     {
         osg::ref_ptr<osg::StateSet> state = new osg::StateSet;
         constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
         constexpr unsigned off = osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
-        state->setAttributeAndModes(new SceneUtil::AutoDepth(osg::Depth::LEQUAL, 0, 1, !decal), on);
+        const bool transparent = decal || sprite;
+        state->setAttributeAndModes(new SceneUtil::AutoDepth(osg::Depth::LEQUAL, 0, 1, !transparent), on);
         state->setMode(GL_LIGHTING, off);
         state->setMode(GL_CULL_FACE, off);
         state->setMode(GL_ALPHA_TEST, off);
-        state->setMode(GL_BLEND, decal ? on : off);
-        if (decal)
+        state->setMode(GL_BLEND, transparent ? on : off);
+        if (transparent)
             state->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA), on);
-        state->setRenderingHint(decal ? osg::StateSet::TRANSPARENT_BIN : osg::StateSet::OPAQUE_BIN);
+        state->setRenderingHint(transparent ? osg::StateSet::TRANSPARENT_BIN : osg::StateSet::OPAQUE_BIN);
         osg::ref_ptr<osg::Program> program = new osg::Program;
-        program->addShader(new osg::Shader(osg::Shader::VERTEX,
-            "#version 120\nuniform mat4 projectionMatrix; varying vec4 tint; varying vec3 n; varying vec3 p; varying vec2 uv;"
+        const std::string vertex =
+            "#version 120\nuniform mat4 projectionMatrix; varying vec4 tint; varying vec3 n; varying vec3 p; varying vec2 uv;varying vec2 bloodInfo;"
+            "void setupShadowCoords(vec4 viewPos,vec3 viewNormal);"
             "void main(){mat4 proj=projectionMatrix; if(proj[0][0]==0.0)proj=gl_ProjectionMatrix;"
             "vec4 eye=gl_ModelViewMatrix*gl_Vertex;gl_Position=proj*eye;n=gl_NormalMatrix*gl_Normal;"
-            "p=eye.xyz;tint=gl_Color;uv=gl_MultiTexCoord0.xy;}"));
-        program->addShader(new osg::Shader(osg::Shader::FRAGMENT, decal ?
-            "#version 120\nuniform float brutalBloodTime;uniform float brutalBloodLifetime;"
+            "p=eye.xyz;tint=gl_Color;uv=gl_MultiTexCoord0.xy;bloodInfo=gl_MultiTexCoord1.xy;"
+            "setupShadowCoords(eye,normalize(n));}";
+        const std::string spriteVertex =
+            "#version 120\nuniform mat4 projectionMatrix;varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
+            "void setupShadowCoords(vec4 viewPos,vec3 viewNormal);"
+            "void main(){mat4 proj=projectionMatrix;if(proj[0][0]==0.0)proj=gl_ProjectionMatrix;"
+            "vec4 eye=gl_ModelViewMatrix*gl_Vertex;"
+            "vec3 travel=gl_NormalMatrix*gl_Normal;vec2 axis=travel.xy;float visibleTravel=length(axis);"
+            "if(visibleTravel<.001)axis=vec2(0.0,1.0);else axis/=visibleTravel;"
+            "vec2 across=vec2(axis.y,-axis.x);uv=gl_MultiTexCoord0.xy;"
+            "vec2 corner=uv*2.0-1.0;vec2 size=gl_MultiTexCoord1.xy;"
+            "size.y=mix(size.x,size.y,clamp(visibleTravel,0.0,1.0));"
+            "eye.xy+=across*corner.x*size.x+axis*corner.y*size.y;"
+            "gl_Position=proj*eye;p=eye.xyz;tint=gl_Color;"
+            "n=normalize(gl_NormalMatrix*vec3(0.0,0.0,1.0));"
+            "setupShadowCoords(eye,n);}";
+        program->addShader(new osg::Shader(osg::Shader::VERTEX, sprite ? spriteVertex : vertex));
+        // A particle card represents a volume, so side lighting must not vanish
+        // with a horizontal light or change as its billboard faces the camera.
+        // Its diffuse response still scales only actual scene illumination.
+        const std::string lighting =
+            "uniform vec3 brutalBloodSunDirection;uniform vec3 brutalBloodSunDiffuse;"
+            "uniform vec3 brutalBloodPointPosition[8];uniform vec3 brutalBloodPointDiffuse[8];"
+            "uniform vec3 brutalBloodPointAmbient[8];uniform vec4 brutalBloodPointAttenuation[8];"
+            "uniform int brutalBloodPointCount;uniform bool brutalBloodClassicFalloff;uniform bool brutalBloodClamp;"
+            "uniform int brutalBloodFogMode;uniform bool brutalBloodFogRadial;"
+            "float unshadowedLightRatio(float distance);"
+            "float bloodSpec(vec3 N,vec3 L,vec3 V){if(dot(N,L)<=0.0)return 0.0;"
+            "vec3 H=L+V;H/=max(.0001,length(H));return pow(max(0.0,dot(N,H)),24.0);}"
+            "float bloodDiffuse(vec3 N,vec3 L){return "
+            + std::string(sprite ? ".5+.5*abs(dot(N,L));}" : "max(0.0,dot(N,L));}") +
+            "vec3 bloodLighting(vec3 N,vec3 pos,out vec3 spec){"
+            "vec3 V=-pos/max(.0001,length(pos));vec3 L=brutalBloodSunDirection/max(.0001,length(brutalBloodSunDirection));"
+            "float shadow=unshadowedLightRatio(length(pos));"
+            "vec3 light=gl_LightModel.ambient.rgb+brutalBloodSunDiffuse*bloodDiffuse(N,L)*shadow;"
+            "spec=brutalBloodSunDiffuse*bloodSpec(N,L,V)*shadow;"
+            "for(int i=0;i<8;++i){if(i>=brutalBloodPointCount)break;"
+            "vec3 delta=brutalBloodPointPosition[i]-pos;float dist=length(delta);"
+            "vec4 att=brutalBloodPointAttenuation[i];"
+            "float power=1.0/max(.0001,att.x+att.y*dist+att.z*dist*dist);"
+            "if(!brutalBloodClassicFalloff){float fade=clamp(dist/max(.0001,att.w)-1.0,0.0,1.0);"
+            "fade=1.0-fade*fade;power*=fade*fade;}"
+            "L=delta/max(.0001,dist);light+=(brutalBloodPointAmbient[i]+brutalBloodPointDiffuse[i]*bloodDiffuse(N,L))*power;"
+            "spec+=brutalBloodPointDiffuse[i]*bloodSpec(N,L,V)*power;}"
+            "light=max(vec3(0.0),light);spec=max(vec3(0.0),spec);"
+            "if(brutalBloodClamp)light=min(vec3(1.0),light);return light;}"
+            "vec3 bloodFog(vec3 color,vec3 pos){if(brutalBloodFogMode==0)return color;"
+            "float dist=brutalBloodFogRadial?length(pos):abs(pos.z);float f=0.0;"
+            "if(brutalBloodFogMode==2){float start=gl_Fog.start*.5;"
+            "if(gl_Fog.end>start)f=1.0-exp(-2.0*max(0.0,dist-start)/(gl_Fog.end-start));}"
+            "else if(gl_Fog.end>gl_Fog.start)f=clamp((dist-gl_Fog.start)/(gl_Fog.end-gl_Fog.start),0.0,1.0);"
+            "return mix(color,gl_Fog.color.rgb,clamp(f,0.0,1.0));}";
+        const std::string decalFragment =
+            "uniform float brutalBloodTime;uniform float brutalBloodLifetime;"
+            "uniform sampler2D brutalBloodAtlas;"
+            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;varying vec2 bloodInfo;"
+            "void main(){vec3 N=normalize(n);"
+            "float age=max(0.0,brutalBloodTime-bloodInfo.x);float dry=min(1.0,age/90.0);"
+            "vec4 c=tint;"
+            "if(bloodInfo.y>.5){vec4 texel=texture2D(brutalBloodAtlas,uv);"
+            "vec3 pigment=texel.rgb;"
+            "c=vec4(pigment*tint.rgb,texel.a*tint.a);}"
+            "c.rgb*=1.0-.5*dry;c.a*=clamp((brutalBloodLifetime-age)/10.0,0.0,1.0);"
+            "if(c.a<.003)discard;"
+            "vec3 spec;vec3 light=bloodLighting(N,p,spec);"
+            "gl_FragColor=vec4(bloodFog(c.rgb*light+spec*.035*c.a,p),c.a);}";
+        const std::string solidFragment =
+            "uniform bool brutalBloodWorldLighting;"
             "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
-            "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
-            "float age=max(0.0,brutalBloodTime-uv.x);float dry=min(1.0,age/90.0);"
-            "vec4 c=vec4(tint.rgb-vec3(.15*dry,0.0,0.0),"
-            "tint.a*clamp((brutalBloodLifetime-age)/10.0,0.0,1.0));"
-            "float spec=pow(max(0.0,dot(reflect(-L,N),normalize(-p))),24.0);"
-            "gl_FragColor=vec4(c.rgb*(.62+.38*abs(dot(N,L)))+vec3(.12)*spec*c.a,c.a);}"
-            :
-            "#version 120\nvarying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
             "void main(){vec3 N=normalize(n);vec3 L=normalize(vec3(.3,.4,.8));"
             "float fold=.92+.08*sin(uv.x*110.0);float vein=pow(max(0.0,sin(uv.x*47.0+sin(uv.y*17.0)*2.0)),24.0);"
             "vec3 flesh=mix(tint.rgb,vec3(.23,.025,.045),vein*.5);"
             "float spec=pow(max(0.0,dot(reflect(-L,N),normalize(-p))),28.0);"
-            "gl_FragColor=vec4(flesh*fold*(.5+.5*abs(dot(N,L)))+vec3(.32)*spec,1.0);}"));
+            "vec3 color=flesh*fold*(.5+.5*abs(dot(N,L)))+vec3(.32)*spec;"
+            "if(brutalBloodWorldLighting){vec3 wetSpec;vec3 light=bloodLighting(N,p,wetSpec);"
+            "color=bloodFog(tint.rgb*light+wetSpec*.035,p);}gl_FragColor=vec4(color,1.0);}";
+        const std::string spriteFragment =
+            "uniform sampler2D brutalBloodSprite;"
+            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
+            "void main(){float alpha=texture2D(brutalBloodSprite,uv).a*tint.a;"
+            "if(alpha<.015)discard;"
+            "vec3 spec;vec3 light=bloodLighting(normalize(n),p,spec);"
+            "gl_FragColor=vec4(bloodFog(tint.rgb*light+spec*.02,p),alpha);}";
+        program->addShader(new osg::Shader(osg::Shader::FRAGMENT,
+            "#version 120\n" + lighting + (sprite ? spriteFragment : decal ? decalFragment : solidFragment)));
+        osg::ref_ptr<osg::Shader> vertexFallback = new osg::Shader(osg::Shader::VERTEX,
+            "#version 120\nvoid setupShadowCoords(vec4 viewPos,vec3 viewNormal){}");
+        vertexFallback->setName("Brutal blood fallback shadows vertex");
+        program->addShader(vertexFallback);
+        osg::ref_ptr<osg::Shader> fragmentFallback = new osg::Shader(osg::Shader::FRAGMENT,
+            "#version 120\nfloat unshadowedLightRatio(float distance){return 1.0;}");
+        fragmentFallback->setName("Brutal blood fallback shadows fragment");
+        program->addShader(fragmentFallback);
         state->setAttributeAndModes(program, on);
         if (decal)
         {
             state->addUniform(new osg::Uniform("brutalBloodTime", 0.f));
             state->addUniform(new osg::Uniform("brutalBloodLifetime", 600.f));
+            state->addUniform(new osg::Uniform("brutalBloodAtlas", 0));
+        }
+        if (sprite)
+        {
+            state->addUniform(new osg::Uniform("brutalBloodSprite", 0));
+            state->setTextureAttributeAndModes(0, bloodSpriteTexture(), on);
         }
         return state;
     }
@@ -103,18 +228,107 @@ namespace MWRender
         return new osg::StateSet(*states[decal], osg::CopyOp::SHALLOW_COPY);
     }
 
+    static osg::ref_ptr<osg::StateSet> createBloodSpriteState()
+    {
+        static const auto state = makeWetGoreState(false, true);
+        return new osg::StateSet(*state, osg::CopyOp::SHALLOW_COPY);
+    }
+
     BloodDecals::BloodDecals(osg::Group& parent)
         : mParent(&parent), mTimeUniform(new osg::Uniform("brutalBloodTime", 0.f))
         , mLifetimeUniform(new osg::Uniform("brutalBloodLifetime", 600.f)) {}
     BloodDecals::~BloodDecals() { clear(); }
     std::size_t BloodDecals::size() const { return mStains.size(); }
 
+    void BloodDecals::setTextures(const std::vector<osg::ref_ptr<osg::Image>>& floor,
+        const std::vector<osg::ref_ptr<osg::Image>>& wall)
+    {
+        struct Tile { osg::ref_ptr<osg::Image> mImage; bool mFloor; };
+        std::vector<Tile> tiles;
+        for (const auto* group : { &floor, &wall })
+        {
+            unsigned accepted = 0;
+            for (const auto& image : *group)
+            {
+                if (!image || !image->data() || image->s() <= 0 || image->t() <= 0
+                    || image->r() != 1) continue;
+                tiles.push_back({ image, group == &floor });
+                if (++accepted == 8) break;
+            }
+        }
+        mFloorTiles.clear(); mWallTiles.clear(); mAtlas = nullptr;
+        if (!tiles.empty())
+        {
+            // A fixed tile size bounds GPU/CPU memory independently of uploaded
+            // image dimensions. Letterboxing retains each PNG's aspect ratio.
+            constexpr int tileSize = 512, gutter = 4, inner = tileSize - gutter * 2;
+            const int columns = tiles.size() <= 2 ? 2 : 4;
+            int rows = 1;
+            while (rows * columns < int(tiles.size())) rows *= 2;
+            const int width = columns * tileSize, height = rows * tileSize;
+            osg::ref_ptr<osg::Image> atlas = new osg::Image;
+            atlas->allocateImage(width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+            atlas->setOrigin(osg::Image::BOTTOM_LEFT);
+            std::fill_n(atlas->data(), atlas->getTotalSizeInBytes(), 0);
+            for (std::size_t index = 0; index < tiles.size(); ++index)
+            {
+                const auto& tile = tiles[index];
+                const auto& source = *tile.mImage;
+                const int x = int(index) % columns * tileSize, y = int(index) / columns * tileSize;
+                const float scale = std::min(float(inner) / source.s(), float(inner) / source.t());
+                const int w = std::max(1, int(source.s() * scale)), h = std::max(1, int(source.t() * scale));
+                const int left = x + (tileSize - w) / 2, bottom = y + (tileSize - h) / 2;
+                for (int j = 0; j < h; ++j)
+                    for (int i = 0; i < w; ++i)
+                    {
+                        const float sx = w > 1 ? float(i) / (w - 1) * (source.s() - 1) : 0;
+                        float sy = h > 1 ? float(j) / (h - 1) * (source.t() - 1) : 0;
+                        // Resource::ImageManager uses TOP_LEFT convention; GL
+                        // atlas UVs increase upward. Normalize exactly once.
+                        if (source.getOrigin() == osg::Image::TOP_LEFT) sy = source.t() - 1 - sy;
+                        const int x0 = int(sx), y0 = int(sy);
+                        const int x1 = std::min(x0 + 1, source.s() - 1), y1 = std::min(y0 + 1, source.t() - 1);
+                        const float fx = sx - x0, fy = sy - y0;
+                        const auto a = source.getColor(x0, y0) * (1 - fx) + source.getColor(x1, y0) * fx;
+                        const auto b = source.getColor(x0, y1) * (1 - fx) + source.getColor(x1, y1) * fx;
+                        atlas->setColor(a * (1 - fy) + b * fy, left + i, bottom + j);
+                    }
+                const osg::Vec4f rect(float(x + .5f) / width, float(y + .5f) / height,
+                    float(x + tileSize - .5f) / width, float(y + tileSize - .5f) / height);
+                (tile.mFloor ? mFloorTiles : mWallTiles).push_back(rect);
+            }
+            mAtlas = new osg::Texture2D(atlas);
+            mAtlas->setResizeNonPowerOfTwoHint(false);
+            mAtlas->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+            mAtlas->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
+            // Whole-atlas mipmaps would eventually mix wall/floor artwork
+            // across gutters. Linear minification keeps variants isolated.
+            mAtlas->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+            mAtlas->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+            mAtlas->setUseHardwareMipMapGeneration(false);
+        }
+        constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
+        for (auto& [cell, batch] : mBatches)
+            for (auto& [id, chunk] : batch.mChunks)
+            {
+                chunk.mDirty = true;
+                if (!chunk.mNode) continue;
+                auto* state = chunk.mNode->getOrCreateStateSet();
+                if (mAtlas) state->setTextureAttributeAndModes(0, mAtlas, on);
+                else state->removeTextureAttribute(0, osg::StateAttribute::TEXTURE);
+            }
+        mSinceBatch = 1;
+    }
+
     void BloodDecals::setCellActive(const std::string& cell, bool active)
     {
         auto& batch = mBatches[cell];
         batch.mActive = active;
         for (auto& [id, chunk] : batch.mChunks)
-            if (chunk.mNode) chunk.mNode->setNodeMask(active ? unsigned(Mask_Effect) : 0u);
+            {
+                if (chunk.mNode) chunk.mNode->setNodeMask(active ? unsigned(Mask_Effect) : 0u);
+                if (chunk.mTransform) chunk.mTransform->setNodeMask(active ? unsigned(Mask_Effect) : 0u);
+            }
     }
 
     void BloodDecals::dirty(const Stain& stain)
@@ -130,18 +344,28 @@ namespace MWRender
                 if (it->mCell == cell && it->mStamp.mPool && it->mStamp.mNormal * stamp.mNormal > .95f
                     && (it->mStamp.mCenter - stamp.mCenter).length2() < std::pow(std::min(stamp.mRadius, it->mStamp.mRadius) * .7f, 2))
                 {
-                    if (stamp.mRadius > it->mStamp.mRadius) it->mStamp = stamp;
+                    if (stamp.mRadius > it->mStamp.mRadius
+                        && mVertexCount - it->mStamp.mTriangles.size() + stamp.mTriangles.size() <= MaxVertices)
+                    {
+                        mVertexCount -= it->mStamp.mTriangles.size();
+                        it->mStamp = stamp;
+                        mVertexCount += it->mStamp.mTriangles.size();
+                    }
                     it->mAge = 0;
                     dirty(*it);
                     return;
                 }
         // Bounded memory even with hundreds of simultaneous gore emitters.
-        if (mStains.size() >= 8192)
+        while (!mStains.empty() && (mStains.size() >= MaxStains
+            || mVertexCount + stamp.mTriangles.size() > MaxVertices))
         {
             dirty(mStains.front());
+            mVertexCount -= mStains.front().mStamp.mTriangles.size();
             mStains.pop_front(); // O(1), including when a fountain fills the cap.
         }
         mStains.push_back({ { cell, stamp, 0 }, mNextSequence++ });
+        if (!mStains.back().mStamp.mVisualSeed) mStains.back().mStamp.mVisualSeed = nextSeed(mRandom);
+        mVertexCount += stamp.mTriangles.size();
         dirty(mStains.back());
     }
 
@@ -162,6 +386,7 @@ namespace MWRender
             [&](const auto& stain) {
                 if (stain.mAge < mLifetime) return false;
                 dirty(stain);
+                mVertexCount -= stain.mStamp.mTriangles.size();
                 return true;
             }), mStains.end());
         if (mSinceBatch >= .1f)
@@ -173,66 +398,112 @@ namespace MWRender
 
     void BloodDecals::rebuild()
     {
+        std::vector<std::pair<Chunk*, bool>> dirtyChunks;
         for (auto& [cell, batch] : mBatches)
-        {
-            for (auto it = batch.mChunks.begin(); it != batch.mChunks.end();)
+            for (auto& [id, chunk] : batch.mChunks)
             {
-                const auto id = it->first;
-                auto& chunk = it->second;
-                if (!chunk.mDirty) { ++it; continue; }
+                if (!chunk.mDirty) continue;
                 if (!chunk.mGeometry)
                 {
                     chunk.mGeometry = geometry(new osg::Vec3Array, new osg::Vec3Array, new osg::Vec4Array);
                     chunk.mGeometry->setTexCoordArray(0, new osg::Vec2Array);
+                    chunk.mGeometry->setTexCoordArray(1, new osg::Vec2Array);
                 }
-                auto* vertices = static_cast<osg::Vec3Array*>(chunk.mGeometry->getVertexArray());
-                auto* normals = static_cast<osg::Vec3Array*>(chunk.mGeometry->getNormalArray());
-                auto* colors = static_cast<osg::Vec4Array*>(chunk.mGeometry->getColorArray());
-                auto* births = static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(0));
-                vertices->clear(); normals->clear(); colors->clear(); births->clear();
-                for (const auto& stain : mStains)
+                static_cast<osg::Vec3Array*>(chunk.mGeometry->getVertexArray())->clear();
+                static_cast<osg::Vec3Array*>(chunk.mGeometry->getNormalArray())->clear();
+                static_cast<osg::Vec4Array*>(chunk.mGeometry->getColorArray())->clear();
+                static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(0))->clear();
+                static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(1))->clear();
+                dirtyChunks.emplace_back(&chunk, batch.mActive);
+            }
+        if (dirtyChunks.empty()) return;
+        for (const auto& stain : mStains)
+        {
+            auto& chunk = mBatches.find(stain.mCell)->second.mChunks.find(stain.mSequence / ChunkStains)->second;
+            if (!chunk.mDirty) continue;
+            const auto& stamp = stain.mStamp;
+            if (!chunk.mTransform)
+            {
+                chunk.mOrigin = stamp.mCenter;
+                chunk.mTransform = new osg::MatrixTransform;
+                chunk.mTransform->setNodeMask(Mask_Effect);
+                chunk.mTransform->setMatrix(osg::Matrixd::translate(osg::Vec3d(chunk.mOrigin)));
+            }
+            const bool floor = stamp.mNormal.z() >= .7f;
+            const auto& tiles = floor ? mFloorTiles : mWallTiles;
+            const bool textured = !stamp.mPool && mAtlas && !tiles.empty();
+            const auto seed = stamp.mVisualSeed;
+            const auto tile = textured ? tiles[(seed >> 2) % tiles.size()] : osg::Vec4f(0,0,1,1);
+            const osg::Vec3f up = floor ? osg::Vec3f(0,1,0) : osg::Vec3f(0,0,1);
+            const auto vertical = unit(up - stamp.mNormal * (up * stamp.mNormal), {0,1,0});
+            const auto horizontal = unit(vertical ^ stamp.mNormal, {1,0,0});
+            auto* vertices = static_cast<osg::Vec3Array*>(chunk.mGeometry->getVertexArray());
+            auto* normals = static_cast<osg::Vec3Array*>(chunk.mGeometry->getNormalArray());
+            auto* colors = static_cast<osg::Vec4Array*>(chunk.mGeometry->getColorArray());
+            auto* coords = static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(0));
+            auto* births = static_cast<osg::Vec2Array*>(chunk.mGeometry->getTexCoordArray(1));
+            const float shade = .94f + .06f * ((seed >> 8) & 255) / 255.f;
+            osg::Vec3f normal = stamp.mNormal;
+            for (std::size_t corner = 0; corner < stamp.mTriangles.size(); ++corner)
+            {
+                const auto& vertex = stamp.mTriangles[corner];
+                if (corner % 3 == 0)
                 {
-                    if (stain.mSequence / 128 != id || stain.mCell != cell) continue;
-                    for (const auto& v : stain.mStamp.mTriangles)
-                    {
-                        vertices->push_back(v);
-                        normals->push_back(stain.mStamp.mNormal);
-                        colors->push_back({ .29f, .009f, .014f, .94f });
-                        births->push_back({ static_cast<float>(mTime - stain.mAge), 0 });
-                    }
+                    normal = unit((stamp.mTriangles[corner+1] - vertex) ^ (stamp.mTriangles[corner+2] - vertex), stamp.mNormal);
+                    if (normal * stamp.mNormal < 0) normal = -normal;
                 }
-                if (vertices->empty())
-                {
-                    if (chunk.mNode) mParent->removeChild(chunk.mNode);
-                    it = batch.mChunks.erase(it);
-                    continue;
-                }
-                if (!chunk.mNode)
-                {
-                    chunk.mNode = new osg::Geode;
-                    chunk.mNode->setName("Brutal Morrowind blood stains");
-                    auto state = createWetGoreState(true);
-                    state->addUniform(mTimeUniform); state->addUniform(mLifetimeUniform);
-                    chunk.mNode->setStateSet(state);
-                    chunk.mNode->addDrawable(chunk.mGeometry);
-                    mParent->addChild(chunk.mNode);
-                }
-                vertices->dirty(); normals->dirty(); colors->dirty(); births->dirty();
-                static_cast<osg::DrawArrays*>(chunk.mGeometry->getPrimitiveSet(0))->setCount(vertices->size());
-                chunk.mGeometry->dirtyBound();
-                chunk.mNode->setNodeMask(batch.mActive ? unsigned(Mask_Effect) : 0u);
-                chunk.mDirty = false;
-                ++it;
+                const auto relative = vertex - stamp.mCenter;
+                float u = std::clamp(.5f + (relative * horizontal) / (stamp.mRadius * 2), 0.f, 1.f);
+                float v = std::clamp(.5f + (relative * vertical) / (stamp.mRadius * 2), 0.f, 1.f);
+                if (floor && (seed & 2)) { u = 1-u; v = 1-v; }
+                if (seed & 1) u = 1-u;
+                vertices->push_back(vertex - chunk.mOrigin); normals->push_back(normal);
+                colors->push_back(textured ? osg::Vec4f(shade,shade,shade,.94f) : osg::Vec4f(.29f,.009f,.014f,.94f));
+                coords->push_back({ tile.x()+u*(tile.z()-tile.x()), tile.y()+v*(tile.w()-tile.y()) });
+                births->push_back({ static_cast<float>(mTime-stain.mAge), textured ? 1.f : 0.f });
             }
         }
+        constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
+        for (const auto& [chunk, active] : dirtyChunks)
+        {
+            auto* vertices = chunk->mGeometry->getVertexArray();
+            if (!vertices->getNumElements()) continue;
+            if (!chunk->mNode)
+            {
+                chunk->mNode = new osg::Geode;
+                chunk->mNode->setName("Brutal Morrowind blood stains");
+                auto state = createWetGoreState(true);
+                state->addUniform(mTimeUniform); state->addUniform(mLifetimeUniform);
+                if (mAtlas) state->setTextureAttributeAndModes(0, mAtlas, on);
+                chunk->mNode->setStateSet(state);
+                attachBloodLighting(*chunk->mNode, *mParent);
+                chunk->mNode->addDrawable(chunk->mGeometry);
+                chunk->mTransform->addChild(chunk->mNode);
+                mParent->addChild(chunk->mTransform);
+            }
+            vertices->dirty(); chunk->mGeometry->getNormalArray()->dirty(); chunk->mGeometry->getColorArray()->dirty();
+            chunk->mGeometry->getTexCoordArray(0)->dirty(); chunk->mGeometry->getTexCoordArray(1)->dirty();
+            static_cast<osg::DrawArrays*>(chunk->mGeometry->getPrimitiveSet(0))->setCount(vertices->getNumElements());
+            chunk->mGeometry->dirtyBound(); chunk->mNode->setNodeMask(active ? unsigned(Mask_Effect) : 0u);
+            chunk->mTransform->setNodeMask(active ? unsigned(Mask_Effect) : 0u); chunk->mDirty = false;
+        }
+        for (auto& [cell, batch] : mBatches)
+            for (auto it = batch.mChunks.begin(); it != batch.mChunks.end();)
+                if (it->second.mDirty && !it->second.mGeometry->getVertexArray()->getNumElements())
+                {
+                    if (it->second.mTransform) mParent->removeChild(it->second.mTransform);
+                    it = batch.mChunks.erase(it);
+                }
+                else ++it;
     }
     void BloodDecals::clear()
     {
         for (auto& [cell, batch] : mBatches)
             for (auto& [id, chunk] : batch.mChunks)
-                if (chunk.mNode) mParent->removeChild(chunk.mNode);
+                if (chunk.mTransform) mParent->removeChild(chunk.mTransform);
         mBatches.clear();
         mStains.clear();
+        mVertexCount = 0;
         mNextSequence = 0; mTime = 0; mSinceBatch = 1;
         mTimeUniform->set(0.f);
     }
@@ -243,18 +514,22 @@ namespace MWRender
         for (auto& [cell, batch] : mBatches)
         {
             for (auto& [id, chunk] : batch.mChunks)
-                if (chunk.mNode) mParent->removeChild(chunk.mNode);
+                if (chunk.mTransform) mParent->removeChild(chunk.mTransform);
             batch.mChunks.clear();
         }
         mStains.clear();
+        mVertexCount = 0;
         mNextSequence = 0; mTime = 0; mSinceBatch = 1;
         mTimeUniform->set(0.f);
         for (const auto& stain : state)
         {
             if (!std::isfinite(stain.mAge) || stain.mAge < 0 || stain.mAge >= 1800) continue;
-            if (mStains.size() >= 8192 || !validStamp(stain.mStamp)) continue;
+            if (mStains.size() >= MaxStains || !validStamp(stain.mStamp)
+                || mVertexCount + stain.mStamp.mTriangles.size() > MaxVertices) continue;
             // Loading is not a new deposit: never merge/rejuvenate saved pools.
             mStains.push_back({ stain, mNextSequence++ });
+            if (!mStains.back().mStamp.mVisualSeed) mStains.back().mStamp.mVisualSeed = nextSeed(mRandom);
+            mVertexCount += stain.mStamp.mTriangles.size();
             dirty(mStains.back());
         }
         rebuild();
@@ -266,6 +541,7 @@ namespace MWRender
         for (const auto& stain : mStains)
         {
             ESM::BrutalBloodStain saved;
+            saved.mVisualSeed = stain.mStamp.mVisualSeed;
             saved.mCell = stain.mCell; saved.mAge = stain.mAge; saved.mRadius = stain.mStamp.mRadius; saved.mPool = stain.mStamp.mPool;
             for (unsigned i = 0; i < 3; ++i) { saved.mCenter[i] = stain.mStamp.mCenter[i]; saved.mNormal[i] = stain.mStamp.mNormal[i]; }
             for (const auto& v : stain.mStamp.mTriangles) saved.mTriangles.push_back({ v.x(), v.y(), v.z() });
@@ -279,6 +555,7 @@ namespace MWRender
         for (const auto& saved : record.mStains)
         {
             BloodStainState stain;
+            stain.mStamp.mVisualSeed = saved.mVisualSeed;
             stain.mCell = saved.mCell; stain.mAge = saved.mAge; stain.mStamp.mRadius = saved.mRadius; stain.mStamp.mPool = saved.mPool;
             stain.mStamp.mCenter = { saved.mCenter[0], saved.mCenter[1], saved.mCenter[2] };
             stain.mStamp.mNormal = { saved.mNormal[0], saved.mNormal[1], saved.mNormal[2] };
@@ -288,15 +565,21 @@ namespace MWRender
         restoreState(state);
     }
 
-    BloodTrail::BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit)
+    BloodTrail::BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector, Raycast poolRaycast,
+        std::function<bool()> ready)
         : mRoot(&root), mTransform(new osg::MatrixTransform)
         , mGeometry(geometry(new osg::Vec3Array, new osg::Vec3Array, new osg::Vec4Array))
-        , mRaycast(std::move(raycast)), mDeposit(std::move(deposit))
+        , mRaycast(std::move(raycast)), mPoolRaycast(std::move(poolRaycast)), mProjector(std::move(projector)), mReady(std::move(ready))
+        , mDeposit(std::move(deposit))
     {
         mTransform->setName("Brutal Morrowind ballistic blood");
         mTransform->setNodeMask(Mask_Effect);
         osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-        geode->setStateSet(createWetGoreState());
+        geode->setStateSet(createBloodSpriteState());
+        attachBloodLighting(*geode, root);
+        mGeometry->setTexCoordArray(0, new osg::Vec2Array);
+        mGeometry->setTexCoordArray(1, new osg::Vec2Array);
+        mGeometry->setPrimitiveSet(0, new osg::DrawElementsUShort(GL_TRIANGLES));
         geode->addDrawable(mGeometry);
         mTransform->addChild(geode);
         root.addChild(mTransform);
@@ -334,14 +617,66 @@ namespace MWRender
             return true;
         };
     }
+    namespace
+    {
+        std::vector<osg::Vec3f> collisionSplat(const BloodTrail::Raycast& ray,
+            const osg::Vec3f& position, const osg::Vec3f& normal, float radius)
+        {
+            std::vector<osg::Vec3f> result;
+            if (!ray || !std::isfinite(radius) || radius <= 0 || radius > 256) return result;
+            const auto n = unit(normal);
+            const osg::Vec3f up = n.z() >= .7f ? osg::Vec3f(0,1,0) : osg::Vec3f(0,0,1);
+            const auto vertical = unit(up - n * (up * n), {0,1,0});
+            const auto horizontal = unit(vertical ^ n, {1,0,0});
+            constexpr std::array<std::array<float,2>,8> corners{{
+                {-1,-1},{0,-1},{1,-1},{1,0},{1,1},{0,1},{-1,1},{-1,0} }};
+            std::array<osg::Vec3f,8> rim;
+            std::array<bool,8> valid{};
+            // The receiver is still the stable collision mesh outdoors. A
+            // wider DDS footprint must also reach uneven heights at its rim.
+            const float reach = std::max(3.f, radius * 1.5f);
+            for (unsigned i=0;i<corners.size();++i)
+            {
+                const auto point = position + (horizontal * corners[i][0] + vertical * corners[i][1]) * radius;
+                osg::Vec3f hit, hn;
+                valid[i] = ray(point + n * reach, point - n * reach, hit, hn)
+                    && unit(hn) * n > .35f;
+                rim[i] = hit + unit(hn, n) * .06f;
+            }
+            for (unsigned i=0;i<corners.size();++i)
+            {
+                const auto next = (i+1)%corners.size();
+                if (valid[i] && valid[next]) result.insert(result.end(), { position + n * .06f, rim[i], rim[next] });
+            }
+            return result;
+        }
+    }
+
+    BloodTrail::Surface BloodTrail::collisionSurface(const std::vector<osg::Vec3f>& triangles)
+    {
+        const auto ray = collisionRaycast(triangles);
+        if (!ray) return {};
+        return { ray, [ray](const auto& p, const auto& n, float r) { return collisionSplat(ray,p,n,r); } };
+    }
+
     void BloodTrail::stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool)
     {
         if (!mDeposit || !mRaycast) return;
+        const auto& ray = pool && mPoolRaycast ? mPoolRaycast : mRaycast;
         BloodStamp stamp;
         stamp.mCenter = position;
         stamp.mNormal = unit(normal);
         stamp.mRadius = radius;
         stamp.mPool = pool;
+        if (!pool)
+        {
+            stamp.mVisualSeed = nextSeed(mRandom);
+            stamp.mRadius *= 3.f * (.9f + random() * .2f);
+            stamp.mTriangles = mProjector ? mProjector(position, stamp.mNormal, stamp.mRadius)
+                : collisionSplat(ray, position, stamp.mNormal, stamp.mRadius);
+            if (validStamp(stamp)) mDeposit(stamp);
+            return;
+        }
         const auto u = unit(stamp.mNormal ^ osg::Vec3f(0, 0, 1), { 1, 0, 0 });
         const auto v = unit(stamp.mNormal ^ u);
         std::vector<osg::Vec3f> rim;
@@ -352,7 +687,7 @@ namespace MWRender
             const float r = radius * (.76f + random() * .24f);
             const auto p = position + (u * std::cos(angle) + v * std::sin(angle)) * r;
             osg::Vec3f projected, n;
-            const bool hit = mRaycast(p + stamp.mNormal * 2.f, p - stamp.mNormal * 3.f, projected, n)
+            const bool hit = ray(p + stamp.mNormal * 2.f, p - stamp.mNormal * 3.f, projected, n)
                 && unit(n) * stamp.mNormal > .8f && std::abs((projected - position) * stamp.mNormal) < 2.f;
             valid.push_back(hit);
             rim.push_back(projected + stamp.mNormal * .06f);
@@ -369,84 +704,117 @@ namespace MWRender
     {
         if (!std::isfinite(duration) || duration <= 0) return;
         const float dt = std::min(duration, .1f);
-        amount = std::isfinite(amount) ? std::clamp(amount, 0.f, 3.f) : 1;
-        mRemainders.resize(sources.size(), 0);
-        mPoolTimes.resize(sources.size(), 0);
-        for (std::size_t i = 0; i < sources.size(); ++i)
+        const float poolAmount = Ragdoll::bloodAmountMultiplier(amount);
+        const float emission = Ragdoll::bloodEmissionScale(amount);
+        const float launchScale = Ragdoll::bloodLaunchScale(amount);
+        const float spreadScale = Ragdoll::bloodSpreadScale(amount);
+        const float sizeScale = std::sqrt(emission);
+        const auto sourceCount = std::min(sources.size(), MaxSources);
+        mRemainders.resize(sourceCount, 0); mPoolTimes.resize(sourceCount, 0); mPoolRemainders.resize(sourceCount, 0);
+        mPendingDrops.assign(sourceCount, 0);
+        unsigned pending = 0;
+        for (std::size_t i=0;i<sourceCount;++i)
         {
             const auto& source = sources[i];
             if (!std::isfinite(source.mPosition.length2()) || !std::isfinite(source.mDirection.length2())
                 || !std::isfinite(source.mPressure)) continue;
-            const float pulse = .55f + .45f * std::pow(std::max(0.f, std::sin(age * 11.f)), 2.f);
-            mRemainders[i] += dt * amount * (source.mNeck ? 60.f : 14.f);
-            int count = static_cast<int>(mRemainders[i]);
-            mRemainders[i] -= count;
-            for (int j = 0; j < count && mDrops.size() < 192; ++j)
-            {
-                const osg::Vec3f jitter(random() - .5f, random() - .5f, random() - .5f);
-                const auto direction = unit(source.mDirection + jitter * (source.mNeck ? .22f : .8f));
-                const float speed = source.mNeck ? (200.f + 170.f * pulse) : (55.f + random() * 100.f);
-                mDrops.push_back({ source.mPosition, direction * speed * std::clamp(source.mPressure, .15f, 1.f),
-                    0, .3f + random() * .55f });
-                ++mEmitted;
-            }
-            // Slow dripping from a grounded wound grows a local pool. Each rim
-            // point is projected independently, preventing stains across corners.
+            const float rate = source.mNeck ? 60.f : source.mMajorWound ? 35.f : 14.f;
+            mRemainders[i] += dt * emission * rate;
+            const auto count = static_cast<unsigned>(mRemainders[i]);
+            mRemainders[i] -= count; mPendingDrops[i] = count; pending += count;
+            mPoolRemainders[i] += dt * poolAmount * (source.mNeck ? 60.f : 14.f);
+            const auto poolCount = static_cast<unsigned>(mPoolRemainders[i]);
+            mPoolRemainders[i] -= poolCount;
+            // Stable preview.2 pool timing, probe, shape and radius formula.
             mPoolTimes[i] += dt;
-            if (amount > 0 && count > 0 && mPoolTimes[i] >= .25f)
+            if (poolAmount > 0 && poolCount > 0 && mPoolTimes[i] >= .25f)
             {
                 mPoolTimes[i] = 0;
                 osg::Vec3f point, normal;
-                if (mRaycast && mRaycast(source.mPosition, source.mPosition - osg::Vec3f(0, 0, 18), point, normal)
+                const auto& ray = mPoolRaycast ? mPoolRaycast : mRaycast;
+                if (ray && ray(source.mPosition, source.mPosition-osg::Vec3f(0,0,18), point, normal)
                     && normal.z() > .65f)
-                    stamp(point, normal, std::min(28.f, (3.f + std::sqrt(std::max(0.f, age)) * 5.f) * std::sqrt(amount)), true);
+                    stamp(point,normal,std::min(28.f,(3.f+std::sqrt(std::max(0.f,age))*5.f)*std::sqrt(poolAmount)),true);
             }
         }
-        // Sweep every ballistic segment; no blood travels through a wall between frames.
-        unsigned splats = 0;
-        for (auto& drop : mDrops)
+        if (sourceCount) mNextSource %= sourceCount;
+        while (pending && mDrops.size() < MaxParticles)
         {
-            const auto next = drop.mPosition + drop.mVelocity * dt + osg::Vec3f(0, 0, -313.6f * dt * dt);
-            osg::Vec3f point, normal;
-            if (mRaycast && mRaycast(drop.mPosition, next, point, normal))
+            const auto i=mNextSource; mNextSource=(mNextSource+1)%sourceCount;
+            if (!mPendingDrops[i]) continue;
+            --mPendingDrops[i]; --pending;
+            const auto& source=sources[i];
+            const float pulse=.55f+.45f*std::pow(std::max(0.f,std::sin(age*11.f+i*.7f)),2.f);
+            const float cone=source.mNeck ? .28f : source.mMajorWound ? .65f : .95f;
+            const osg::Vec3f jitter(random()-.5f,random()-.5f,random()-.5f);
+            const auto direction=unit(source.mDirection+jitter*cone*spreadScale);
+            const float speed=source.mNeck ? 240.f+190.f*pulse
+                : source.mMajorWound ? 140.f+140.f*pulse+random()*40.f : 80.f+random()*130.f;
+            const float width=(.65f+random()*.6f+(source.mNeck ? .55f : source.mMajorWound ? .35f : 0.f))*sizeScale;
+            mDrops.push_back({source.mPosition,direction*speed*launchScale*std::clamp(source.mPressure,.15f,1.f),0,width});
+            ++mEmitted;
+        }
+        unsigned splats=0;
+        const bool ready = !mReady || mReady();
+        for (auto& drop:mDrops)
+        {
+            if (!ready) { drop.mAge += dt; continue; }
+            const auto next=drop.mPosition+drop.mVelocity*dt+osg::Vec3f(0,0,-313.6f*dt*dt);
+            osg::Vec3f point,normal;
+            if (mRaycast && mRaycast(drop.mPosition,next,point,normal))
             {
-                // A low frame rate must not turn hundreds of simultaneous
-                // impacts into thousands of perimeter raycasts in one update.
-                if (amount > 0 && splats++ < 8)
-                    stamp(point, normal, (1.f + random() * 3.2f) * std::sqrt(amount), false);
-                drop.mAge = 4;
+                if (emission>0 && splats++<MaxImpactSplats)
+                    stamp(point,normal,(1.f+random()*3.2f)*std::sqrt(emission),false);
+                drop.mAge=MaxDropAge+1;
             }
             else
             {
-                drop.mPosition = next;
-                drop.mVelocity.z() -= 627.2f * dt;
-                drop.mAge += dt;
+                drop.mPosition=next; drop.mVelocity.z()-=627.2f*dt; drop.mAge+=dt;
             }
         }
-        mDrops.erase(std::remove_if(mDrops.begin(), mDrops.end(), [](const auto& p) { return p.mAge > 2.f; }), mDrops.end());
+        std::erase_if(mDrops,[](const auto& drop){return drop.mAge>MaxDropAge;});
         auto* vertices = static_cast<osg::Vec3Array*>(mGeometry->getVertexArray());
         auto* normals = static_cast<osg::Vec3Array*>(mGeometry->getNormalArray());
         auto* colors = static_cast<osg::Vec4Array*>(mGeometry->getColorArray());
+        auto* uv = static_cast<osg::Vec2Array*>(mGeometry->getTexCoordArray(0));
+        auto* sizes = static_cast<osg::Vec2Array*>(mGeometry->getTexCoordArray(1));
+        auto* indices = static_cast<osg::DrawElementsUShort*>(mGeometry->getPrimitiveSet(0));
         if (vertices->empty() && mDrops.empty()) return;
-        vertices->clear(); normals->clear(); colors->clear();
+        vertices->clear(); normals->clear(); colors->clear(); uv->clear(); sizes->clear(); indices->clear();
+        osg::BoundingBox bounds;
+        const osg::Vec3f origin = mDrops.empty() ? osg::Vec3f() : mDrops.front().mPosition;
+        const std::array<osg::Vec2f, SpriteVertices> corners{
+            osg::Vec2f(0, 0), osg::Vec2f(1, 0), osg::Vec2f(1, 1), osg::Vec2f(0, 1)
+        };
+        constexpr std::array<unsigned short, SpriteIndices> triangleIndices{ 0, 1, 2, 0, 2, 3 };
         for (const auto& drop : mDrops)
         {
             const auto axis = unit(drop.mVelocity);
-            const auto side = unit(axis ^ osg::Vec3f(0, 0, 1), { 1, 0, 0 }) * drop.mSize;
-            const auto other = unit(axis ^ side) * drop.mSize;
-            const auto tip = drop.mPosition + axis * std::min(4.f, drop.mVelocity.length() * .009f);
-            const auto tail = drop.mPosition - axis * drop.mSize;
-            for (const auto& edge : { std::pair(side, other), std::pair(other, -side), std::pair(-side, -other), std::pair(-other, side) })
-                for (const auto& triangle : { std::array<osg::Vec3f, 3>{ tip, drop.mPosition + edge.first, drop.mPosition + edge.second },
-                         std::array<osg::Vec3f, 3>{ tail, drop.mPosition + edge.second, drop.mPosition + edge.first } })
-                {
-                    const auto n = unit((triangle[1] - triangle[0]) ^ (triangle[2] - triangle[0]));
-                    for (const auto& p : triangle) { vertices->push_back(p); normals->push_back(n); colors->push_back({ .4f, .008f, .018f, 1 }); }
-                }
+            const osg::Vec2f size(drop.mSize, std::max(drop.mSize, std::min(8.f, drop.mVelocity.length() * .009f)));
+            const auto base = static_cast<unsigned short>(vertices->size());
+            // All four positions are the physical particle centre. The vertex
+            // shader expands one textured quad in the current camera's plane,
+            // stretching its long axis along the projected flight direction.
+            for (const auto& corner : corners)
+            {
+                vertices->push_back(drop.mPosition - origin);
+                normals->push_back(axis);
+                colors->push_back({ .26f, .007f, .028f, .94f });
+                uv->push_back(corner);
+                sizes->push_back(size);
+            }
+            for (const auto offset : triangleIndices)
+                indices->push_back(static_cast<unsigned short>(base + offset));
+            // GPU-generated corners are absent from the CPU vertex array.
+            // Include every possible billboard orientation in culling/light
+            // selection bounds, including when viewed along its travel axis.
+            const float extent = size.length();
+            bounds.expandBy(drop.mPosition - origin - osg::Vec3f(extent, extent, extent));
+            bounds.expandBy(drop.mPosition - origin + osg::Vec3f(extent, extent, extent));
         }
-        vertices->dirty(); normals->dirty(); colors->dirty();
-        static_cast<osg::DrawArrays*>(mGeometry->getPrimitiveSet(0))->setCount(vertices->size());
+        vertices->dirty(); normals->dirty(); colors->dirty(); uv->dirty(); sizes->dirty(); indices->dirty();
+        mGeometry->setInitialBound(bounds);
         mGeometry->dirtyBound();
-        mTransform->setMatrix(osg::Matrixf::inverse(worldMatrix(*mRoot)));
+        mTransform->setMatrix(osg::Matrixd::translate(osg::Vec3d(origin)) * osg::Matrixd::inverse(worldMatrix(*mRoot)));
     }
 }

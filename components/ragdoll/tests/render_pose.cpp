@@ -2,11 +2,14 @@
 #include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalgore.hpp>
 #include <apps/openmw/mwrender/brutalblood.hpp>
+#include <apps/openmw/mwrender/bloodsurfacevisitor.hpp>
+#include <apps/openmw/mwrender/vismask.hpp>
 #include <apps/openmw/mwmechanics/ragdollimpact.hpp>
 #include <btBulletDynamicsCommon.h>
 #include <chrono>
 #include <components/esm3/ragdollstate.hpp>
 #include <components/ragdoll/items.hpp>
+#include <components/ragdoll/blood.hpp>
 #include <components/misc/strings/lower.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/sceneutil/skeleton.hpp>
@@ -192,6 +195,145 @@ namespace
         decals.update(.5f, 600);
         require(decals.size() == 0, "Blood persisted past its configured lifetime");
         std::cout << "PASS ballistic neck spray, wall/floor decals, amount 0/50/300%, ten-minute lifetime, cell isolation and saved age\n";
+    }
+
+    void bloodReceiversAndSprites()
+    {
+        using Trail = MWRender::BloodTrail;
+        // A collision-free carpet sits above a coarse floor collider. Actual
+        // interior receivers must hit the carpet and individual stair treads.
+        osg::ref_ptr<osg::Group> world = new osg::Group;
+        world->setNodeMask(MWRender::Mask_Scene);
+        const auto addMesh = [&](const std::vector<osg::Vec3f>& triangles, unsigned mask, bool carpet = false) {
+            osg::ref_ptr<osg::Group> object = new osg::Group;
+            object->setNodeMask(mask);
+            osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+            if (carpet) geode->setNodeMask(MWRender::Mask_Effect);
+            osg::ref_ptr<osg::Geometry> mesh = new osg::Geometry;
+            mesh->setVertexArray(new osg::Vec3Array(triangles.begin(), triangles.end()));
+            mesh->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, triangles.size()));
+            geode->addDrawable(mesh);
+            object->addChild(geode);
+            world->addChild(object);
+        };
+        const auto quad = [](float x0, float x1, float z) {
+            return std::vector<osg::Vec3f>{ {x0,-20,z}, {x1,-20,z}, {x1,20,z},
+                {x0,-20,z}, {x1,20,z}, {x0,20,z} };
+        };
+        addMesh(quad(-100, 100, 0), MWRender::Mask_Static);
+        addMesh(quad(-10, 10, 2), MWRender::Mask_Object, true);
+        addMesh(quad(-10, 10, 18), MWRender::Mask_Actor);
+        addMesh(quad(-10, 10, 19), MWRender::Mask_Effect);
+        addMesh(quad(20, 30, 5), MWRender::Mask_Static);
+        addMesh(quad(30, 40, 10), MWRender::Mask_Static);
+        std::vector<osg::Vec3f> cylinder;
+        for (int i = 0; i < 16; ++i)
+        {
+            const float a = i * 6.2831853f / 16, b = (i+1) * 6.2831853f / 16;
+            const osg::Vec3f p(60+10*std::cos(a), 10*std::sin(a), 0);
+            const osg::Vec3f q(60+10*std::cos(b), 10*std::sin(b), 0);
+            const osg::Vec3f height(0,0,20);
+            cylinder.insert(cylinder.end(), {p,q,q+height,p,q+height,p+height});
+        }
+        addMesh(cylinder, MWRender::Mask_Static);
+        const auto collected = MWRender::collectBloodSurfaceTriangles(*world, {30,0,5}, 100, {}, nullptr, false);
+        const auto surface = Trail::visualSurface(collected);
+        require(bool(surface), "Interior visual receiver snapshot is empty");
+        osg::Vec3f point, normal;
+        require(surface.mRaycast({0,0,25}, {0,0,-5}, point, normal) && std::abs(point.z()-2) < .001f,
+            "Carpet was excluded, or actors/transient effects received world blood");
+        for (const auto& step : std::array<osg::Vec2f,2>{osg::Vec2f(25,5), osg::Vec2f(35,10)})
+        {
+            require(surface.mRaycast({step.x(),0,25}, {step.x(),0,-5}, point, normal)
+                    && std::abs(point.z()-step.y()) < .001f,
+                "Interior blood used a coarse stair collider instead of visible treads");
+            const auto projected = surface.mProjector(point, normal, 2);
+            require(!projected.empty(), "Interior stair projection left no blood triangles");
+            for (const auto& v : projected)
+                require(std::abs(v.z()-step.y()-.03f) < .002f, "Blood bridged separate stair treads");
+        }
+        require(surface.mRaycast({90,0,10}, {60,0,10}, point, normal)
+                && std::abs(point.x()-70) < .01f,
+            "Visible cylinder receiver was not captured");
+        const auto curved = surface.mProjector(point, normal, 7);
+        require(curved.size() >= 6, "Blood did not wrap a visible column");
+        float minX = 100, maxX = -100;
+        for (const auto& v : curved) { minX = std::min(minX,v.x()); maxX = std::max(maxX,v.x()); }
+        require(maxX-minX > .5f, "Interior column blood was projected onto a flat invisible box");
+
+        // Pools deliberately keep the original physics probe even when spray
+        // splatters are projected onto a higher visual carpet.
+        osg::ref_ptr<osg::Group> particles = new osg::Group;
+        std::vector<MWRender::BloodStamp> deposits;
+        bool ready = true;
+        Trail spray(*particles, surface.mRaycast, [&](const auto& stamp) { deposits.push_back(stamp); },
+            surface.mProjector, Trail::collisionRaycast(floorSnapshot({},100)), [&] { return ready; });
+        const std::vector<Trail::Source> source{ {{0,0,8},{0,0,-1},1,false} };
+        for (int i=0; i<60; ++i) spray.update(1.f/60,source,1,i/60.f);
+        bool pool = false, splatter = false;
+        for (const auto& stamp : deposits)
+        {
+            if (stamp.mPool)
+            {
+                pool = true;
+                require(std::abs(stamp.mCenter.z()) < .001f && stamp.mRadius <= 8.01f,
+                    "Stable pool probe/radius changed with interior visual projection");
+            }
+            else
+            {
+                splatter = true;
+                require(std::abs(stamp.mCenter.z()-2) < .001f || std::abs(stamp.mCenter.z()) < .001f,
+                    "Flying drop did not leave blood at its actual receiver");
+            }
+        }
+        require(pool && splatter, "Pool/splatter receiver separation produced no blood");
+
+        // Snapshot invalidation must not silently let particles fall through.
+        deposits.clear(); ready = false;
+        spray.update(.05f, source, 1, 1);
+        deposits.clear();
+        const auto before = spray.particleCount();
+        for (int i=0;i<12;++i) spray.update(.05f,{},1,1);
+        require(spray.particleCount() == before && deposits.empty(),
+            "Invalidated surface allowed blood to pass through an unavailable receiver");
+        ready = true;
+        for (int i=0;i<100;++i) spray.update(.05f,{},1,1);
+        require(spray.particleCount() == 0 && !deposits.empty(), "Refreshed blood receiver lost paused drops");
+
+        std::array<std::size_t,2> counts{};
+        for (int i=0;i<2;++i)
+        {
+            osg::ref_ptr<osg::Group> root = new osg::Group;
+            Trail trial(*root, {}, {});
+            for (int frame=0;frame<8;++frame) trial.update(.0625f,source,i ? 1.f : .5f,frame*.0625f);
+            counts[i] = trial.emittedCount();
+            auto* mesh = root->getChild(0)->asGroup()->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+            require(mesh->getVertexArray()->getNumElements() == trial.particleCount()*4
+                    && mesh->getPrimitiveSet(0)->getNumIndices() == trial.particleCount()*6,
+                "Flying blood reverted to volumetric geometry instead of one sprite per drop");
+        }
+        require(counts[0] == 7 && counts[1] == 14, "Default sprite emission is not twice the stable baseline");
+        require(Ragdoll::bloodLaunchScale(3) > Ragdoll::bloodLaunchScale(1)
+                && Ragdoll::bloodSpreadScale(3) > Ragdoll::bloodSpreadScale(1),
+            "Blood quantity no longer increases launch distance and spread");
+        std::cout << "PASS visible carpet/stairs/column, actor exclusion, stable collision pools, receiver invalidation, sprite geometry and doubled emission\n";
+    }
+
+    void organicBloodRules()
+    {
+        for (const auto* model : {"rat.nif", "nix_hound.nif", "guar.nif", "scamp.nif", "zombie.nif", "ash_ghoul.nif"})
+            require(Ragdoll::creatureHasBlood("generated42", "", model), "Organic creature cannot bleed");
+        for (const auto* model : {"steam_centurion.nif", "dwarven_sphere.nif", "skeleton_warrior.nif",
+            "ancestor_ghost.nif", "bone_lord.nif", "storm_atronach.nif", "verminous_fabricant.nif"})
+            require(!Ragdoll::creatureHasBlood("generated42", "", model), "Nonflesh creature emits blood");
+        require(!Ragdoll::creatureHasBlood("generated42", "skeleton2", "custom.nif"),
+            "Generated nonflesh creature lost its original-record exclusion");
+        Ragdoll::DeathBloodTrigger trigger;
+        require(!trigger.update(true) && !trigger.update(true), "Loaded corpse started a new death fountain");
+        require(!trigger.update(false) && trigger.update(true) && !trigger.update(true),
+            "Fresh death failed to emit exactly one fountain");
+        require(!trigger.update(false) && trigger.update(true), "Resurrected creature cannot bleed on its next death");
+        std::cout << "PASS organic creature classification and fresh-death fountain lifecycle\n";
     }
 
     void brutalMeshClipAndPose()
@@ -851,7 +993,7 @@ namespace
         decals.setCellActive("arena", true);
         MWRender::BloodStamp stamp;
         stamp.mNormal.set(0, 0, 1);
-        for (int i = 0; i < 10240; ++i)
+        for (int i = 0; i < int(MWRender::BloodDecals::MaxStains) + 2048; ++i)
         {
             stamp.mCenter.set(float(i), 0, 0);
             stamp.mTriangles = { stamp.mCenter, stamp.mCenter + osg::Vec3f(1, 0, 0),
@@ -859,9 +1001,9 @@ namespace
             decals.add("arena", stamp);
         }
         decals.update(.1f, 600);
-        require(decals.size() == 8192 && decals.saveState().front().mStamp.mCenter.x() == 2048,
+        require(decals.size() == MWRender::BloodDecals::MaxStains && decals.saveState().front().mStamp.mCenter.x() == 2048,
             "Full blood cache did not evict exactly the oldest stain");
-        require(scene->getNumChildren() <= 65, "Blood cache produced an unbounded number of drawables");
+        require(scene->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1, "Blood cache produced an unbounded number of drawables");
         struct Buffer
         {
             osg::ref_ptr<osg::Geometry> mMesh;
@@ -871,7 +1013,7 @@ namespace
         std::vector<Buffer> buffers;
         for (unsigned i = 0; i < scene->getNumChildren(); ++i)
         {
-            auto* mesh = scene->getChild(i)->asGeode()->getDrawable(0)->asGeometry();
+            auto* mesh = scene->getChild(i)->asGroup()->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
             buffers.push_back({ mesh, mesh->getVertexArray(), mesh->getVertexArray()->getModifiedCount() });
         }
         for (int frame = 0; frame < 120; ++frame) decals.update(.1f, 600);
@@ -891,12 +1033,12 @@ namespace
         const auto saved = decals.saveState();
         decals.setCellActive("arena", false);
         decals.restoreState(saved);
-        require(decals.size() == 8192 && scene->getNumChildren() <= 65, "Full blood save/load grew the render graph");
+        require(decals.size() == MWRender::BloodDecals::MaxStains && scene->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 1, "Full blood save/load grew the render graph");
         for (unsigned i = 0; i < scene->getNumChildren(); ++i)
             require(scene->getChild(i)->getNodeMask() == 0, "Restored blood became visible in an inactive cell");
         decals.update(600, 600);
         require(decals.size() == 0 && scene->getNumChildren() == 0, "Expired full blood cache leaked render chunks");
-        std::cout << "PASS full 8192-stain rollover, stable VBOs while aging, local chunk updates, save/load and cleanup\n";
+        std::cout << "PASS full extended stain-cache rollover, stable VBOs while aging, local chunk updates, save/load and cleanup\n";
     }
 
     void goreLoadMeasurements(bool benchmark)
@@ -952,7 +1094,7 @@ namespace
             for (auto& corpse : corpses) corpse->update(1.f / 60);
             require(sprites - before <= corpses.size() * 2, "Severing more limbs multiplied whole NIF particle systems");
             decals.update(1.f / 60, 600);
-            require(decals.size() <= 8192, "Concurrent wounds exceeded the blood memory limit");
+            require(decals.size() <= MWRender::BloodDecals::MaxStains, "Concurrent wounds exceeded the blood memory limit");
             for (auto& fixture : fixtures)
                 for (unsigned i = 0; i < fixture->mSkeleton->getNumChildren(); ++i)
                 {
@@ -1809,6 +1951,8 @@ int main(int argc, char** argv)
         }
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
+        bloodReceiversAndSprites();
+        organicBloodRules();
         brutalMeshClipAndPose();
         brutalPhysicalWounds();
         bloodCacheCapacityAndBuffers();

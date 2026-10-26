@@ -148,3 +148,25 @@ if (MSVC AND PRECOMPILE_HEADERS_WITH_MSVC)
         <vector>
     )
 endif()
+
+# Native renderer regression tests without proprietary game assets.
+option(BRUTAL_TEST_NATIVE_GL "Test DDS blood and native lighting using Linux EGL" OFF)
+if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
+    add_executable(blood-dds-gl-tests sceneutil/blooddds_gl.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalblood.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp)
+    target_compile_features(blood-dds-gl-tests PRIVATE cxx_std_20)
+    set_target_properties(blood-dds-gl-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    target_compile_definitions(blood-dds-gl-tests PRIVATE BT_USE_DOUBLE_PRECISION OPENMW_PROJECT_SOURCE_DIR=u8"${PROJECT_SOURCE_DIR}")
+    target_include_directories(blood-dds-gl-tests PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(blood-dds-gl-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS})
+    target_link_libraries(blood-dds-gl-tests PRIVATE components OpenGL::GL OpenGL::EGL)
+    add_test(NAME brutal-dds-native-lighting-normal COMMAND blood-dds-gl-tests)
+    add_test(NAME brutal-dds-native-lighting-reversed COMMAND blood-dds-gl-tests reversed)
+    foreach(scene dds spray)
+        add_test(NAME brutal-dds-${scene}-normal COMMAND blood-dds-gl-tests normal ${scene})
+        add_test(NAME brutal-dds-${scene}-reversed COMMAND blood-dds-gl-tests reversed ${scene})
+    endforeach()
+endif()

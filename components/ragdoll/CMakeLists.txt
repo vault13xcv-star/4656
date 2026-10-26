@@ -44,7 +44,7 @@ option(RAGDOLL_TEST_RENDERING "Test physical poses and lethal-hit attribution wi
 option(RAGDOLL_TEST_GL "Run actual surfaceless EGL fire/smoke regression tests (Linux)" OFF)
 if(RAGDOLL_TEST_RENDERING)
     find_package(OpenGL REQUIRED)
-    find_package(OpenSceneGraph 3.6.5 REQUIRED COMPONENTS osg osgUtil)
+    find_package(OpenSceneGraph 3.6.5 REQUIRED COMPONENTS osg osgUtil osgDB)
     add_executable(ragdoll-render-tests
         tests/render_pose.cpp
         simulation.cpp
@@ -53,6 +53,8 @@ if(RAGDOLL_TEST_RENDERING)
         ../../apps/openmw/mwrender/ragdollappearance.cpp
         ../../apps/openmw/mwrender/brutalgore.cpp
         ../../apps/openmw/mwrender/brutalblood.cpp
+        ../../apps/openmw/mwrender/bloodsurface.cpp
+        ../../apps/openmw/mwrender/bloodsurfacevisitor.cpp
         ../sceneutil/skeleton.cpp
         ../sceneutil/riggeometry.cpp
         ../sceneutil/morphgeometry.cpp
@@ -74,9 +76,11 @@ if(RAGDOLL_TEST_RENDERING)
     add_test(NAME ragdoll-impact COMMAND ragdoll-impact)
     if(RAGDOLL_TEST_GL)
         find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
-        find_package(OpenSceneGraph 3.6.5 REQUIRED COMPONENTS osg osgUtil osgViewer osgGA)
+        find_package(OpenSceneGraph 3.6.5 REQUIRED COMPONENTS osg osgUtil osgViewer osgGA osgDB)
         add_executable(ragdoll-gl-tests tests/appearance_gl.cpp ../../apps/openmw/mwrender/ragdollappearance.cpp
-            ../../apps/openmw/mwrender/brutalblood.cpp)
+            ../../apps/openmw/mwrender/brutalblood.cpp
+            ../../apps/openmw/mwrender/bloodsurface.cpp
+            ../../apps/openmw/mwrender/bloodsurfacevisitor.cpp)
         target_compile_features(ragdoll-gl-tests PRIVATE cxx_std_20)
         target_include_directories(ragdoll-gl-tests PRIVATE ../..)
         target_include_directories(ragdoll-gl-tests SYSTEM PRIVATE ${OPENSCENEGRAPH_INCLUDE_DIRS})

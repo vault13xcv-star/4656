@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.7.0-preview.2'
+$ragdollVersion = '0.7.0-preview.11'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -152,6 +152,16 @@ switch ($Phase) {
         foreach ($required in @('openmw.exe', 'defaults.bin', 'openmw.cfg', 'resources', 'LICENSE.txt', 'SDL2.dll', 'MyGUIEngine.dll')) {
             if (-not (Test-Path (Join-Path $install $required))) { throw "Incomplete package: $required is missing." }
         }
+        # Check the exact uploaded DXT5 artwork after installation, including
+        # original filenames containing spaces and parentheses.
+        $bloodAssets = Get-Content (Join-Path $PSScriptRoot 'brutal-blood-dds-sha256.json') -Raw | ConvertFrom-Json
+        foreach ($asset in $bloodAssets.PSObject.Properties) {
+            $assetPath = Join-Path $install ("resources/vfs/textures/brutal/blood/" + $asset.Name)
+            if (-not (Test-Path $assetPath)) { throw "Missing blood DDS: $($asset.Name)" }
+            if ((Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.Value) {
+                throw "Blood DDS differs from the uploaded original: $($asset.Name)"
+            }
+        }
         Get-ChildItem $install -Filter '*.pdb' -Recurse | Remove-Item -Force
         $licences = Join-Path $install 'licenses/dependencies'
         New-Item -ItemType Directory -Force $licences | Out-Null
@@ -225,7 +235,7 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Version 0.7 adds ballistic blood, projected wall/floor stains and growing pools, saved ten-minute stain lifetimes, high-pressure neck fountains, physical intestines, longitudinal two-handed cuts and hammer torso tearing. Existing impact, enchantment and DOT rules are retained.
+Preview.11 starts from the exact stable preview.2 source. Six original uploaded DDS files replace wall/floor splatters; pools retain the stable untextured material and formation rules. Flying blood uses lit sprites, the default emission is doubled, quantity also increases spray range, and organic creatures bleed. Interiors receive stains on visible meshes; exteriors retain collision-backed receivers. Combat, hit attribution, dismemberment and DOT rules remain those of preview.2.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

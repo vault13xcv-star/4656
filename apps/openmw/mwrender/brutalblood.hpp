@@ -6,6 +6,8 @@
 #include <osg/Geometry>
 #include <osg/MatrixTransform>
 #include <osg/Uniform>
+#include <osg/Image>
+#include <osg/Texture2D>
 #include <components/esm3/brutalbloodstate.hpp>
 #include <cstdint>
 #include <deque>
@@ -18,10 +20,12 @@ namespace MWRender
 {
     struct BloodStamp
     {
+        using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
         osg::Vec3f mCenter, mNormal;
         std::vector<osg::Vec3f> mTriangles;
         float mRadius = 1;
         bool mPool = false;
+        std::uint32_t mVisualSeed = 0;
     };
 
     struct BloodStainState
@@ -36,6 +40,9 @@ namespace MWRender
     class BloodDecals
     {
     public:
+        static constexpr std::size_t MaxStains = 32768;
+        static constexpr std::size_t MaxVertices = 8192 * 192;
+        static constexpr std::size_t ChunkStains = 128;
         explicit BloodDecals(osg::Group& parent);
         ~BloodDecals();
         void add(const std::string& cell, const BloodStamp& stamp);
@@ -47,11 +54,15 @@ namespace MWRender
         ESM::BrutalBloodState getSaveRecord() const;
         void loadSaveRecord(const ESM::BrutalBloodState& state);
         std::size_t size() const;
+        void setTextures(const std::vector<osg::ref_ptr<osg::Image>>& floor,
+            const std::vector<osg::ref_ptr<osg::Image>>& wall);
 
     private:
         struct Chunk
         {
             osg::ref_ptr<osg::Geode> mNode;
+            osg::ref_ptr<osg::MatrixTransform> mTransform;
+            osg::Vec3f mOrigin;
             osg::ref_ptr<osg::Geometry> mGeometry;
             bool mDirty = true;
         };
@@ -68,6 +79,10 @@ namespace MWRender
         std::deque<Stain> mStains;
         std::map<std::string, Batch> mBatches;
         osg::ref_ptr<osg::Uniform> mTimeUniform, mLifetimeUniform;
+        osg::ref_ptr<osg::Texture2D> mAtlas;
+        std::vector<osg::Vec4f> mFloorTiles, mWallTiles;
+        std::size_t mVertexCount = 0;
+        std::uint32_t mRandom = 0x9f673bbdu;
         std::uint64_t mNextSequence = 0;
         double mTime = 0;
         float mSinceBatch = 1;
@@ -79,16 +94,35 @@ namespace MWRender
     class BloodTrail
     {
     public:
+        static constexpr std::size_t MaxParticles = 192;
+        static constexpr std::size_t SpriteVertices = 4;
+        static constexpr std::size_t SpriteIndices = 6;
+        static constexpr std::size_t MaxSources = 32;
+        static constexpr float MaxDropAge = 4.f;
+        static constexpr unsigned MaxImpactSplats = 8;
         using Raycast = std::function<bool(const osg::Vec3f&, const osg::Vec3f&, osg::Vec3f&, osg::Vec3f&)>;
         using Deposit = std::function<void(const BloodStamp&)>;
+        using Projector = BloodStamp::Projector;
+        struct Surface
+        {
+            Raycast mRaycast;
+            Projector mProjector;
+            Raycast mPoolRaycast;
+            std::function<bool()> mValid;
+            explicit operator bool() const { return bool(mRaycast) && (!mValid || mValid()); }
+        };
         struct Source
         {
             osg::Vec3f mPosition, mDirection;
             float mPressure = 1;
             bool mNeck = false;
+            bool mMajorWound = false;
         };
-        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit);
+        BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {}, Raycast poolRaycast = {},
+            std::function<bool()> ready = {});
         static Raycast collisionRaycast(const std::vector<osg::Vec3f>& triangles);
+        static Surface visualSurface(const std::vector<osg::Vec3f>& triangles);
+        static Surface collisionSurface(const std::vector<osg::Vec3f>& triangles);
         ~BloodTrail();
         void update(float duration, const std::vector<Source>& sources, float amount, float age);
         std::size_t particleCount() const { return mDrops.size(); }
@@ -100,9 +134,14 @@ namespace MWRender
         osg::ref_ptr<osg::MatrixTransform> mTransform;
         osg::ref_ptr<osg::Geometry> mGeometry;
         Raycast mRaycast;
+        Raycast mPoolRaycast;
+        Projector mProjector;
+        std::function<bool()> mReady;
         Deposit mDeposit;
         std::vector<Drop> mDrops;
-        std::vector<float> mRemainders, mPoolTimes;
+        std::vector<float> mRemainders, mPoolTimes, mPoolRemainders;
+        std::vector<unsigned> mPendingDrops;
+        std::size_t mNextSource = 0;
         std::size_t mEmitted = 0;
         unsigned mRandom = 0x91a37u;
         float random();

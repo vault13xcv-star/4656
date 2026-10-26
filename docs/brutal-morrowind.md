@@ -1,119 +1,102 @@
-# Brutal Morrowind 0.7.0-preview.2
+# Brutal Morrowind 0.7.0-preview.11
 
-A modified OpenMW 0.51.0 Windows x64 runtime. This continues the working
-Real Combat Ragdoll 0.6.0-preview.5 engine, retaining its physics controls,
-enchantment handling, directional hit rules and one-second immediate-death window.
+This Windows x64 runtime is built directly from the stable **0.7.0-preview.2**
+source, commit `a76508441a8dd4a791a38cab140f04bf7c2a2323`. The later experimental
+combat changes are excluded. Melee, projectile and enchantment damage, wound
+selection, physical bodies, intestines, inventory and the one-second immediate
+magic-death window retain the stable implementation.
 
-Extract the complete Windows ZIP into a new directory and run `openmw.exe`.
-Morrowind data and the usual OpenMW configuration are required. The launcher and
-editor are not included. Keep a separate copy of saves: this version adds saved
-Brutal Morrowind wounds and blood records, which older engine builds cannot read.
+Extract the entire Windows ZIP into a new directory and run `openmw.exe`.
+Your Morrowind data and normal OpenMW configuration are required. No launcher,
+editor or game data are included. Use separate save copies: this build reads
+preview.2 blood records, but its new blood records store texture variation and
+are not readable by preview.2. Existing wounds are not rerolled on load.
 
-## Fix for stalls after several dismemberments
+## Wall and floor splatters
 
-Preview.2 fixes the rapidly increasing cost of accumulated gore. A full blood
-cache now evicts its oldest entry without shifting the other 8191 records. Blood
-uses persistent chunks of at most 128 stains; a new splat only updates affected
-chunks, and drying/fading uses a shader clock without rebuilding the entire cache
-ten times a second. Droplets and intestinal tubes retain their geometry/VBOs
-across frames. Intestinal triangles share ring vertices instead of duplicating
-them. Gore materials share their shader programs.
+The six original DXT5 files from the supplied `splatterss_dds.zip` are bundled,
+with their original filenames and contents. `wall (1).dds` through `wall (4).dds`
+are wall variants; `floor (6).dds` and `floor (7).dds` are floor variants. Each
+impact chooses a variant and a slightly varied size. Floor artwork can rotate
+180 degrees; wall artwork stays upright. Both can mirror horizontally.
+Transparent areas retain the DDS alpha channel. The small shared atlas is built
+once, with transparent gutters; there is no texture or scene object per stain.
 
-Legacy blood sprites rotate between wounds with at most two NIF particle systems
-per pulse, rather than spawning another system at every end of every severed
-joint. Ballistic blood still comes from every wound. Pool growth is sampled at
-most four times per second per wound; at most eight droplet impacts per trail per
-update project a splat perimeter. These bounds prevent a slow frame from
-amplifying the next frame's blood work. Blood quantity, stain lifetime, existing
-physical wounds, inventories and saved blood remain supported.
+**Pools are not DDS decals.** Their untextured irregular geometry, merge rule,
+formation timer, collision probe and radius formula come from preview.2. Changing
+splat artwork does not change the pool material. The blood amount control keeps
+the stable pool scaling independently of the increased spray emission.
 
-## Blood
+Inside interiors, flying droplets hit the actual rendered triangles of nearby
+world meshes. Splatter geometry is clipped to those surfaces rather than laid
+on a simplified physics box: stair treads, rounded columns, furniture and
+collision-free carpets can receive blood. Actors and transient effects are
+excluded. Exterior blood keeps collision-backed receivers from the stable
+implementation, including the landscape and collidable walls, doors, barrels
+and steps. The interior visual-mesh method is never substituted for exterior
+terrain. Pools keep their stable physics receivers in both environments.
 
-Successful physical health hits on NPCs emit ballistic droplets. Severed wounds
-continue to spray and drip for the configured status duration (ten seconds at
-defaults). The exposed neck has a stronger, pulsing arterial fountain. Droplets
-follow gravity, sweep against collision triangles and stop at walls/floors.
-Each stain's perimeter is projected onto the contacted surface, so a splat does
-not simply float across a corner. Grounded wounds gradually form larger pools.
-Wet blood darkens as it dries; stains fade during their last ten seconds.
+Stains remain fixed to their location after placement; they do not follow a door
+or item when it moves. Mesh snapshots are bounded, reused and invalidated when
+world objects change. Existing stain geometry is not reprojected during load.
 
-Esc > Settings > Physics adds two English controls:
+## Spray, creatures and lighting
+
+Flying drops and fountains use camera-facing sprite cards, four vertices per
+drop. They follow gravity and swept collision rays, depositing a persistent
+splatter at impact. They are not individual rigid bodies or 3D droplet volumes.
+Neck fountains and major horizontal/longitudinal cuts emit stronger, more visible
+jets. Duplicate legacy wound particle systems are suppressed when the new sprite
+trail is available.
+
+Default spray emission is twice preview.2. Raising Blood amount increases both
+concentration and launch speed/cone spread, so more blood reaches farther from
+the wound. Organic creatures bleed on physical health hits and emit a fountain
+on a new death, even without a supported ragdoll skeleton. Canonical record/model
+identifiers exclude mechanisms, skeletons, ghosts and other nonflesh families;
+flesh-bearing undead remain eligible. Loading an already dead creature does not
+restart its fountain. Custom creature models may need additional classification.
+
+Blood uses the scene's ambient, sunlight and nearby point lights, with fog and
+native sun shadows. It darkens in a dark room instead of emitting its own light.
+The same lighting applies to flying sprites. Wet/dry aging remains supported.
+
+Esc > Settings > Physics:
 
 | Control | Minimum | Default | Maximum |
 | --- | ---: | ---: | ---: |
-| Blood amount | 0% (off) | 100% | 300% |
+| Blood amount | 0% (off) | 100% (twice the old spray baseline) | 300% |
 | Blood stain lifetime | 300 s | 600 s (10 minutes) | 1800 s |
 
-The amount changes actual droplet emission and splat/pool size. Native blood
-sprite size follows the same amount control. Stain lifetime is independent of
-bleeding duration and corpse physics: freezing or looting the body does not erase
-its floor/wall stains. Lifetime changes retain elapsed time. Ages stop while
-paused, continue in other locations and are saved with the stain geometry and
-cell ID. Returning to an unexpired cell restores its stains; interiors at the
-same coordinates do not share them. Loading a save preserves remaining time.
+Stain lifetime is independent of bleed duration and corpse physics. Ages pause
+with the game, persist across cells and saves, and are preserved when changing
+lifetime. Interiors at the same coordinates do not share stains. Expired stains
+fade out during their last ten seconds.
 
-Blood is batched in small chunks per cell. A global limit of 8192 stains evicts the oldest in
-extreme battles; nearby pools merge. Short hit sprays are limited to 32, and
-each bleeding corpse has at most 192 live droplets. These limits prevent
-unbounded scene/physics growth. Stains are attached to the location, not to moving
-doors or clutter. Blood particles themselves are transient across save/load.
+The global stain count rises from 8192 to 32768 to retain older marks during
+battles. Total geometry remains capped at the old worst-case allocation,
+8192 x 192 vertices. The oldest stains are evicted when either limit is reached.
+Persistent cell batches hold at most 128 stains each and only changed batches
+upload geometry. Each trail has at most 192 live sprites, 32 wound sources and
+eight projected impact splatters per update. Creature/hit bursts and receiver
+snapshots have separate bounded caches. These bounds limit accumulation; they
+do not guarantee a particular frame rate.
 
-## Intestines and new physical wounds
+## Validation and practical limits
 
-Horizontal waist separation now exposes two loops of intestines. They are smooth,
-rounded pink/red tubes with folds, veins and wet highlights, driven by 36 small
-Bullet capsules and linked joints. They collide with world geometry, fall out of
-the abdomen and remain attached to the torso. Their physical pose and joints are
-saved with the corpse. They use the corpse's existing active-body/time budget.
+Automated tests cover the Bullet solver, existing physical wounds, saved poses,
+cell visibility, stain lifetime/capacity, visible stair/column/carpet receivers,
+actor exclusion, separate stable pool probes, invalidated receivers, sprite
+geometry, doubled emission and organic creature death lifecycle. The real
+ImageManager loads all six uploaded DXT5 textures in EGL/OpenGL tests. Native
+rendering tests exercise transparency, darkness, sunlight, torches, shadows,
+shader reload, normal/reversed depth, unchanged pool output and exterior
+collision-backed spray impacts at 100% and 300%.
 
-The existing dismemberment chance applies to the new outcomes: 30% by default,
-adjustable from 0% to 100%. No extra independent roll changes that probability.
-
-| Weapon and lethal physical contact | New result after a successful wound roll |
-| --- | --- |
-| Two-handed long blade or two-handed axe, descending chop into head/torso | Longitudinal separation |
-| Two-handed hammer, chop/slash into torso | Torso and extremities tear apart |
-| Existing heavy horizontal slash into torso/eligible arm | Existing waist cut, now with intestines |
-
-Longitudinal cuts clip actual posed triangles, interpolating UVs/normals and
-retaining clothing/armour textures. Each side has its own pelvis, torso and head
-collision bodies; the right arm/leg remain articulated with the right half.
-Depth-tested flesh closes the exposed surfaces. Intestines appear on this cut
-and on hammer torso tearing too. Removing equipment while looting updates the
-visible halves. Whole robes remain uncut; the underlying severed body is exposed.
-No equipment or inventory entries are removed, duplicated or replaced.
-
-`BluntTwoClose` is the native two-handed hammer class. Staves (`BluntTwoWide`),
-one-handed maces, spears and short blades do not inherit torso tearing. A thrust
-does not produce a physical longitudinal cut. A vertical arm/leg hit does not
-invent a centre-line cut. Existing one-handed cuts, crossbow head bursts and
-direct elemental enchanted wounds retain their rules. Strong direct elemental
-presentation still takes precedence over the physical wound where applicable.
-Magic deaths before one second retain the impact; later DOT does not replay it.
-
-Previous saved corpses retain their wounds. New features apply to new hits and
-kills; loading an older save does not randomly recut its existing bodies.
-
-## Validation and limits
-
-Automated checks exercise the real Bullet solver, skinned mesh snapshots,
-clipping/seam UVs, independent half poses, intestinal joints, saved blood ages,
-cell visibility, blood amount endpoints and lifetime expiry. Actual EGL/OpenGL
-tests cover blood/flesh under native normal/reversed-Z projection, inherited NPC
-shaders/alpha testing, opaque wall occlusion and expiration. Windows CI also
-builds the full runtime, runs component/native integration tests, starts the
-installed executable with `--version`, and checks ZIP integrity.
-
-The stall regression exercises ten concurrent waist/longitudinal/hammer deaths
-at maximum blood, stable intestinal buffers, bounded legacy sprite spawning and
-cleanup. It also fills and overflows all 8192 stain slots, verifies that idle
-aging does not reupload geometry, restores a full saved cache and expires it.
-Both GL depth modes draw a full cache with eight simultaneous blood trails.
-In the same debug CPU-only ten-hammer-death benchmark, the tenth second fell from
-129 ms/frame to approximately 25 ms/frame. This measures physics/effect updates,
-not game FPS, and does not predict a particular Windows machine's performance.
-
-These checks do not replace an in-game playtest with your Morrowind data.
-Standard humanoid NPC body-part meshes are supported; custom whole-body meshes
-and unusual skeletons need separate compatibility checks. Creatures retain their
-existing ragdoll support, but do not receive these humanoid cuts or intestines.
+Windows CI builds the complete runtime, runs physics/render, component and item
+integration tests, checks the installed executable with `--version`, verifies
+the SHA256 of every installed DDS and checks the ZIP. These automated scenes do
+not replace an in-game Balmora playtest with Morrowind assets. Noncolliding
+exterior decorations follow the limitations of the stable collision receiver.
+Custom whole-body NPC meshes and unusual creature skeletons retain preview.2's
+compatibility limits. No new humanoid cuts are applied to creature skeletons.

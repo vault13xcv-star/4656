@@ -1,6 +1,7 @@
 #include "ragdoll.hpp"
 #include "ragdollappearance.hpp"
 #include "brutalgore.hpp"
+#include <components/ragdoll/blood.hpp>
 
 #include <components/esm3/ragdollstate.hpp>
 #include <components/misc/constants.hpp>
@@ -401,6 +402,9 @@ namespace MWRender
         std::vector<osg::ref_ptr<osg::Geode>> mGutNodes;
         bool mGutsRendered = false;
         std::unique_ptr<BloodTrail> mBlood;
+        BloodTrail::Surface mBloodSurface;
+        osg::Vec3f mBloodSurfaceCenter;
+        float mBloodSurfaceTime=-1, mBloodSurfaceAttempt=-1;
         std::vector<Ragdoll::StaticCollider> mBloodColliders;
         std::map<osg::Node*, std::pair<osg::ref_ptr<osg::Node>, osg::Node::NodeMask>> mSplitParts;
         std::array<osg::Matrixf, 3> mSplitBindLeft, mSplitBindRight;
@@ -509,6 +513,22 @@ namespace MWRender
             }
         }
 
+        void refreshBloodSurface(const osg::Vec3f& center)
+        {
+            if (!mSettings.mBloodSurface || mBloodSurfaceAttempt == mElapsed) return;
+            if (mBloodSurface && mElapsed-mBloodSurfaceTime<.5f
+                && (center-mBloodSurfaceCenter).length2() <=128.f*128.f) return;
+            mBloodSurfaceAttempt=mElapsed;
+            auto surface=mSettings.mBloodSurface(center,768.f*std::max(1.f,Ragdoll::bloodLaunchScale(mSettings.mBloodAmount)));
+            if (surface) {mBloodSurface=std::move(surface);mBloodSurfaceCenter=center;mBloodSurfaceTime=mElapsed;}
+        }
+        bool bloodFlightRay(const osg::Vec3f& from,const osg::Vec3f& to,osg::Vec3f& point,osg::Vec3f& normal)
+        {
+            if (!mSettings.mBloodSurface) return bloodRay(from,to,point,normal);
+            refreshBloodSurface(mBodyMatrices.front().getTrans());
+            return mBloodSurface.mRaycast && mBloodSurface.mRaycast(from,to,point,normal);
+        }
+
         bool bloodRay(const osg::Vec3f& from, const osg::Vec3f& to, osg::Vec3f& point, osg::Vec3f& normal)
         {
             if (mSimulation)
@@ -599,7 +619,17 @@ namespace MWRender
             if (!mBlood && mSettings.mBloodDeposit && mWounds.any()
                 && mElapsed < mSettings.mBleedDuration && mSettings.mBloodAmount > 0)
                 mBlood = std::make_unique<BloodTrail>(*mRoot,
-                    [this](const auto& a, const auto& b, auto& p, auto& n) { return bloodRay(a, b, p, n); }, mSettings.mBloodDeposit);
+                    [this](const auto& a, const auto& b, auto& p, auto& n) { return bloodFlightRay(a, b, p, n); }, mSettings.mBloodDeposit,
+                    mSettings.mBloodSurface ? BloodTrail::Projector{[this](const auto& point,const auto& normal,float radius) {
+                        refreshBloodSurface(mBodyMatrices.front().getTrans());
+                        return mBloodSurface.mProjector ? mBloodSurface.mProjector(point,normal,radius) : std::vector<osg::Vec3f>{};
+                    }} : BloodTrail::Projector{},
+                    [this](const auto& a,const auto& b,auto& point,auto& normal){return bloodRay(a,b,point,normal);},
+                    [this] {
+                        if (!mSettings.mBloodSurface) return true;
+                        refreshBloodSurface(mBodyMatrices.front().getTrans());
+                        return bool(mBloodSurface);
+                    });
             if (mBlood)
             {
                 std::vector<BloodTrail::Source> sources;
@@ -610,27 +640,35 @@ namespace MWRender
                     {
                         if (!mWounds.cuts(joint.mChild)) continue;
                         const auto parent = toOsg(joint.mFrameInParent) * mBodyMatrices[joint.mParent];
-                        sources.push_back({ parent.getTrans(), unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), parent)), pressure, joint.mChild == 2 });
+                        sources.push_back({ parent.getTrans(), unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), parent)), pressure, joint.mChild == 2, joint.mChild == 1 || joint.mChild == 2 });
                         if (!(mWounds.mBurstHead && joint.mChild == 2))
                         {
                             const auto child = toOsg(joint.mFrameInChild) * mBodyMatrices[joint.mChild];
-                            sources.push_back({ child.getTrans(), -unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), child)), pressure, false });
+                            sources.push_back({ child.getTrans(), -unit(osg::Matrixf::transform3x3(osg::Vec3f(1, 0, 0), child)), pressure, false, joint.mChild == 1 || joint.mChild == 2 });
                         }
                     }
                     if (mWounds.mLongitudinal)
-                        for (unsigned body : { 1u, 16u })
-                            sources.push_back({ mBodyMatrices[body].getTrans(), body == 1 ? -mRight : mRight, pressure, false });
+                        for (unsigned part=0;part<3;++part)
+                            for (unsigned half=0;half<2;++half)
+                            {
+                                const unsigned body=part+half*15;
+                                if (body>=mBodyMatrices.size()) continue;
+                                const auto localRight=osg::Matrixf::transform3x3(mRight,osg::Matrixf::inverse(toOsg(mDefinitions[body].mTransform)));
+                                const auto right=unit(osg::Matrixf::transform3x3(localRight,mBodyMatrices[body]));
+                                const auto normal=half ? -right : right;
+                                sources.push_back({mBodyMatrices[body].getTrans()+normal*float(mDefinitions[body].mRadius/.52*.45),normal,pressure,false,true});
+                            }
                 }
                 mBlood->update(duration, sources, mSettings.mBloodAmount, mElapsed);
             }
-            if (mElapsed >= mSettings.mBleedDuration + 2.f)
+            if (mElapsed >= mSettings.mBleedDuration + BloodTrail::MaxDropAge + .25f)
             {
                 mBlood.reset();
                 mBloodColliders.clear();
                 if (!mSimulation) std::vector<osg::Vec3f>().swap(mCollisionVertices);
             }
             mSinceBlood += std::max(0.f, duration);
-            if (!mSettings.mBloodEffect || mSettings.mBloodAmount <= 0 || mElapsed >= mSettings.mBleedDuration
+            if (mSettings.mBloodDeposit || !mSettings.mBloodEffect || mSettings.mBloodAmount <= 0 || mElapsed >= mSettings.mBleedDuration
                 || mSinceBlood < .25f / std::max(.1f, mSettings.mBloodAmount))
                 return;
             mSinceBlood = 0;
@@ -775,7 +813,7 @@ namespace MWRender
 
         void freeze()
         {
-            if (mSettings.mBloodDeposit && mWounds.any() && mElapsed < mSettings.mBleedDuration + 2.f)
+            if (mSettings.mBloodDeposit && mWounds.any() && mElapsed < mSettings.mBleedDuration + BloodTrail::MaxDropAge + .25f)
                 mBloodColliders = makeCollisionMesh(mCollisionVertices);
             // Keep the final matrices and pose overrides, but release physics world and mesh memory.
             mSimulation.reset();

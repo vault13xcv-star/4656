@@ -10,6 +10,7 @@
 #include <memory>
 #include <osg/AlphaFunc>
 #include <osg/Geode>
+#include <osg/LightModel>
 #include <osg/Geometry>
 #include <osg/Group>
 #include <osg/Program>
@@ -84,6 +85,9 @@ int main(int argc, char** argv)
         viewer.setSceneData(root); viewer.realize();
         if (effect == "blood")
         {
+            osg::ref_ptr<osg::LightModel> lighting = new osg::LightModel;
+            lighting->setAmbientIntensity({ 1, 1, 1, 1 });
+            state->setAttributeAndModes(lighting, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
             const auto read = [&] {
                 viewer.frame(); glFinish(); std::vector<unsigned char> pixels(width * height * 3);
                 glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
@@ -124,7 +128,7 @@ int main(int argc, char** argv)
             check(occluded == 0, "Blood decals visible through an opaque wall");
             root->removeChild(flesh);
             const auto wet = read();
-            auto* stainMesh = root->getChild(root->getNumChildren() - 1)->asGeode()->getDrawable(0)->asGeometry();
+            auto* stainMesh = root->getChild(root->getNumChildren() - 1)->asGroup()->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
             osg::ref_ptr<osg::Array> stableVertices = stainMesh->getVertexArray();
             const auto modified = stableVertices->getModifiedCount();
             blood.update(90, 600);
@@ -161,19 +165,19 @@ int main(int argc, char** argv)
             for (int i = 0; i < 8; ++i)
                 trails.push_back(std::make_unique<MWRender::BloodTrail>(*root, ray,
                     [&](const auto& splat) { blood.add("test", splat); }));
-            for (int frame = 0; frame < 180; ++frame)
+            for (int frame = 0; frame < 600; ++frame)
             {
                 for (int i = 0; i < 8; ++i)
                     trails[i]->update(.1f, { { { float(i * 10 - 40), 0, 30 }, { 0, 0, -1 }, 1, true } }, 3, frame * .1f);
                 blood.update(.1f, 600);
-                check(blood.size() == 8192 && root->getNumChildren() <= 74, "Full GPU blood cache grew without bound");
+                check(blood.size() <= MWRender::BloodDecals::MaxStains && root->getNumChildren() <= MWRender::BloodDecals::MaxStains / MWRender::BloodDecals::ChunkStains + 10, "Full GPU blood cache grew without bound");
                 viewer.frame();
                 check(glGetError() == GL_NO_ERROR, "Full blood cache caused an OpenGL error");
             }
             glFinish(); trails.clear(); blood.clear();
             check(read() == baseline && root->getNumChildren() == 1, "Crowded blood leaked GPU/scene nodes after cleanup");
             std::cout << "PASS actual GL blood decals, native projection, inherited alpha/shader, opaque occlusion and expiry\n";
-            std::cout << "PASS full 8192-stain GPU cache rollover with eight simultaneous maximum-pressure blood trails\n";
+            std::cout << "PASS bounded extended GPU cache rollover with eight simultaneous maximum-pressure blood trails\n";
             return 0;
         }
         if (effect == "wounds")

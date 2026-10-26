@@ -314,6 +314,7 @@ namespace ESM
             BrutalBloodStain stain;
             stain.mCell = "String:balmora, guild of mages";
             stain.mAge = 599; stain.mRadius = 3; stain.mPool = true;
+            stain.mVisualSeed = 0xf125ab42u;
             stain.mNormal = { 0, 0, 1 }; stain.mCenter = { 1, 2, 3 };
             stain.mTriangles = { { 1, 2, 3 }, { 4, 2, 3 }, { 1, 5, 3 } };
             state.mStains.push_back(stain);
@@ -322,6 +323,7 @@ namespace ESM
             ASSERT_EQ(result.mStains.size(), 1);
             EXPECT_EQ(result.mStains[0].mCell, stain.mCell);
             EXPECT_EQ(result.mStains[0].mAge, 599);
+            EXPECT_EQ(result.mStains[0].mVisualSeed, stain.mVisualSeed);
             EXPECT_EQ(result.mStains[0].mTriangles, stain.mTriangles);
             EXPECT_TRUE(result.mStains[0].mPool);
         }
