@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "tag": "v1.0",
+  "repository": "vault13xcv-star/4656",
+  "baselineSource": "436addc3980d6587c4a6f0d6469bc933d4492555",
+  "baselineReport": "c26adf7806eb679b37cdf859383d2ca9d9122354",
+  "baselineRun": "40378426490",
+  "baselineFile": "Brutal-Morrowind-0.7.0-preview.14-OpenMW-0.51-Windows-x64-436addc3980d.zip",
+  "baselineBytes": 47590770,
+  "baselineSha256": "f4f5c5c21ad82548771ac68dc42b606a9662a56be37f90a64bb6ddda4d33c2ac",
+  "executableSha256": "6e3e78d5daf9972c65794c6057f6020e5836d7926dda0336cbbce67c5d03ae95",
+  "runtimeFile": "Brutal-Morrowind-1.0-Windows-x64.zip",
+  "sourceFile": "Brutal-Morrowind-1.0-Source.zip"
+}

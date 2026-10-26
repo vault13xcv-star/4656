@@ -1,6 +1,10 @@
-# Brutal Morrowind 0.7.0-preview.14
+# Brutal Morrowind V1.0
 
-This Windows x64 runtime continues preview.13, with combat, damage, hit attribution,
+V1.0 promotes the tested preview.14 executable and gameplay resources unchanged.
+Release documentation and package names identify the public 1.0 release; the
+executable retains its original source revision for traceability.
+
+This Windows x64 runtime retains combat, damage, hit attribution,
 physical dismemberment, inventories and the one-second magic-death window retained
 from stable preview.2 (`a76508441a8dd4a791a38cab140f04bf7c2a2323`). The changes are
 to blood presentation, receiver preparation and frame-time control.

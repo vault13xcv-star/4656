@@ -1,112 +1,105 @@
-OpenMW
-======
+<div align="center">
 
-OpenMW is an open-source open-world RPG game engine that supports playing Morrowind by Bethesda Softworks. You need to own the game for OpenMW to play Morrowind.
+# BRUTAL MORROWIND
 
-OpenMW also comes with OpenMW-CS, a replacement for Bethesda's Construction Set.
+### V1.0 · Physics, dismemberment & blood for Morrowind
 
-* Version: 0.51.0
-* License: GPLv3 (see [LICENSE](https://gitlab.com/OpenMW/openmw/-/raw/master/LICENSE) for more information)
-* Website: https://www.openmw.org
-* IRC: #openmw on irc.libera.chat
-* Discord: https://discord.gg/bWuqq2e
+[![Version 1.0](https://img.shields.io/badge/Release-V1.0-9b1c31)](https://github.com/vault13xcv-star/4656/releases/tag/v1.0)
+[![Windows x64](https://img.shields.io/badge/Windows-x64-0078d4)](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Windows-x64.zip)
+[![OpenMW 0.51](https://img.shields.io/badge/Based_on-OpenMW_0.51-53585f)](https://openmw.org/)
+[![License GPLv3](https://img.shields.io/badge/Code-GPLv3-53585f)](LICENSE)
 
+**Физика тел и предметов, расчленение и кровь в мире Morrowind.**
 
-Font Licenses:
-* DejaVuLGCSansMono.ttf: custom (see [files/data/fonts/DejaVuFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/DejaVuFontLicense.txt) for more information)
-* DemonicLetters.ttf: SIL Open Font License (see [files/data/fonts/DemonicLettersFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/DemonicLettersFontLicense.txt) for more information)
-* MysticCards.ttf: SIL Open Font License (see [files/data/fonts/MysticCardsFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/MysticCardsFontLicense.txt) for more information)
+**[Скачать V1.0 для Windows](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Windows-x64.zip)**
+· [Страница релиза](https://github.com/vault13xcv-star/4656/releases/tag/v1.0)
+· [Исходный код ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Source.zip)
+· [English](https://github.com/vault13xcv-star/4656/blob/v1.0/docs/README.en.md)
 
-Current Status
---------------
+</div>
 
-The main quests in Morrowind, Tribunal and Bloodmoon are all completable. Some issues with side quests are to be expected (but rare). Check the [bug tracker](https://gitlab.com/OpenMW/openmw/-/issues/?milestone_title=openmw-1.0) for a list of issues we need to resolve before the "1.0" release. Even before the "1.0" release, however, OpenMW boasts some new [features](https://wiki.openmw.org/index.php?title=Features), such as improved graphics and user interfaces.
+## Что это
 
-Pre-existing modifications created for the original Morrowind engine can be hit-and-miss. The OpenMW script compiler performs more thorough error-checking than Morrowind does, meaning that a mod created for Morrowind may not necessarily run in OpenMW. Some mods also rely on quirky behaviour or engine bugs in order to work. We are considering such compatibility issues on a case-by-case basis - in some cases adding a workaround to OpenMW may be feasible, in other cases fixing the mod will be the only option. If you know of any mods that work or don't work, feel free to add them to the [Mod status](https://wiki.openmw.org/index.php?title=Mod_status) wiki page.
+**Brutal Morrowind** — модифицированный движок OpenMW 0.51 для Windows x64.
+Тела реагируют на удары и падают с физикой, отделённые части продолжают двигаться,
+кровь брызжет из ран и остаётся на поверхностях игрового мира.
+Мод запускается через входящий в архив `openmw.exe`.
 
-Getting Started
----------------
+## Возможности V1.0
 
-* [Official forums](https://forum.openmw.org/)
-* [Installation instructions](https://openmw.readthedocs.io/en/latest/manuals/installation/index.html)
-* [Build from source](https://wiki.openmw.org/index.php?title=Development_Environment_Setup)
-* [Testing the game](https://wiki.openmw.org/index.php?title=Testing)
-* [How to contribute](https://wiki.openmw.org/index.php?title=Contribution_Wanted)
-* [Report a bug](https://gitlab.com/OpenMW/openmw/issues) - read the [guidelines](https://wiki.openmw.org/index.php?title=Bug_Reporting_Guidelines) before submitting your first bug!
-* [Known issues](https://gitlab.com/OpenMW/openmw/issues?label_name%5B%5D=Bug)
+- **Физика тел и предметов.** Импульсы от оружия, стрел, болтов и магии;
+  тела и отделённые части с рэгдоллом, пригвождение болтами к поверхностям.
+- **Расчленение по месту и типу удара.** Отсечение конечностей и головы,
+  поперечное и продольное разделение тела, разрушение головы и разрыв тела
+  для подходящих видов оружия и магии. Эффекты зачарованного оружия учитываются.
+- **Кровь.** Фонтаны из крупных ран и шеи, летящие спрайты капель,
+  три напольные и три настенные текстуры. Освещение влияет на кровь;
+  органические существа тоже кровоточат.
+- **Контроль нагрузки.** Общее ограничение работы по нанесению крови,
+  фоновая подготовка поверхностей и отсечение лишних слоёв декалей.
+  Исправлено замирание капель при подготовке поверхностей.
+- **Настройки в игре.** `Esc → Settings → Physics`: импульсы, количество
+  физических тел и предметов, время активности, шанс расчленения,
+  количество крови и время сохранения пятен. По умолчанию шанс расчленения —
+  **30%**, время сохранения крови — **10 минут**.
+- **Сохранение добычи.** Одежда, броня и содержимое инвентаря остаются доступны
+  при обыске расчленённого тела.
 
-The data path
--------------
+Боевая система сохранена из стабильной основы мода. V1.0 выпускает проверенную
+сборку `0.7.0-preview.14` с тем же EXE и игровыми ресурсами.
 
-The data path tells OpenMW where to find your Morrowind files. If you run the launcher, OpenMW should be able to pick up the location of these files on its own, if both Morrowind and OpenMW are installed properly (installing Morrowind under WINE is considered a proper install).
+## Скачать
 
-Command line options
---------------------
+| Файл | Что внутри |
+| --- | --- |
+| [Windows x64 ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Windows-x64.zip) | Готовый движок, DLL, ресурсы мода и инструкции |
+| [Исходный код ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Source.zip) | Полный соответствующий код OpenMW с изменениями мода |
+| [SHA256SUMS](https://github.com/vault13xcv-star/4656/releases/download/v1.0/SHA256SUMS) | Контрольные суммы файлов релиза |
 
-    Syntax: openmw <options>
-    Allowed options:
-      --config arg                          additional config directories
-      --replace arg                         settings where the values from the
-                                            current source should replace those
-                                            from lower-priority sources instead of
-                                            being appended
-      --user-data arg                       set user data directory (used for
-                                            saves, screenshots, etc)
-      --resources arg (=resources)          set resources directory
-      --help                                print help message
-      --version                             print version information and quit
-      --data arg (=data)                    set data directories (later directories
-                                            have higher priority)
-      --data-local arg                      set local data directory (highest
-                                            priority)
-      --fallback-archive arg (=fallback-archive)
-                                            set fallback BSA archives (later
-                                            archives have higher priority)
-      --start arg                           set initial cell
-      --content arg                         content file(s): esm/esp, or
-                                            omwgame/omwaddon/omwscripts
-      --groundcover arg                     groundcover content file(s): esm/esp,
-                                            or omwgame/omwaddon
-      --no-sound [=arg(=1)] (=0)            disable all sounds
-      --script-all [=arg(=1)] (=0)          compile all scripts (excluding dialogue
-                                            scripts) at startup
-      --script-all-dialogue [=arg(=1)] (=0) compile all dialogue scripts at startup
-      --script-console [=arg(=1)] (=0)      enable console-only script
-                                            functionality
-      --script-run arg                      select a file containing a list of
-                                            console commands that is executed on
-                                            startup
-      --script-warn [=arg(=1)] (=1)         handling of warnings when compiling
-                                            scripts
-                                            0 - ignore warnings
-                                            1 - show warnings but consider script as
-                                            correctly compiled anyway
-                                            2 - treat warnings as errors
-      --load-savegame arg                   load a save game file on game startup
-                                            (specify an absolute filename or a
-                                            filename relative to the current
-                                            working directory)
-      --skip-menu [=arg(=1)] (=0)           skip main menu on game startup
-      --new-game [=arg(=1)] (=0)            run new game sequence (ignored if
-                                            skip-menu=0)
-      --encoding arg (=win1252)             Character encoding used in OpenMW game
-                                            messages:
+Все файлы доступны на [странице V1.0](https://github.com/vault13xcv-star/4656/releases/tag/v1.0).
+[Последний релиз](https://github.com/vault13xcv-star/4656/releases/latest)
+всегда открывает актуальную опубликованную версию.
 
-                                            win1250 - Central and Eastern European
-                                            such as Polish, Czech, Slovak,
-                                            Hungarian, Slovene, Bosnian, Croatian,
-                                            Serbian (Latin script), Romanian and
-                                            Albanian languages
+## Установка
 
-                                            win1251 - Cyrillic alphabet such as
-                                            Russian, Bulgarian, Serbian Cyrillic
-                                            and other languages
+Понадобятся **Windows x64** и установленная **The Elder Scrolls III: Morrowind**.
+Игровые данные Morrowind, лаунчер и редактор в сборку не включены.
 
-                                            win1252 - Western European (Latin)
-                                            alphabet, used by default
-      --fallback arg                        fallback values
-      --no-grab [=arg(=1)] (=0)             Don't grab mouse cursor
-      --export-fonts [=arg(=1)] (=0)        Export Morrowind .fnt fonts to PNG
-                                            image and XML file in current directory
-      --activate-dist arg (=-1)             activation distance override
-      --random-seed arg (=<impl defined>)   seed value for random number generator
+1. Если OpenMW ещё не настроен, установите [официальный OpenMW](https://openmw.org/downloads/)
+   и через его мастер укажите установленную Morrowind. Проверьте обычный запуск игры.
+2. Скачайте Windows ZIP и **полностью распакуйте его в отдельную папку**.
+3. Запускайте `openmw.exe` из этой папки. Он использует существующую конфигурацию OpenMW.
+   Для русской игры можно запускать `OpenMW-Russian.cmd`.
+4. Откройте `Esc → Settings → Physics` и настройте физику и кровь под свой компьютер.
+
+При обновлении распаковывайте весь архив: EXE, DLL и ресурсы должны быть из одной
+сборки. Для первого запуска используйте копию сохранения.
+
+## Совместимость и проверки
+
+Базовая Windows-сборка прошла **1402 компонентных**, **39 интеграционных** тестов,
+проверки физики, поз, расчленения и столкновений капель. EXE проверен запуском
+`--version`; архив и ресурсы — по контрольным суммам. Это автоматические проверки,
+а не гарантия FPS или совместимости со всеми модами.
+
+В интерьерах кровь наносится на видимые поверхности, включая ковры, мебель,
+ступени и колонны. На улице используется проверенный способ через коллизию
+ландшафта и объектов. Пятна остаются в месте попадания, если предмет или дверь
+затем переместится. Для нестандартных скелетов и цельных NPC-моделей возможны
+ограничения расчленения.
+
+## Исходники и обратная связь
+
+- [Код V1.0](https://github.com/vault13xcv-star/4656/tree/v1.0) и
+  [архив исходников](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Source.zip).
+- [Сборка и тесты](CI/ragdoll-build.md), [описание крови](docs/brutal-morrowind.md),
+  [правила расчленения](docs/dismemberment.md).
+- [Сообщить о проблеме](https://github.com/vault13xcv-star/4656/issues): укажите версию,
+  локацию, настройки Physics, установленные моды и шаги воспроизведения.
+
+Мод использует [OpenMW](https://openmw.org/); код движка распространяется по
+[GNU GPLv3](LICENSE). Лицензии зависимостей входят в Windows-архив.
+Текстуры крови предоставлены автором мода. Morrowind принадлежит Bethesda Softworks.
+Это проект сообщества, не официальный выпуск OpenMW или Bethesda.
+
+Предыдущий README OpenMW сохранён [здесь](docs/upstream/README.OpenMW.md).

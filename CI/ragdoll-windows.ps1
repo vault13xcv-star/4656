@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.7.0-preview.14'
+$ragdollVersion = '1.0'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -209,7 +209,7 @@ Automated component/integration tests: $testResult (see VALIDATION.txt).
 
 Extract the entire directory and launch its openmw.exe. Existing OpenMW user
 configuration is reused. Morrowind game data is required and is not included.
-This is an experimental engine build, not a Lua mod or an official OpenMW release.
+This is the Brutal Morrowind modified engine, not a Lua mod or an official OpenMW release.
 Keep the regular OpenMW installation and use a separate copy of your saves.
 See RAGDOLL-README.md for feature configuration, limits and manual test steps.
 "@ | Set-Content (Join-Path $install 'BUILD-INFO.txt') -Encoding utf8
@@ -257,7 +257,7 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Preview.14 replaces all three floor textures with the originals from blood_pools_1024_dds_2.zip. Airborne droplets no longer freeze while interior receivers build: flight advances independently, and bounded ballistic collision replay recovers deferred contacts. Preview.13's shared projection budget, background BVH construction and removal of legacy procedural pools are retained. Walls, sunlight response, combat and wound rules remain unchanged.
+V1.0 retains preview.14's tested combat, physics and blood implementation. It includes three supplied floor DDS textures, continuously moving airborne sprites, bounded collision replay, shared projection budgets and background interior receiver construction. The public V1.0 package promotes the verified preview.14 binary without recompilation; see the release provenance file.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 
