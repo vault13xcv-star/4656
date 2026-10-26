@@ -12,12 +12,23 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.0'
+$ragdollVersion = '1.1-experimental.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
     & $Program @Arguments 2>&1 | Tee-Object -FilePath (Join-Path $logs $LogName)
     if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE; see $LogName." }
+}
+
+function Assert-GoreAssets([string] $Directory) {
+    $manifest = Get-Content (Join-Path $PSScriptRoot 'brutal-gore-dds-sha256.json') -Raw | ConvertFrom-Json
+    foreach ($asset in $manifest.PSObject.Properties) {
+        $path = Join-Path $Directory ("resources/vfs/textures/brutal/gore/" + $asset.Name)
+        if (-not (Test-Path $path)) { throw "Missing corpse/cut DDS: $($asset.Name)" }
+        if ((Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.Value) {
+            throw "Corpse/cut DDS differs from the uploaded original: $($asset.Name)"
+        }
+    }
 }
 
 function Invoke-WithBuildReports([scriptblock] $BuildAction) {
@@ -120,6 +131,7 @@ switch ($Phase) {
             "-DLuaJit_INCLUDE_DIR=$prefix/include/luajit", "-DLuaJit_LIBRARY=$prefix/lib/lua51.lib"
         )
         Run 'cmake' ($options + $common) 'configure.log'
+        Assert-GoreAssets $build
         # Resource lists are explicit. Fail before compiling if installation
         # would omit artwork or a shader needed by the blood renderer.
         $bloodAssets = Get-Content (Join-Path $PSScriptRoot 'brutal-blood-dds-sha256.json') -Raw | ConvertFrom-Json
@@ -163,6 +175,7 @@ switch ($Phase) {
         Run 'cmake' @('--install', $build, '--prefix', $install, '--config', 'Release') 'install.log'
         Copy-Runtime $install
         Copy-CyrillicLaunchers $install
+        Assert-GoreAssets $install
         foreach ($required in @('openmw.exe', 'defaults.bin', 'openmw.cfg', 'resources', 'LICENSE.txt', 'SDL2.dll', 'MyGUIEngine.dll')) {
             if (-not (Test-Path (Join-Path $install $required))) { throw "Incomplete package: $required is missing." }
         }
@@ -243,10 +256,10 @@ These automated tests do not constitute an in-game playtest with Morrowind data.
         "$hash  $packageName.zip" | Set-Content (Join-Path $dist 'SHA256SUMS') -Encoding ascii
         [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion; modName = 'Brutal Morrowind'; testResult = $testResult } |
             ConvertTo-Json | Set-Content (Join-Path $dist 'package.json') -Encoding utf8
-        Run 'git' @('archive', '--format=zip', "--output=$dist/Brutal-Morrowind-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
+        Run 'git' @('-c', 'core.autocrlf=false', 'archive', '--format=zip', "--output=$dist/Brutal-Morrowind-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
     }
     Publish {
-        $tag = "ragdoll-windows-$ragdollVersion-$($env:GITHUB_SHA.Substring(0, 12))-$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
+        $tag = "brutal-$ragdollVersion"
         $notes = Join-Path $logs 'release-notes.md'
         @"
 Brutal Morrowind $ragdollVersion for OpenMW 0.51.0 / Windows x64.
@@ -257,7 +270,7 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-V1.0 retains preview.14's tested combat, physics and blood implementation. It includes three supplied floor DDS textures, continuously moving airborne sprites, bounded collision replay, shared projection budgets and background interior receiver construction. The public V1.0 package promotes the verified preview.14 binary without recompilation; see the release provenance file.
+Experimental 1.1 adds the five supplied corpse and cut DDS textures: burnt, poisoned, cut_limb, cut_body_torso and sliced_body. Periodic stochastic coatings avoid regular tiled patterns. Elliptical limb/waist meshes and anatomy-aligned left/right longitudinal UVs avoid opaque image backdrops. Wound materials receive actual world ambient/sun/point lighting and shadows. V1.0 remains the stable release.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

@@ -1,8 +1,11 @@
 #include "brutalgore.hpp"
 #include "brutalblood.hpp"
+#include "brutaltextures.hpp"
+#include "brutalbloodlightingbase.hpp"
 #include <components/sceneutil/riggeometry.hpp>
 #include <components/sceneutil/morphgeometry.hpp>
 #include <osg/Geode>
+#include <osg/Shape>
 #include <osg/TriangleIndexFunctor>
 #include <algorithm>
 #include <cmath>
@@ -84,6 +87,7 @@ namespace MWRender
         public:
             osg::Vec3f point, normal;
             osg::NodePath prefix;
+            const GoreSliceMapping* mapping=nullptr;
             std::array<osg::ref_ptr<osg::Group>, 2> result{ new osg::Group, new osg::Group };
             Slice() : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN) { setNodeMaskOverride(~0u); }
             void apply(osg::Drawable& drawable) override
@@ -173,6 +177,8 @@ namespace MWRender
                 boundary.erase(std::unique(boundary.begin(), boundary.end(), [](const auto& a, const auto& b) {
                     return (a - b).length2() < .0001f;
                 }), boundary.end());
+                const auto mapped=mapping && mapping->mTextures && mapping->mTextures->mTextures[BrutalTextures::Slice]
+                    && !mapping->mTextures->mSliceRows[0].empty() && !mapping->mTextures->mSliceRows[1].empty();
                 for (int side = 0; side < 2; ++side)
                 {
                     std::vector<Vertex> cap;
@@ -183,8 +189,80 @@ namespace MWRender
                         const auto next = (i + 1) % boundary.size();
                         cap.insert(cap.end(), { flesh(center), flesh(boundary[side ? next : i]), flesh(boundary[side ? i : next]) });
                     }
+                    if(mapped)
+                    {
+                        // Clip the real cross-section into short vertical
+                        // strips. Each strip fits the corresponding atlas row,
+                        // so UVs follow the silhouette instead of exposing its
+                        // opaque rectangular background or stretching one fan.
+                        cap.clear();
+                        const auto height=[&](const auto& p) {return (p-mapping->mOrigin)*mapping->mUp;};
+                        const auto depth=[&](const auto& p) {return (p-mapping->mOrigin)*mapping->mForward;};
+                        float low=height(boundary.front()),high=low;
+                        for(const auto& p:boundary){low=std::min(low,height(p));high=std::max(high,height(p));}
+                        // Thin decorative plates can intersect in a line.
+                        // They have no exposed area to cap or normalize.
+                        if(high-low<.001f)continue;
+                        const int strips=std::clamp(int(std::ceil((high-low)/std::max(.1f,mapping->mHeight)*64)),1,48);
+                        const auto spanAt=[&](float h) {
+                            float a=1e20f,b=-1e20f;
+                            for(unsigned i=0;i<boundary.size();++i)
+                            {
+                                const auto& p=boundary[i];const auto& q=boundary[(i+1)%boundary.size()];
+                                const float ph=height(p),qh=height(q);
+                                if(std::abs(ph-h)<.0001f){a=std::min(a,depth(p));b=std::max(b,depth(p));}
+                                if((ph<h && qh>h)||(qh<h && ph>h))
+                                {
+                                    const float d=depth(p)+(depth(q)-depth(p))*(h-ph)/(qh-ph);
+                                    a=std::min(a,d);b=std::max(b,d);
+                                }
+                            }
+                            return osg::Vec2f(a,b);
+                        };
+                        const auto fleshMapped=[&](const osg::Vec3f& p) {
+                            Vertex out;out.p=p;out.n=n;
+                            const float h=height(p),vv=std::clamp(h/std::max(.1f,mapping->mHeight),.005f,.995f);
+                            const auto span=spanAt(std::clamp(h,low+.0001f,high-.0001f));
+                            const float front=std::clamp((depth(p)-span.x())/std::max(.0001f,span.y()-span.x()),0.f,1.f);
+                            const auto& rows=mapping->mTextures->mSliceRows[side];
+                            const float row=vv*(rows.size()-1);const auto index=std::min(std::size_t(row),rows.size()-1);
+                            const auto limits=rows[index]+(rows[std::min(index+1,rows.size()-1)]-rows[index])*(row-index);
+                            // Left atlas: face points left, back/spine right.
+                            // Right atlas: face points right, back/spine left.
+                            const float uu=limits.x()+(limits.y()-limits.x())*(side?front:1-front);
+                            out.uv[0]={uu,vv,0,0};return out;
+                        };
+                        for(int strip=0;strip<strips;++strip)
+                        {
+                            const float from=low+(high-low)*strip/strips,to=low+(high-low)*(strip+1)/strips;
+                            auto polygon=boundary;
+                            for(unsigned edge=0;edge<2;++edge)
+                            {
+                                std::vector<osg::Vec3f> clipped;
+                                const float plane=edge?to:from,sign=edge?-1.f:1.f;
+                                for(unsigned i=0;i<polygon.size();++i)
+                                {
+                                    const auto& a=polygon[i];const auto& b=polygon[(i+1)%polygon.size()];
+                                    const float da=(height(a)-plane)*sign,db=(height(b)-plane)*sign;
+                                    if(da>=0)clipped.push_back(a);
+                                    if((da>0&&db<0)||(da<0&&db>0))clipped.push_back(a+(b-a)*(da/(da-db)));
+                                }
+                                polygon=std::move(clipped);
+                            }
+                            for(unsigned i=1;i+1<polygon.size();++i)
+                            {
+                                auto a=fleshMapped(polygon[0]),b=fleshMapped(polygon[i]),c=fleshMapped(polygon[i+1]);
+                                if(((b.p-a.p)^(c.p-a.p))*n<0)std::swap(b,c);
+                                cap.insert(cap.end(),{a,b,c});
+                            }
+                        }
+                    }
                     osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-                    geode->setStateSet(createWetGoreState());
+                    geode->setName(mapped?"Brutal Morrowind textured longitudinal cut":"Brutal Morrowind exposed tissue");
+                    geode->setUserValue("RealCombatPreserveMaterial",true);
+                    geode->setStateSet(mapped?createTexturedGoreState(*mapping->mTextures->mTextures[BrutalTextures::Slice],
+                        mapping->mTextures->mMasks[BrutalTextures::Slice]):createWetGoreState());
+                    if(mapped && mapping->mLightingRoot)attachBloodLighting(*geode,*mapping->mLightingRoot);
                     geode->addDrawable(makeGeometry(cap));
                     result[side]->addChild(geode);
                 }
@@ -193,14 +271,70 @@ namespace MWRender
     }
 
     std::array<osg::ref_ptr<osg::Group>, 2> splitGoreMesh(osg::Node& part,
-        const osg::Vec3f& planePoint, const osg::Vec3f& planeNormal)
+        const osg::Vec3f& planePoint, const osg::Vec3f& planeNormal, const GoreSliceMapping* mapping)
     {
         Slice visitor;
         visitor.point = planePoint; visitor.normal = unit(planeNormal);
+        visitor.mapping=mapping;
         const auto paths = part.getParentalNodePaths();
         if (!paths.empty()) { visitor.prefix = paths.front(); visitor.prefix.pop_back(); }
         part.accept(visitor);
         return visitor.result;
+    }
+
+    osg::ref_ptr<osg::Geometry> makeWoundGeometry(const osg::Shape& shape,bool torso,const BrutalTextures* textures)
+    {
+        std::vector<Vertex> vertices;
+        const auto vertex=[](const osg::Vec3f& p,const osg::Vec3f& n,const osg::Vec2f& uv) {
+            Vertex out;out.p=p;out.n=n;out.uv[0]={uv.x(),uv.y(),0,0};return out;
+        };
+        if(const auto* cylinder=dynamic_cast<const osg::Cylinder*>(&shape))
+        {
+            constexpr unsigned count=64;
+            const auto transform=osg::Matrixf::rotate(cylinder->getRotation())*osg::Matrixf::translate(cylinder->getCenter());
+            const auto point=[&](float angle,float z) {return osg::Vec3f(std::cos(angle)*cylinder->getRadius(),
+                std::sin(angle)*cylinder->getRadius()*(torso?.7f:1.f),z)*transform;};
+            const auto uv=[&](unsigned i) {return !torso && textures?textures->mLimbRim[i%count]
+                :osg::Vec2f(.5f+std::cos(i*6.283185307f/count)*(torso?.5f:.47f),.5f+std::sin(i*6.283185307f/count)*(torso?.5f:.47f));};
+            for(unsigned i=0;i<count;++i)
+            {
+                const float a=i*6.283185307f/count,b=(i+1)*6.283185307f/count;
+                for(int side:{-1,1})
+                {
+                    const float z=cylinder->getHeight()*.5f*side;
+                    const auto normal=osg::Matrixf::transform3x3(osg::Vec3f(0,0,float(side)),transform);
+                    auto center=vertex(osg::Vec3f(0,0,z)*transform,normal,{.5f,.5f});
+                    auto p=vertex(point(a,z),normal,uv(i)),q=vertex(point(b,z),normal,uv(i+1));
+                    if(side<0)std::swap(p,q);
+                    vertices.insert(vertices.end(),{center,p,q});
+                }
+                const auto normal=unit(osg::Matrixf::transform3x3(osg::Vec3f(std::cos(a),std::sin(a),0),transform));
+                const auto p=vertex(point(a,-cylinder->getHeight()*.5f),normal,uv(i));
+                const auto q=vertex(point(b,-cylinder->getHeight()*.5f),normal,uv(i+1));
+                const auto r=vertex(point(b,cylinder->getHeight()*.5f),normal,uv(i+1));
+                const auto s=vertex(point(a,cylinder->getHeight()*.5f),normal,uv(i));
+                vertices.insert(vertices.end(),{p,q,r,p,r,s});
+            }
+        }
+        else if(const auto* box=dynamic_cast<const osg::Box*>(&shape))
+        {
+            const auto extent=box->getHalfLengths();
+            const auto transform=osg::Matrixf::rotate(box->getRotation())*osg::Matrixf::translate(box->getCenter());
+            for(unsigned axis=0;axis<3;++axis)for(int sign:{-1,1})
+            {
+                std::array<Vertex,4> corners;
+                for(unsigned i=0;i<4;++i)
+                {
+                    const float u=(i==1||i==2)?1.f:-1.f,v=i>=2?1.f:-1.f;
+                    osg::Vec3f p,n;p[axis]=extent[axis]*sign;n[axis]=float(sign);
+                    p[(axis+1)%3]=extent[(axis+1)%3]*u;p[(axis+2)%3]=extent[(axis+2)%3]*v;
+                    corners[i]=vertex(p*transform,osg::Matrixf::transform3x3(n,transform),{.5f+u*.28f,.5f+v*.28f});
+                }
+                vertices.insert(vertices.end(),{corners[0],corners[1],corners[2],corners[0],corners[2],corners[3]});
+            }
+        }
+        auto mesh=makeGeometry(vertices);mesh->setName(torso?"Brutal Morrowind waist cut":"Brutal Morrowind limb cut");
+        return mesh;
     }
 
     osg::ref_ptr<osg::Geometry> makeIntestineTube(const std::vector<osg::Vec3f>& centers, float radius)

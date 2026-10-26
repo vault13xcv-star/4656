@@ -1,4 +1,5 @@
 #include "ragdollappearance.hpp"
+#include "brutaltextures.hpp"
 
 #include "vismask.hpp"
 #include <components/sceneutil/depth.hpp>
@@ -189,7 +190,7 @@ namespace MWRender
             int mHeight = 0;
             int mStep = -1;
 
-            Paint(osg::Texture2D& source, Ragdoll::DeathElement element)
+            Paint(osg::Texture2D& source, Ragdoll::DeathElement element, const osg::Image* coating = nullptr)
                 : mSource(&source)
             {
                 const osg::Image& image = *source.getImage();
@@ -197,14 +198,16 @@ namespace MWRender
                 mHeight = std::min(sTextureSize, image.t());
                 mOriginal.reserve(mWidth * mHeight * 4);
                 mTarget.reserve(mWidth * mHeight * 4);
-                const auto& pattern = surfacePattern(element);
+                const auto* pattern = coating?nullptr:&surfacePattern(element);
                 for (int y = 0; y < mHeight; ++y)
                     for (int x = 0; x < mWidth; ++x)
                     {
                         // OSG 3.6 getColor also decodes stock DDS/DXT textures.
                         const auto pixel = image.getColor(x * image.s() / mWidth, y * image.t() / mHeight);
-                        const auto layer
-                            = pattern.mPixels[(y * sPatternSize / mHeight) * sPatternSize + x * sPatternSize / mWidth];
+                        const auto layer = coating ? coating->getColor(
+                            x * (coating->s()-1) / std::max(1,mWidth-1),
+                            y * (coating->t()-1) / std::max(1,mHeight-1))
+                            : pattern->mPixels[(y * sPatternSize / mHeight) * sPatternSize + x * sPatternSize / mWidth];
                         for (int channel = 0; channel < 4; ++channel)
                         {
                             const float original = pixel[channel];
@@ -366,6 +369,137 @@ namespace MWRender
         }
     }
 
+    void installBrutalTextures(osg::Group& root, const BrutalTextures::Images& images)
+    {
+        osg::ref_ptr<BrutalTextures> assets=new BrutalTextures;
+        assets->mImages=images;
+        for (unsigned i=0;i<images.size();++i)
+            if (images[i] && images[i]->data())
+            {
+                auto texture=new osg::Texture2D(images[i]);
+                texture->setResizeNonPowerOfTwoHint(false);
+                texture->setWrap(osg::Texture::WRAP_S,osg::Texture::CLAMP_TO_EDGE);
+                texture->setWrap(osg::Texture::WRAP_T,osg::Texture::CLAMP_TO_EDGE);
+                texture->setFilter(osg::Texture::MIN_FILTER,osg::Texture::LINEAR_MIPMAP_LINEAR);
+                texture->setFilter(osg::Texture::MAG_FILTER,osg::Texture::LINEAR);
+                assets->mTextures[i]=texture;
+            }
+        // DXT1 artwork has an opaque dark backdrop. A shared exterior-only
+        // flood mask removes it without keying equally dark tissue inside the
+        // outlined anatomy. It also protects interpolated UVs at curved edges.
+        for(unsigned kind:{unsigned(BrutalTextures::Limb),unsigned(BrutalTextures::Slice)})
+        {
+            if(!images[kind])continue;
+            const auto& image=*images[kind];const int w=image.s(),h=image.t();
+            osg::ref_ptr<osg::Image> mask=new osg::Image;
+            mask->allocateImage(w,h,1,GL_ALPHA,GL_UNSIGNED_BYTE);mask->setOrigin(image.getOrigin());
+            std::fill_n(mask->data(),w*h,255);
+            std::vector<unsigned> frontier;
+            const auto enqueue=[&](int x,int y) {
+                if(x<0 || x>=w || y<0 || y>=h || !mask->data()[y*w+x])return;
+                const auto c=image.getColor(x,y);
+                if(c.r()<.14f && c.g()<.025f && c.b()<.025f)
+                {mask->data()[y*w+x]=0;frontier.push_back(unsigned(y*w+x));}
+            };
+            for(int x=0;x<w;++x){enqueue(x,0);enqueue(x,h-1);}
+            for(int y=0;y<h;++y){enqueue(0,y);enqueue(w-1,y);}
+            for(std::size_t i=0;i<frontier.size();++i)
+            {
+                const int x=int(frontier[i])%w,y=int(frontier[i])/w;
+                enqueue(x-1,y);enqueue(x+1,y);enqueue(x,y-1);enqueue(x,y+1);
+            }
+            osg::ref_ptr<osg::Texture2D> texture=new osg::Texture2D(mask);
+            texture->setResizeNonPowerOfTwoHint(false);
+            texture->setWrap(osg::Texture::WRAP_S,osg::Texture::CLAMP_TO_EDGE);
+            texture->setWrap(osg::Texture::WRAP_T,osg::Texture::CLAMP_TO_EDGE);
+            texture->setFilter(osg::Texture::MIN_FILTER,osg::Texture::LINEAR_MIPMAP_LINEAR);
+            texture->setFilter(osg::Texture::MAG_FILTER,osg::Texture::LINEAR);
+            assets->mMasks[kind]=texture;
+        }
+        // Decode and prepare two shared, periodic stochastic coatings once at
+        // scene loading. Deaths only blend their existing diffuse textures;
+        // they never resample DXT blocks or generate a tiling image per frame.
+        for (unsigned kind=0;kind<2;++kind)
+        {
+            if (!images[kind]) continue;
+            constexpr int size=sTextureSize;
+            std::vector<osg::Vec4f> pixels(size*size);
+            osg::Vec4f mean;
+            for (int y=0;y<size;++y) for (int x=0;x<size;++x)
+            {
+                auto& color=pixels[y*size+x];
+                color=images[kind]->getColor(x*(images[kind]->s()-1)/(size-1),y*(images[kind]->t()-1)/(size-1));
+                mean+=color;
+            }
+            mean/=float(pixels.size());
+            const auto sample=[&](float u,float v) {
+                const auto mirror=[](float t) {t=std::fmod(t,2.f);if(t<0)t+=2.f;return t<=1.f?t:2.f-t;};
+                u=mirror(u)*(size-1);v=mirror(v)*(size-1);
+                const int x=int(u),y=int(v),xx=std::min(x+1,size-1),yy=std::min(y+1,size-1);
+                const float a=u-x,b=v-y;
+                return (pixels[y*size+x]*(1-a)+pixels[y*size+xx]*a)*(1-b)
+                    +(pixels[yy*size+x]*(1-a)+pixels[yy*size+xx]*a)*b;
+            };
+            osg::ref_ptr<osg::Image> coating=new osg::Image;
+            coating->allocateImage(size,size,1,GL_RGBA,GL_UNSIGNED_BYTE);
+            for (int y=0;y<size;++y) for (int x=0;x<size;++x)
+            {
+                const float u=float(x)*4/(size-1),v=float(y)*4/(size-1);
+                const int ix=int(std::floor(u)),iy=int(std::floor(v));
+                float fx=u-ix,fy=v-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
+                osg::Vec4f color;float squares=0;
+                for (int dy=0;dy<2;++dy) for (int dx=0;dx<2;++dx)
+                {
+                    const int cx=(ix+dx)%4,cy=(iy+dy)%4;
+                    const unsigned hash=unsigned(cx)*374761393u+unsigned(cy)*668265263u+kind*91643u;
+                    float a=(hash&1)?v:u,b=(hash&1)?u:v;
+                    if(hash&2)a=-a;if(hash&4)b=-b;
+                    const float weight=(dx?fx:1-fx)*(dy?fy:1-fy);
+                    color+=sample(a+noise(cx+17,cy+kind)*2,b+noise(cx+kind,cy+31)*2)*weight;
+                    squares+=weight*weight;
+                }
+                color=mean+(color-mean)/std::sqrt(std::max(.25f,squares));
+                for(unsigned channel=0;channel<3;++channel)color[channel]=std::clamp(color[channel],0.f,1.f);
+                color.a()=1;
+                coating->setColor(color,x,y);
+            }
+            assets->mCoatings[kind]=coating;
+        }
+        const auto foreground=[](const osg::Vec4f& c) {return c.r()>.16f || c.g()>.035f || c.b()>.035f;};
+        if (const auto& image=images[BrutalTextures::Limb])
+            for(unsigned i=0;i<assets->mLimbRim.size();++i)
+            {
+                const float angle=i*6.283185307f/assets->mLimbRim.size();
+                const osg::Vec2f direction(std::cos(angle),std::sin(angle));
+                float radius=.5f;
+                for (;radius>.3f;radius-=1.f/image->s())
+                {
+                    const auto uv=osg::Vec2f(.5f,.5f)+direction*radius;
+                    const int x=std::clamp(int(uv.x()*(image->s()-1)),0,image->s()-1);
+                    int y=std::clamp(int(uv.y()*(image->t()-1)),0,image->t()-1);
+                    if(image->getOrigin()==osg::Image::TOP_LEFT)y=image->t()-1-y;
+                    if(foreground(image->getColor(x,y)))break;
+                }
+                assets->mLimbRim[i]=osg::Vec2f(.5f,.5f)+direction*std::max(.3f,radius-2.f/image->s());
+            }
+        if(const auto& image=images[BrutalTextures::Slice])
+            for(unsigned side=0;side<2;++side)
+            {
+                auto& rows=assets->mSliceRows[side];rows.resize(image->t());
+                const int first=side*image->s()/2,last=(side+1)*image->s()/2-1;
+                for(int y=0;y<image->t();++y)
+                {
+                    const int sy=image->getOrigin()==osg::Image::TOP_LEFT?image->t()-1-y:y;
+                    int low=last,high=first;
+                    for(int x=first;x<=last;++x)if(foreground(image->getColor(x,sy))) {low=std::min(low,x);high=std::max(high,x);}
+                    if(high<=low) {low=first+8;high=last-8;}
+                    const float inset=std::min(3.f,float(high-low)*.1f);
+                    rows[y]={(low+inset)/(image->s()-1),(high-inset)/(image->s()-1)};
+                }
+            }
+        root.getOrCreateUserDataContainer()->addUserObject(assets);
+    }
+
     struct RagdollAppearance::Impl
     {
         osg::ref_ptr<osg::Group> mRoot;
@@ -430,7 +564,12 @@ namespace MWRender
                 {
                     auto& paint = mPaints[texture];
                     if (!paint)
-                        paint = std::make_shared<Paint>(*texture, mElement);
+                    {
+                        auto* assets=findBrutalTextures(*mRoot);
+                        const auto* coating=assets && mElement==Ragdoll::DeathElement::Fire ? assets->mCoatings[0].get()
+                            : assets && mElement==Ragdoll::DeathElement::Poison ? assets->mCoatings[1].get() : nullptr;
+                        paint = std::make_shared<Paint>(*texture, mElement, coating);
+                    }
                     Binding binding;
                     binding.mParent = parent;
                     binding.mOriginal = node;

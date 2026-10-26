@@ -1,6 +1,8 @@
 #include "ragdoll.hpp"
 #include "ragdollappearance.hpp"
 #include "brutalgore.hpp"
+#include "brutaltextures.hpp"
+#include "brutalbloodlightingbase.hpp"
 #include <components/ragdoll/blood.hpp>
 
 #include <components/esm3/ragdollstate.hpp>
@@ -408,6 +410,8 @@ namespace MWRender
         std::vector<Ragdoll::StaticCollider> mBloodColliders;
         std::map<osg::Node*, std::pair<osg::ref_ptr<osg::Node>, osg::Node::NodeMask>> mSplitParts;
         std::array<osg::Matrixf, 3> mSplitBindLeft, mSplitBindRight;
+        osg::Vec3f mSliceOrigin,mSliceUp{0,0,1},mSliceForward{0,1,0};
+        float mSliceHeight=1;
         std::map<std::pair<std::size_t, bool>, PartPose> mPartPoses;
         float mSinceBlood = .25f;
         std::size_t mNextBloodSprite = 0;
@@ -511,6 +515,14 @@ namespace MWRender
                 mSplitBindRight[i].setTrans(mSplitBindLeft[i].getTrans()
                     + mRight * float(mDefinitions[i].mRadius / .52 * .9));
             }
+            const osg::Vec3f pelvis=(mSplitBindLeft[0].getTrans()+mSplitBindRight[0].getTrans())*.5f;
+            const osg::Vec3f head=(mSplitBindLeft[2].getTrans()+mSplitBindRight[2].getTrans())*.5f;
+            mSliceUp=unit(head-pelvis);
+            mSliceForward=unit(mForward-mSliceUp*(mForward*mSliceUp),mForward);
+            const float bottom=float(mDefinitions[0].mRadius/.52);
+            const float top=float(mDefinitions[2].mLength*.5+mDefinitions[2].mRadius/.52);
+            mSliceOrigin=pelvis-mSliceUp*bottom;
+            mSliceHeight=std::max(1.f,(head-pelvis)*mSliceUp+bottom+top);
         }
 
         void refreshBloodSurface(const osg::Vec3f& center)
@@ -575,11 +587,21 @@ namespace MWRender
             mGutsRendered = true;
         }
 
-        void addWoundVisual(osg::Shape* shape, std::size_t body, const osg::Matrixf& local)
+        void addWoundVisual(osg::Shape* shape, std::size_t body, const osg::Matrixf& local,bool torso=false)
         {
+            osg::ref_ptr<osg::Shape> ownedShape=shape;
             osg::ref_ptr<osg::MatrixTransform> node = new osg::MatrixTransform;
             osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-            geode->addDrawable(createWoundDrawable(shape));
+            auto* assets=findBrutalTextures(*mRoot);
+            auto* texture=assets?assets->mTextures[torso?BrutalTextures::Torso:BrutalTextures::Limb].get():nullptr;
+            if(texture)
+            {
+                geode->setStateSet(createTexturedGoreState(*texture,assets->mMasks[torso?BrutalTextures::Torso:BrutalTextures::Limb]));
+                geode->setUserValue("RealCombatPreserveMaterial",true);
+                geode->addDrawable(makeWoundGeometry(*shape,torso,assets));
+                attachBloodLighting(*geode,*mRoot);
+            }
+            else geode->addDrawable(createWoundDrawable(shape));
             node->addChild(geode);
             mRoot->addChild(node);
             mWoundVisuals.push_back({ node, body, local });
@@ -599,10 +621,10 @@ namespace MWRender
                     ? mChestRadius * .45f : mDefinitions[joint.mChild].mRadius * .9f;
                 const auto disc = osg::Matrixf::rotate(1.5707963f, osg::Vec3f(0, 1, 0));
                 addWoundVisual(new osg::Cylinder(osg::Vec3(), radius, .8f), joint.mParent,
-                    disc * toOsg(joint.mFrameInParent));
+                    disc * toOsg(joint.mFrameInParent),joint.mChild==1);
                 if (!(mWounds.mBurstHead && joint.mChild == 2))
                     addWoundVisual(new osg::Cylinder(osg::Vec3(), radius, .8f), joint.mChild,
-                        disc * toOsg(joint.mFrameInChild));
+                        disc * toOsg(joint.mFrameInChild),joint.mChild==1);
             }
             if (mWounds.mBurstHead)
                 for (std::size_t part = 15; part < mDefinitions.size(); ++part)
@@ -1697,8 +1719,15 @@ namespace MWRender
         const auto& rightBind = impl.mSplitBindRight[body];
         const auto pose = osg::Matrixf::inverse(leftBind) * impl.mBodyMatrices[body];
         const auto plane = (leftBind.getTrans() + rightBind.getTrans()) * .5f;
+        GoreSliceMapping mapping;
+        mapping.mOrigin=impl.mSliceOrigin*pose;
+        mapping.mForward=unit(osg::Matrixf::transform3x3(impl.mSliceForward,pose));
+        mapping.mUp=unit(osg::Matrixf::transform3x3(impl.mSliceUp,pose));
+        mapping.mHeight=impl.mSliceHeight;
+        mapping.mTextures=findBrutalTextures(*impl.mRoot);
+        mapping.mLightingRoot=impl.mRoot;
         auto halves = splitGoreMesh(part, plane * pose,
-            unit(osg::Matrixf::transform3x3(impl.mRight, pose)));
+            unit(osg::Matrixf::transform3x3(impl.mRight, pose)),&mapping);
         if (!halves[0]->getNumChildren() && !halves[1]->getNumChildren()) return;
         impl.mSplitParts.emplace(&part, std::make_pair(osg::ref_ptr<osg::Node>(&part), part.getNodeMask()));
         part.setNodeMask(0);

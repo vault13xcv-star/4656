@@ -92,6 +92,94 @@ namespace BloodDDS
         return stamp;
     }
 
+    void gore(osgViewer::Viewer& viewer,bool reversed)
+    {
+        Assets original;
+        MWRender::BrutalTextures::Images images;
+        unsigned imageIndex=0;
+        for(const char* name:{"burnt.dds","poisoned.dds","cut_limb.dds","cut_body_torso.dds","sliced_body.dds"})
+        {
+            auto image=original.mImages.getImage(VFS::Path::toNormalized(std::string("textures/brutal/gore/")+name));
+            require(image && image!=original.mImages.getWarningImage(),std::string("Gore DDS unavailable: ")+name);
+            images[imageIndex++]=image;
+        }
+        Scene scene(viewer,reversed,false);
+        MWRender::installBrutalTextures(*scene.mRoot,images);
+        auto* textures=MWRender::findBrutalTextures(*scene.mRoot);
+        const auto add=[&](osg::Geometry* mesh,osg::Texture2D& texture) {
+            osg::ref_ptr<osg::Geode> geode=new osg::Geode;
+            geode->setStateSet(MWRender::createTexturedGoreState(texture));
+            geode->addDrawable(mesh);scene.mRoot->addChild(geode);
+            MWRender::attachBloodLighting(*geode,*scene.mRoot);
+            return geode;
+        };
+        for(unsigned kind=0;kind<2;++kind)
+        {
+            osg::ref_ptr<osg::Cylinder> shape=new osg::Cylinder({kind?-105.f:-175.f,0,50},29,.8f);
+            shape->setRotation(osg::Quat(osg::PI_2,osg::Vec3f(1,0,0)));
+            add(MWRender::makeWoundGeometry(*shape,kind!=0,textures),
+                *textures->mTextures[kind?MWRender::BrutalTextures::Torso:MWRender::BrutalTextures::Limb]);
+        }
+        std::vector<std::unique_ptr<MWRender::RagdollAppearance>> effects;
+        for(unsigned kind=0;kind<2;++kind)
+        {
+            osg::ref_ptr<osg::Image> skin=new osg::Image;skin->allocateImage(64,64,1,GL_RGBA,GL_UNSIGNED_BYTE);
+            for(int y=0;y<64;++y)for(int x=0;x<64;++x)skin->setColor({.7f,.4f,.2f,1},x,y);
+            osg::ref_ptr<osg::Texture2D> texture=new osg::Texture2D(skin);
+            osg::ref_ptr<osg::Cylinder> shape=new osg::Cylinder({kind?35.f:-35.f,0,50},27,.8f);
+            shape->setRotation(osg::Quat(osg::PI_2,osg::Vec3f(1,0,0)));
+            auto node=add(MWRender::makeWoundGeometry(*shape,false,textures),*texture);
+            node->getStateSet()->setTextureAttributeAndModes(0,texture,osg::StateAttribute::ON);
+            auto effect=std::make_unique<MWRender::RagdollAppearance>(*scene.mRoot,
+                kind?Ragdoll::DeathElement::Poison:Ragdoll::DeathElement::Fire,MWRender::RagdollAppearance::Settings{});
+            effect->update(2,{node},{});effects.push_back(std::move(effect));
+        }
+        for(unsigned side=0;side<2;++side)
+        {
+            const float x=side?175.f:105.f;
+            osg::ref_ptr<osg::Box> shape=new osg::Box({x,0,50},34,20,90);
+            osg::ref_ptr<osg::Geode> source=new osg::Geode;
+            source->addDrawable(MWRender::makeWoundGeometry(*shape,false,textures));
+            MWRender::GoreSliceMapping mapping;
+            mapping.mOrigin={x,0,5};mapping.mForward={1,0,0};mapping.mHeight=90;
+            mapping.mTextures=textures;mapping.mLightingRoot=scene.mRoot;
+            const auto halves=MWRender::splitGoreMesh(*source,{x,0,50},{0,1,0},&mapping);
+            unsigned caps=0;
+            for(unsigned i=0;i<halves[side]->getNumChildren();++i)
+            {
+                auto* node=halves[side]->getChild(i);
+                if(node->getName()=="Brutal Morrowind textured longitudinal cut")
+                {scene.mRoot->addChild(node);++caps;}
+            }
+            require(caps==1,"Longitudinal uploaded-material fixture has no physical cap");
+        }
+        const auto energy=[](const std::vector<unsigned char>& pixels) {
+            unsigned long sum=0;for(auto value:pixels)sum+=value;return sum;
+        };
+        const auto bright=scene.read("gore-materials");
+        require(energy(bright)>30000,"Uploaded wound and corpse textures did not render");
+        scene.mAmbient->setAmbientIntensity({.02f,.02f,.02f,1});
+        require(energy(scene.read("gore-dark"))<energy(bright)/8,"New gore textures remained bright in darkness");
+        scene.mAmbient->setAmbientIntensity({0,0,0,1});
+        const auto black=scene.read();
+        require(std::all_of(black.begin(),black.end(),[](auto value){return value<=1;}),"New gore textures emitted light without a light source");
+        osg::ref_ptr<osg::Light> sun=new osg::Light;
+        sun->setPosition({0,-1,0,0});sun->setDiffuse({1,1,1,1});scene.mRoot->setSunlight(sun);
+        require(energy(scene.read("gore-sun"))>energy(bright)/3,"New gore textures did not receive real sunlight");
+        sun->setDiffuse({0,0,0,1});
+        osg::ref_ptr<osg::Light> torch=new osg::Light;
+        torch->setDiffuse({1,.65f,.35f,1});torch->setAmbient({0,0,0,1});
+        torch->setConstantAttenuation(1);torch->setLinearAttenuation(.001f);torch->setQuadraticAttenuation(0);
+        osg::ref_ptr<SceneUtil::LightSource> light=new SceneUtil::LightSource;
+        light->setLight(torch);light->setRadius(600);
+        osg::ref_ptr<osg::MatrixTransform> transform=new osg::MatrixTransform(osg::Matrixf::translate(0,-60,50));
+        transform->addChild(light);scene.mRoot->addChild(transform);
+        require(energy(scene.read("gore-torch"))>energy(bright)/8,"New gore textures did not receive a real point light");
+        light->setEmpty(true);
+        require(energy(scene.read())<100,"New gore textures retained an extinguished torch's light");
+        std::cout<<"PASS five actual uploaded gore/corpse DDS, physical caps, ambient/dark/sun/torch lighting and no emission\n";
+    }
+
     void materials(osgViewer::Viewer& viewer,bool reversed)
     {
         Assets assets;

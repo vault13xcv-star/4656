@@ -1,5 +1,6 @@
 #include "renderingmanager.hpp"
 #include "brutalbloodlighting.hpp"
+#include "brutaltextures.hpp"
 #include "bloodsurfacevisitor.hpp"
 
 #include <cstdlib>
@@ -275,6 +276,17 @@ namespace MWRender
             }
             return images;
         };
+        BrutalTextures::Images gore;
+        unsigned goreIndex=0;
+        for(const char* path:{"textures/brutal/gore/burnt.dds","textures/brutal/gore/poisoned.dds",
+            "textures/brutal/gore/cut_limb.dds","textures/brutal/gore/cut_body_torso.dds","textures/brutal/gore/sliced_body.dds"})
+        {
+            auto image=mResourceSystem->getImageManager()->getImage(VFS::Path::toNormalized(path));
+            if(image && image!=mResourceSystem->getImageManager()->getWarningImage())gore[goreIndex]=image;
+            else Log(Debug::Warning)<<"Brutal Morrowind: gore texture unavailable: "<<path;
+            ++goreIndex;
+        }
+        installBrutalTextures(*sceneRoot,gore);
         mBloodDecals->setTextures(
             loadBloodTextures({ "textures/brutal/blood/floor (1).dds", "textures/brutal/blood/floor (2).dds", "textures/brutal/blood/floor (3).dds" }),
             loadBloodTextures({ "textures/brutal/blood/wall (1).dds", "textures/brutal/blood/wall (2).dds",

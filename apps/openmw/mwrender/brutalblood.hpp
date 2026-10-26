@@ -207,5 +207,6 @@ namespace MWRender
     };
 
     osg::ref_ptr<osg::StateSet> createWetGoreState(bool decal = false);
+    osg::ref_ptr<osg::StateSet> createTexturedGoreState(osg::Texture2D& texture, osg::Texture2D* mask=nullptr);
 }
 #endif

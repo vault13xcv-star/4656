@@ -3,6 +3,11 @@ if (NOT DEFINED OPENMW_RESOURCES_ROOT)
 endif()
 
 set(BUILTIN_DATA_FILES
+    textures/brutal/gore/burnt.dds
+    textures/brutal/gore/poisoned.dds
+    textures/brutal/gore/cut_limb.dds
+    textures/brutal/gore/sliced_body.dds
+    textures/brutal/gore/cut_body_torso.dds
     "textures/brutal/blood/floor (1).dds"
     "textures/brutal/blood/floor (2).dds"
     "textures/brutal/blood/floor (3).dds"

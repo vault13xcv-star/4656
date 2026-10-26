@@ -62,7 +62,7 @@ if(RAGDOLL_TEST_RENDERING)
         ../debug/debuglog.cpp
         ../files/conversion.cpp)
     target_compile_features(ragdoll-render-tests PRIVATE cxx_std_20)
-    target_compile_definitions(ragdoll-render-tests PRIVATE BT_USE_DOUBLE_PRECISION)
+    target_compile_definitions(ragdoll-render-tests PRIVATE BT_USE_DOUBLE_PRECISION BRUTAL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../..")
     target_include_directories(ragdoll-render-tests PRIVATE ../..)
     target_include_directories(ragdoll-render-tests SYSTEM PRIVATE ${BULLET_INCLUDE_DIRS} ${OPENSCENEGRAPH_INCLUDE_DIRS})
     target_link_libraries(ragdoll-render-tests PRIVATE ${BULLET_LIBRARIES} ${OPENSCENEGRAPH_LIBRARIES} OpenGL::GL)

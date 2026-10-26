@@ -1,6 +1,7 @@
 #include "brutalblood.hpp"
 #include "vismask.hpp"
 #include "brutalbloodlightingbase.hpp"
+#include "brutaltextures.hpp"
 #include <components/ragdoll/blood.hpp>
 #include <osg/Texture2D>
 #include <osg/PrimitiveSet>
@@ -164,7 +165,7 @@ namespace MWRender
         }
     }
 
-    static osg::ref_ptr<osg::StateSet> makeWetGoreState(bool decal, bool sprite = false)
+    static osg::ref_ptr<osg::StateSet> makeWetGoreState(bool decal, bool sprite = false, bool textured = false)
     {
         osg::ref_ptr<osg::StateSet> state = new osg::StateSet;
         constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
@@ -272,8 +273,17 @@ namespace MWRender
             "if(alpha<.015)discard;"
             "vec3 spec;vec3 light=bloodLighting(normalize(n),p,spec);"
             "gl_FragColor=vec4(bloodFog(tint.rgb*light+spec*.02,p),alpha);}";
+        const std::string texturedFragment =
+            "uniform sampler2D brutalGoreTexture;uniform sampler2D brutalGoreMask;uniform bool brutalGoreHasMask;uniform bool brutalGoreFlipV;"
+            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
+            "void main(){vec2 tc=uv;if(brutalGoreFlipV)tc.y=1.0-tc.y;"
+            "if(brutalGoreHasMask && texture2D(brutalGoreMask,tc).a<.5)discard;"
+            "vec4 texel=texture2D(brutalGoreTexture,tc);if(texel.a<.01)discard;"
+            "vec3 N=normalize(n);if(!gl_FrontFacing)N=-N;"
+            "vec3 spec;vec3 light=bloodLighting(N,p,spec);"
+            "gl_FragColor=vec4(bloodFog(texel.rgb*tint.rgb*light+spec*.015,p),1.0);}";
         program->addShader(new osg::Shader(osg::Shader::FRAGMENT,
-            "#version 120\n" + lighting + (sprite ? spriteFragment : decal ? decalFragment : solidFragment)));
+            "#version 120\n" + lighting + (textured ? texturedFragment : sprite ? spriteFragment : decal ? decalFragment : solidFragment)));
         osg::ref_ptr<osg::Shader> vertexFallback = new osg::Shader(osg::Shader::VERTEX,
             "#version 120\nvoid setupShadowCoords(vec4 viewPos,vec3 viewNormal){}");
         vertexFallback->setName("Brutal blood fallback shadows vertex");
@@ -305,6 +315,21 @@ namespace MWRender
         return new osg::StateSet(*states[decal], osg::CopyOp::SHALLOW_COPY);
     }
 
+    osg::ref_ptr<osg::StateSet> createTexturedGoreState(osg::Texture2D& texture,osg::Texture2D* mask)
+    {
+        static const auto material=makeWetGoreState(false,false,true);
+        osg::ref_ptr<osg::StateSet> state=new osg::StateSet(*material,osg::CopyOp::SHALLOW_COPY);
+        constexpr auto on=osg::StateAttribute::ON|osg::StateAttribute::OVERRIDE|osg::StateAttribute::PROTECTED;
+        state->setTextureAttributeAndModes(0,&texture,on);
+        state->addUniform(new osg::Uniform("brutalGoreTexture",0),on);
+        state->addUniform(new osg::Uniform("brutalGoreMask",1),on);
+        state->addUniform(new osg::Uniform("brutalGoreHasMask",mask!=nullptr),on);
+        if(mask)state->setTextureAttributeAndModes(1,mask,on);
+        state->addUniform(new osg::Uniform("brutalGoreFlipV",texture.getImage()
+            && texture.getImage()->getOrigin()==osg::Image::TOP_LEFT),on);
+        return state;
+    }
+
     static osg::ref_ptr<osg::StateSet> createBloodSpriteState()
     {
         static const auto state = makeWetGoreState(false, true);
@@ -326,6 +351,15 @@ namespace MWRender
             if (kind) attachBloodLighting(*node,*mParent);
             root->addChild(node);
         }
+        if(auto* assets=findBrutalTextures(*mParent))
+            for(unsigned kind=BrutalTextures::Limb;kind<BrutalTextures::Count;++kind)
+                if(assets->mTextures[kind])
+                {
+                    osg::ref_ptr<osg::Geode> node=new osg::Geode;
+                    node->setStateSet(createTexturedGoreState(*assets->mTextures[kind],assets->mMasks[kind]));
+                    attachBloodLighting(*node,*mParent);
+                    root->addChild(node);
+                }
         return root;
     }
 

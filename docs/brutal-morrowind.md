@@ -1,8 +1,45 @@
-# Brutal Morrowind V1.0
+# Brutal Morrowind 1.1 Experimental
 
-V1.0 promotes the tested preview.14 executable and gameplay resources unchanged.
-Release documentation and package names identify the public 1.0 release; the
-executable retains its original source revision for traceability.
+This separate experimental branch starts from V1.0 and replaces corpse/cut
+materials with the original supplied DDS artwork. V1.0 and its Latest release
+are unchanged. Download the entire 1.1 runtime; its renderer needs the five new
+resources as well as the matching executable.
+
+## Experimental corpse and cut materials
+
+| Supplied file | Installed file | Use |
+| --- | --- | --- |
+| `burnt (1).dds` | `textures/brutal/gore/burnt.dds` | Burned corpse surfaces |
+| `poisoned (2).dds` | `textures/brutal/gore/poisoned.dds` | Poisoned corpse surfaces |
+| `cut_limb.dds` | `textures/brutal/gore/cut_limb.dds` | Limb/neck/head cross-sections and head fragments |
+| `cut_body_torso.dds` | `textures/brutal/gore/cut_body_torso.dds` | Waist cross-sections |
+| `sliced_body.dds` | `textures/brutal/gore/sliced_body.dds` | Left/right longitudinal anatomical atlas |
+
+All five original DXT1 DDS files are installed byte for byte, with hashes checked
+before compilation and after installation. Shared 512-pixel stochastic coating
+maps are prepared once at scene loading from burnt/poisoned: periodic boundaries,
+rotations/reflections and blended offsets hide regular tile repetition. They
+fade into per-instance diffuse images using the existing material/UV pipeline;
+clothing alpha, shared original assets and the native skin lighting are retained.
+Frost, smoke, fire timers, inventories and the blood projection budget are unchanged.
+
+Limb cuts use disk/rim geometry and an art-fitted circular UV contour at every
+radius. Waist cuts use elliptical geometry with the torso image. The opaque
+square image backgrounds therefore have no surrounding rectangle to draw.
+Shared exterior-only flood masks also remove the opaque DXT1 backdrop at
+interpolated curved edges without erasing dark tissue enclosed by the anatomy.
+Longitudinal caps still clip the actual posed mesh. Short vertical strips map
+to one shared anatomical height frame, fitting each atlas row to that cap's
+visible cross-section. The left/right images use opposite front/back UV axes;
+both keep the face on the NPC's front and the vertebral column on its back,
+including after turning or falling. Head, torso and pelvis use their own height
+ranges instead of each repeating a whole body picture.
+
+Textured wound surfaces write depth and use the world's ambient, sun, nearby
+point lights, fog and native sun-shadow adapter. They add no constant/emissive
+light. Their shared shader and textures are included in loading-time precompile.
+Unusual third-party body proportions and UV layouts may still affect appearance;
+automated meshes are not a substitute for an in-game visual check.
 
 This Windows x64 runtime retains combat, damage, hit attribution,
 physical dismemberment, inventories and the one-second magic-death window retained

@@ -37,6 +37,7 @@
 #include <stdexcept>
 #include <utility>
 #include <tuple>
+#include "gore_textures.hpp"
 
 namespace
 {
@@ -2147,6 +2148,7 @@ int main(int argc, char** argv)
 {
     try
     {
+        if(argc>1 && std::string(argv[1])=="--gore-textures") {BrutalTextureTests::run();return 0;}
         if (argc>1 && std::string(argv[1])=="--blood-work-benchmark")
         {
             bloodWorkBenchmark();return 0;
@@ -2201,6 +2203,7 @@ int main(int argc, char** argv)
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
         bloodReceiversAndSprites();
+        BrutalTextureTests::run();
         bloodFlightDuringReceiverBuild();
         organicBloodRules();
         bloodDensityAndLoading();

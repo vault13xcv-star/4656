@@ -1,6 +1,14 @@
-# Brutal Morrowind V1.0
+# Brutal Morrowind 1.1 Experimental
 
-**Physics, dismemberment and blood for Morrowind, built on OpenMW 0.51.**
+**Experimental corpse and cut textures on top of V1.0, based on OpenMW 0.51.**
+
+This separate branch adds uploaded burnt/poisoned body coatings, circular limb
+cross-sections, waist tissue and left/right longitudinal anatomy. The stable
+V1.0 release remains unchanged. See [1.1 materials and limitations](brutal-morrowind.md).
+
+[Download 1.1 Experimental](https://github.com/vault13xcv-star/4656/releases/tag/brutal-1.1-experimental.1)
+
+The links below document the stable V1.0 baseline.
 
 [Download Windows x64](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Windows-x64.zip)
 · [Release page](https://github.com/vault13xcv-star/4656/releases/tag/v1.0)

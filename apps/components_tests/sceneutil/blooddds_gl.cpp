@@ -4,6 +4,9 @@
 #include <EGL/eglext.h>
 
 #include <apps/openmw/mwrender/brutalblood.hpp>
+#include <apps/openmw/mwrender/brutalgore.hpp>
+#include <apps/openmw/mwrender/brutaltextures.hpp>
+#include <apps/openmw/mwrender/ragdollappearance.hpp>
 #include <apps/openmw/mwrender/brutalbloodlighting.hpp>
 #include <components/sceneutil/depth.hpp>
 #include <components/sceneutil/shadow.hpp>
@@ -12,6 +15,7 @@
 #include <components/terrain/terraindrawable.hpp>
 
 #include <osg/Geode>
+#include <osg/Shape>
 #include <osg/LightModel>
 #include <osg/MatrixTransform>
 #include <osg/Texture2D>
@@ -195,6 +199,7 @@ int main(int argc, char** argv)
         viewer.setSceneData(root); viewer.realize();
 
         if(argc>2 && std::string(argv[2])=="dds") {BloodDDS::materials(viewer,reversed);return 0;}
+        if(argc>2 && std::string(argv[2])=="gore") {BloodDDS::gore(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="spray") {BloodDDS::spray(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="density-benchmark") {BloodDDS::densityBenchmark(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="density") {BloodDDS::densityBenchmark(viewer,reversed,true);return 0;}
@@ -297,6 +302,46 @@ int main(int argc, char** argv)
         require(spritePixels() > 3, "A real native torch at the sprite's own height failed to illuminate blood");
         point->setEmpty(true);
         require(spritePixels() == 0, "Native blood sprites remained illuminated after their torch was extinguished");
+
+        {
+            // Wound textures use a separate fragment main, but must link the
+            // actual native cascade libraries and react to the same depth maps.
+            osg::ref_ptr<osg::Geometry> tissue=new osg::Geometry;
+            osg::ref_ptr<osg::Vec3Array> positions=new osg::Vec3Array;
+            for(const auto& p:std::array<osg::Vec3f,4>{{{-65,0,65},{-45,0,65},{-45,0,85},{-65,0,85}}})positions->push_back(p);
+            tissue->setVertexArray(positions);
+            osg::ref_ptr<osg::Vec3Array> normals=new osg::Vec3Array;normals->push_back({0,-1,0});
+            osg::ref_ptr<osg::Vec4Array> colors=new osg::Vec4Array;colors->push_back({1,1,1,1});
+            osg::ref_ptr<osg::Vec2Array> coordinates=new osg::Vec2Array;
+            for(unsigned i=0;i<4;++i)coordinates->push_back({.5f,.5f});
+            tissue->setNormalArray(normals,osg::Array::BIND_OVERALL);
+            tissue->setColorArray(colors,osg::Array::BIND_OVERALL);
+            tissue->setTexCoordArray(0,coordinates);
+            tissue->addPrimitiveSet(new osg::DrawArrays(GL_QUADS,0,4));
+            osg::ref_ptr<osg::Texture2D> texture=new osg::Texture2D(image);
+            osg::ref_ptr<osg::Geode> node=new osg::Geode;
+            node->setStateSet(MWRender::createTexturedGoreState(*texture));node->addDrawable(tissue);
+            MWRender::attachBloodLighting(*node,*root);root->addChild(node);
+            auto* goreProgram=dynamic_cast<osg::Program*>(node->getStateSet()->getAttribute(osg::StateAttribute::PROGRAM));
+            require(goreProgram && goreProgram->getShader(2)==program->getShader(2)
+                && goreProgram->getShader(3)==program->getShader(3),"Textured cuts did not use the real native shadow libraries");
+            const auto pixel=[&] {
+                viewer.frame();glFinish();
+                const auto* linked=goreProgram->getPCP(*camera->getGraphicsContext()->getState());
+                require(linked && linked->isLinked(),"Textured gore/native shadow GLSL failed to link");
+                const auto position=osg::Vec3f(-55,0,75)*camera->getViewMatrix()*camera->getProjectionMatrix()
+                    *camera->getViewport()->computeWindowMatrix();
+                std::array<unsigned char,3> value{};
+                glReadPixels(int(position.x()),int(position.y()),1,1,GL_RGB,GL_UNSIGNED_BYTE,value.data());
+                return osg::Vec3f(value[0],value[1],value[2]);
+            };
+            sun->setPosition({0,-1,0,0});sun->setDiffuse({1,1,1,1});
+            *reinterpret_cast<float*>(secondDepth->getImage()->data())=.25f;secondDepth->getImage()->dirty();
+            require(pixel().length()<=3,"Textured wound ignored native sun shadows");
+            *reinterpret_cast<float*>(secondDepth->getImage()->data())=.75f;secondDepth->getImage()->dirty();
+            require(pixel().x()>70,"Textured wound stayed dark outside the native shadow");
+            root->removeChild(node);sun->setDiffuse({0,0,0,1});
+        }
 
         {
             // Terrain keeps its vertices near a local chunk origin. Blood must

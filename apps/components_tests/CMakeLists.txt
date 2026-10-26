@@ -154,6 +154,8 @@ option(BRUTAL_TEST_NATIVE_GL "Test DDS blood and native lighting using Linux EGL
 if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
     add_executable(blood-dds-gl-tests sceneutil/blooddds_gl.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/ragdollappearance.cpp
+        ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalgore.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/brutalblood.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurface.cpp
         ${CMAKE_SOURCE_DIR}/apps/openmw/mwrender/bloodsurfacevisitor.cpp)
@@ -165,7 +167,7 @@ if(BRUTAL_TEST_NATIVE_GL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(blood-dds-gl-tests PRIVATE components OpenGL::GL OpenGL::EGL)
     add_test(NAME brutal-dds-native-lighting-normal COMMAND blood-dds-gl-tests)
     add_test(NAME brutal-dds-native-lighting-reversed COMMAND blood-dds-gl-tests reversed)
-    foreach(scene dds spray density)
+    foreach(scene dds spray density gore)
         add_test(NAME brutal-dds-${scene}-normal COMMAND blood-dds-gl-tests normal ${scene})
         add_test(NAME brutal-dds-${scene}-reversed COMMAND blood-dds-gl-tests reversed ${scene})
     endforeach()
