@@ -6,10 +6,10 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40419030172",
   "resultsBranch": "build-results/ragdoll-7ff827e3f025708f791ea8d535939b083dd633d3-40419030172-1",
-  "stage": "publish",
-  "result": "running",
-  "updatedUtc": "2026-10-26T23:46:17.3935207Z",
-  "releaseUrl": null,
+  "stage": "completed",
+  "result": "success",
+  "updatedUtc": "2026-10-26T23:46:27.0872123Z",
+  "releaseUrl": "https://github.com/vault13xcv-star/4656/releases/tag/brutal-1.1-experimental.1",
   "package": {
     "file": "Brutal-Morrowind-1.1-experimental.1-OpenMW-0.51-Windows-x64-7ff827e3f025.zip",
     "sha256": "1b3475f9f8756a64cde113f88fd86ea0a15a8dd5dfcf2feca56177a313e3856f",
@@ -17,6 +17,7 @@
     "sourceCommit": "7ff827e3f025708f791ea8d535939b083dd633d3",
     "ragdollVersion": "1.1-experimental.1",
     "modName": "Brutal Morrowind",
-    "testResult": "success"
+    "testResult": "success",
+    "gitDownload": "https://github.com/vault13xcv-star/4656/raw/refs/heads/build-results/ragdoll-7ff827e3f025708f791ea8d535939b083dd633d3-40419030172-1/Brutal-Morrowind-1.1-experimental.1-OpenMW-0.51-Windows-x64-7ff827e3f025.zip"
   }
 }
