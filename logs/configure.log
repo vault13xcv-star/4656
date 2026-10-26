@@ -1,0 +1,111 @@
+-- The C compiler identification is MSVC 19.44.35229.0
+-- The CXX compiler identification is MSVC 19.44.35229.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring OpenMW...
+-- Found Git: C:/Program Files/Git/bin/git.exe (found version "2.56.0.windows.3")
+-- Found OpenGL: opengl32
+-- Found LZ4: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/lz4.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/lz4d.lib
+CMake Warning at deps/vcpkg-x64-windows-2022-2026-02-24/scripts/buildsystems/vcpkg.cmake:908 (_find_package):
+  By not providing "Findcollada_dom.cmake" in CMAKE_MODULE_PATH this project
+  has asked CMake to find a package configuration file provided by
+  "collada_dom", but CMake did not find one.
+
+  Could not find a package configuration file provided by "collada_dom"
+  (requested version 2.5) with any of the following names:
+
+    collada_domConfig.cmake
+    collada_dom-config.cmake
+
+  Add the installation prefix of "collada_dom" to CMAKE_PREFIX_PATH or set
+  "collada_dom_DIR" to a directory containing one of the above files.  If
+  "collada_dom" provides a separate development package or SDK, be sure it
+  has been installed.
+Call Stack (most recent call first):
+  CMakeLists.txt:316 (find_package)
+
+
+-- Found ICU: D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/include (found version "78.2") found components: uc i18n data
+CMake Deprecation Warning at build/extern/fetched/googletest/CMakeLists.txt:4 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/extern/fetched/googletest/googlemock/CMakeLists.txt:39 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/extern/fetched/googletest/googletest/CMakeLists.txt:49 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- Found Python: C:/hostedtoolcache/windows/Python/3.14.9/x64/python3.exe (found version "3.14.9") found components: Interpreter
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed
+-- Looking for pthread_create in pthreads
+-- Looking for pthread_create in pthreads - not found
+-- Looking for pthread_create in pthread
+-- Looking for pthread_create in pthread - not found
+-- Found Threads: TRUE
+-- Found FFmpeg_AVCODEC 62.11.100
+-- Found FFmpeg_AVFORMAT 62.3.100
+-- Found FFmpeg_AVUTIL 60.8.100
+-- Found FFmpeg_SWSCALE 9.1.100
+-- Found FFmpeg_SWRESAMPLE 6.1.100
+-- Found FFmpeg: D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/avcodec.lib;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/avformat.lib;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/avutil.lib;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/swscale.lib;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/swresample.lib  found components: AVCODEC AVFORMAT AVUTIL SWSCALE SWRESAMPLE
+-- Found PkgConfig: D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/share/ffmpeg/../../../x64-windows/tools/pkgconf/pkgconf.exe (found version "2.5.1")
+-- Checking for module 'libavcodec'
+--   Found libavcodec, version 62.11.100
+-- Found Bullet: D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/BulletDynamics.lib (Required is at least version "286")
+-- Checking if Bullet uses double precision
+-- Bullet uses double precision
+-- Looking for stdint.h
+-- Looking for stdint.h - found
+-- Found osgAnimation: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgAnimation.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgAnimationd.lib
+-- Found osgDB: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgDB.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgDBd.lib
+-- Found osgGA: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgGA.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgGAd.lib
+-- Found osgFX: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgFX.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgFXd.lib
+-- Found osgParticle: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgParticle.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgParticled.lib
+-- Found osgText: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgText.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgTextd.lib
+-- Found osgUtil: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgUtil.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgUtild.lib
+-- Found osgShadow: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgShadow.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgShadowd.lib
+-- Found osgSim: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgSim.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgSimd.lib
+-- Found osgViewer: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgViewer.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgViewerd.lib
+-- Found osg: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osg.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgd.lib
+-- Found OpenThreads: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/OpenThreads.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/OpenThreadsd.lib
+-- Found OpenSceneGraph: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgAnimation.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgAnimationd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgDB.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgDBd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgGA.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgGAd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgFX.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgFXd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgParticle.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgParticled.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgText.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgTextd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgUtil.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgUtild.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgShadow.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgShadowd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgSim.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgSimd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osgViewer.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgViewerd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/osg.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/osgd.lib;optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/OpenThreads.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/OpenThreadsd.lib (found suitable version "3.6.5", minimum required is "3.6.5")
+-- Checking if OSG supports multiview
+-- OSG does not support multiview, disabling use of GL_OVR_multiview
+-- Found ZLIB: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/zlib.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/zlibd.lib (found version "1.3.1")
+-- Found BZip2: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/bz2.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/bz2d.lib (found version "1.0.8")
+-- Looking for BZ2_bzCompressInit
+-- Looking for BZ2_bzCompressInit - found
+-- Found LibLZMA: optimized;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/lzma.lib;debug;D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/debug/lib/lzma.lib (found version "5.8.2")
+-- Found MyGUI 3.4.3
+-- Found OpenAL: D:/a/4656/4656/deps/vcpkg-x64-windows-2022-2026-02-24/installed/x64-windows/lib/OpenAL32.lib
+-- Found LuaJit 
+-- Configuring done (37.8s)
+-- Generating done (0.3s)
+-- Build files have been written to: D:/a/4656/4656/build
