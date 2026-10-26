@@ -33,7 +33,7 @@ jobs:
 
       - name: Verify and promote the existing runtime without compilation
         run: |
-          python CI/package-brutal-release.py --from-report --output dist
+          python CI/package-brutal-release.py --from-report --output dist 2>&1 | Tee-Object package-release.log
           if ($LASTEXITCODE -ne 0) { throw 'Release package validation failed.' }
 
       - name: Check the installed Windows executable
@@ -57,5 +57,10 @@ jobs:
           path: |
             dist/*
             installed-version*.log
+            package-release.log
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Publish packaging diagnostics if a step fails
+        if: failure()
+        run: python CI/publish-brutal-release.py --report-failure

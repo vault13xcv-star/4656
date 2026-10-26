@@ -111,6 +111,15 @@ def report(result, url, error=None):
 
 
 if __name__ == '__main__':
+    if '--report-failure' in sys.argv:
+        logs = []
+        for name in ['package-release.log', 'installed-version.log', 'installed-version-errors.log']:
+            path = ROOT / name
+            if path.is_file():
+                logs.append(name + ':\n' + path.read_text(encoding='utf-8-sig', errors='replace')[-18000:])
+        report('failure', 'https://github.com/' + REPO + '/releases/tag/' + TAG,
+               '\n'.join(logs) or 'Publication stopped before the release step; see the Actions run.')
+        sys.exit(0)
     try:
         published = release()
     except Exception as error:

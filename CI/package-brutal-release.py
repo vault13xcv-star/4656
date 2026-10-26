@@ -113,7 +113,7 @@ def package(input_zip, output):
         assert sha(after.read(prefix + 'openmw.exe')) == m['executableSha256']
         assert json.loads(after.read(prefix + 'RELEASE-INFO.json')) == provenance
     source = output / m['sourceFile']
-    subprocess.run(['git', '-C', str(ROOT), 'archive', '--format=zip',
+    subprocess.run(['git', '-C', str(ROOT), '-c', 'core.autocrlf=false', 'archive', '--format=zip',
                     '--prefix=Brutal-Morrowind-1.0-Source/', '--output=' + str(source), commit], check=True)
     with zipfile.ZipFile(source) as archive:
         assert archive.testzip() is None
