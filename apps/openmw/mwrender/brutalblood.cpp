@@ -900,7 +900,7 @@ namespace MWRender
             const float speed=source.mNeck ? 240.f+190.f*pulse
                 : source.mMajorWound ? 140.f+140.f*pulse+random()*40.f : 80.f+random()*130.f;
             const float width=(.65f+random()*.6f+(source.mNeck ? .55f : source.mMajorWound ? .35f : 0.f))*sizeScale;
-            mDrops.push_back({source.mPosition,direction*speed*launchScale*std::clamp(source.mPressure,.15f,1.f),0,width});
+            mDrops.emplace_back(source.mPosition,direction*speed*launchScale*std::clamp(source.mPressure,.15f,1.f),width);
             ++mEmitted;
         }
         if (emission<=0) {mDrops.clear();mImpacts.clear();}
@@ -910,10 +910,18 @@ namespace MWRender
         const bool ready=(!mDrops.empty() || !mImpacts.empty()) && (!mReady || mReady());
         for (auto& drop:mDrops)
         {
-            if (!ready) { drop.mAge += dt; continue; }
-            const auto next=drop.mPosition+drop.mVelocity*dt+osg::Vec3f(0,0,-313.6f*dt*dt);
+            drop.mPosition+=drop.mVelocity*dt+osg::Vec3f(0,0,-313.6f*dt*dt);
+            drop.mVelocity.z()-=627.2f*dt;
+            drop.mAge+=dt;
+            drop.mUntracedTime+=dt;
+            if (!ready || drop.mAge>MaxDropAge) continue;
+            // One sweep per live drop, just as on the ready path. Longer
+            // deferred flights catch up over subsequent updates in ballistic
+            // steps no larger than the existing 100 ms simulation step.
+            const float traceDt=std::min(drop.mUntracedTime,.1f);
+            const auto next=drop.mTracePosition+drop.mTraceVelocity*traceDt+osg::Vec3f(0,0,-313.6f*traceDt*traceDt);
             osg::Vec3f point,normal;
-            if (mRaycast && mRaycast(drop.mPosition,next,point,normal))
+            if (mRaycast && mRaycast(drop.mTracePosition,next,point,normal))
             {
                 if (emission>0 && mDeposit && splats++<MaxImpactSplats)
                 {
@@ -934,7 +942,9 @@ namespace MWRender
             }
             else
             {
-                drop.mPosition=next; drop.mVelocity.z()-=627.2f*dt; drop.mAge+=dt;
+                drop.mTracePosition=next;
+                drop.mTraceVelocity.z()-=627.2f*traceDt;
+                drop.mUntracedTime=std::max(0.f,drop.mUntracedTime-traceDt);
             }
         }
         std::erase_if(mDrops,[](const auto& drop){return drop.mAge>MaxDropAge;});

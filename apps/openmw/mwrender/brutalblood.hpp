@@ -172,7 +172,19 @@ namespace MWRender
         std::size_t queuedImpacts() const { return mImpacts.size(); }
 
     private:
-        struct Drop { osg::Vec3f mPosition, mVelocity; float mAge = 0, mSize = 1; };
+        struct Drop
+        {
+            osg::Vec3f mPosition, mVelocity;
+            float mAge = 0, mSize = 1;
+            // Flight never waits for a background receiver build. Keep a
+            // separate ballistic cursor to recover contacts without tracing
+            // a long straight chord or replaying every missed frame at once.
+            osg::Vec3f mTracePosition, mTraceVelocity;
+            float mUntracedTime = 0;
+            Drop(const osg::Vec3f& position, const osg::Vec3f& velocity, float size)
+                : mPosition(position), mVelocity(velocity), mSize(size)
+                , mTracePosition(position), mTraceVelocity(velocity) {}
+        };
         osg::ref_ptr<osg::Group> mRoot;
         osg::ref_ptr<osg::MatrixTransform> mTransform;
         osg::ref_ptr<osg::Geometry> mGeometry;

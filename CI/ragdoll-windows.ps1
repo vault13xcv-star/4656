@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '0.7.0-preview.13'
+$ragdollVersion = '0.7.0-preview.14'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -257,7 +257,7 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Preview.13 replaces the three floor textures with the new uploaded pool DDS artwork and removes legacy procedural pools, including saved ones. Airborne sprites retain their emission and physics. All bleeding sources share a fair bounded decal-projection queue; interior receiver BVHs build on workers. No duplicate interior physics mesh is created for removed pool probes. Walls, sunlight response, combat and wound rules retain preview.12 behavior.
+Preview.14 replaces all three floor textures with the originals from blood_pools_1024_dds_2.zip. Airborne droplets no longer freeze while interior receivers build: flight advances independently, and bounded ballistic collision replay recovers deferred contacts. Preview.13's shared projection budget, background BVH construction and removal of legacy procedural pools are retained. Walls, sunlight response, combat and wound rules remain unchanged.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

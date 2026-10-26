@@ -1,6 +1,6 @@
-# Brutal Morrowind 0.7.0-preview.13
+# Brutal Morrowind 0.7.0-preview.14
 
-This Windows x64 runtime continues preview.12, with combat, damage, hit attribution,
+This Windows x64 runtime continues preview.13, with combat, damage, hit attribution,
 physical dismemberment, inventories and the one-second magic-death window retained
 from stable preview.2 (`a76508441a8dd4a791a38cab140f04bf7c2a2323`). The changes are
 to blood presentation, receiver preparation and frame-time control.
@@ -8,12 +8,12 @@ to blood presentation, receiver preparation and frame-time control.
 Extract the entire ZIP into a new directory and run `openmw.exe`. Morrowind data
 and your normal OpenMW configuration are required. The launcher/editor and game
 data are not included. Keep separate save copies. This build reads preview.2
-and preview.11/12 blood records; new blood records remain version 2 and cannot
+and preview.11/12/13 blood records; new blood records remain version 2 and cannot
 be read by preview.2. Saved wounds and inventories are not rerolled.
 
 ## Floor textures and removal of procedural pools
 
-The three original DXT5 files from `blood_pools_1024_dds.zip` replace all three
+The three original DXT5 files from `blood_pools_1024_dds_2.zip` replace all three
 floor textures, byte for byte. They use the existing ASCII runtime filenames:
 
 | Runtime asset | Original supplied file |
@@ -34,6 +34,23 @@ skipped while loading a save and are absent from subsequent saves. Existing
 textured splatters load using the new artwork and retain their remaining ages.
 Floor blood now consists entirely of textured decals, independently of the
 physical corpse. No replacement growing procedural pool is generated.
+
+## Continuous airborne droplets
+
+Preview.13 paused a droplet's position and velocity whenever its interior
+receiver was unavailable during background construction or invalidation. New
+drops continued to appear at the moving wound positions. They formed stationary
+patterns and launched together when the receiver became ready.
+
+Sprite flight now advances under gravity independently of receiver readiness.
+Each drop retains a separate ballistic collision cursor. When geometry becomes
+available, that cursor catches up in steps of at most 100 ms, with at most one
+sweep per live drop per update, as on the normal ready path. It never traces
+an entire curved trajectory as a single straight chord or replays an unbounded
+number of missed frames in one update. Deferred contacts still produce decals
+on the actual receiver. Expired droplets are removed even if a receiver never
+finishes, paused updates do not move drops, and blood at 0% still clears them.
+No visible particle waits in place for receiver construction or decal work.
 
 ## Blood emission frame-time fix
 
@@ -116,7 +133,10 @@ Tests cover the Bullet solver, existing wounds/poses, blood age/cell isolation,
 visible stairs/columns/carpets, organic exclusions, sprite buffers, alpha-aware
 density, loaded legacy pool removal, projection fairness/time/count budgets,
 bounded impact queues, zero-amount shutdown, asynchronous BVH completion and
-cancellation. Real ImageManager/EGL/OpenGL tests load the six DXT5 files and check
+cancellation. A regression test reproduces the stationary-drop bug on preview.13
+and checks uninterrupted sprite positions through a two-second receiver delay
+and repeated invalidation, bounded replay, recovered floor impacts and expiry.
+Real ImageManager/EGL/OpenGL tests load the six DXT5 files and check
 transparency, sunlight/darkness/torches, shadows, normal/reversed depth, floor
 impact decals, density and absence of procedural pools.
 

@@ -340,17 +340,18 @@ namespace
         }
         require(splatter,"Visible-surface blood impacts produced no decals");
 
-        // Snapshot invalidation must not silently let particles fall through.
+        // Pending receivers must neither suspend sprites in mid-air nor lose
+        // the swept contacts while their triangles are being rebuilt.
         deposits.clear(); ready = false;
         spray.update(.05f, source, 1, 1);
         deposits.clear();
         const auto before = spray.particleCount();
         for (int i=0;i<12;++i) spray.update(.05f,{},1,1);
         require(spray.particleCount() == before && deposits.empty(),
-            "Invalidated surface allowed blood to pass through an unavailable receiver");
+            "Pending blood receiver discarded live drops or projected stale geometry");
         ready = true;
         for (int i=0;i<100;++i) spray.update(.05f,{},1,1);
-        require(spray.particleCount() == 0 && !deposits.empty(), "Refreshed blood receiver lost paused drops");
+        require(spray.particleCount() == 0 && !deposits.empty(), "Refreshed blood receiver lost deferred contacts");
 
         std::array<std::size_t,2> counts{};
         for (int i=0;i<2;++i)
@@ -369,6 +370,72 @@ namespace
                 && Ragdoll::bloodSpreadScale(3) > Ragdoll::bloodSpreadScale(1),
             "Blood quantity no longer increases launch distance and spread");
         std::cout << "PASS visible carpet/stairs/column, actor exclusion, no procedural pools, receiver invalidation, sprite geometry and doubled emission\n";
+    }
+
+    void bloodFlightDuringReceiverBuild()
+    {
+        using Trail=MWRender::BloodTrail;
+        const auto spriteCenter=[](osg::Group& root) {
+            const auto* transform=root.getChild(0)->asTransform()->asMatrixTransform();
+            const auto* mesh=transform->getChild(0)->asGeode()->getDrawable(0)->asGeometry();
+            const auto* vertices=static_cast<const osg::Vec3Array*>(mesh->getVertexArray());
+            require(vertices->size()==Trail::SpriteVertices,"Single test droplet has no sprite buffer");
+            return vertices->front()*osg::Matrixf(transform->getMatrix());
+        };
+        osg::ref_ptr<osg::Group> referenceRoot=new osg::Group, delayedRoot=new osg::Group;
+        bool ready=false;
+        unsigned sweeps=0;
+        const auto ray=[&](const auto&,const auto&,auto&,auto&) {++sweeps;return false;};
+        Trail reference(*referenceRoot,ray,{});
+        Trail delayed(*delayedRoot,ray,{}, {},[&] {return ready;});
+        const std::vector<Trail::Source> source{{{0,0,200},{1,0,1},1,false}};
+        reference.update(.04f,source,1,0);delayed.update(.04f,source,1,0);
+        require(delayed.emittedCount()==1,"Receiver test did not emit exactly one drop");
+        for (unsigned frame=0;frame<180;++frame)
+        {
+            // Two seconds of initial construction, followed by repeated
+            // invalidations while a drop is already in flight.
+            ready=frame>=120 && (frame/10)%2==0;
+            sweeps=0;
+            reference.update(1.f/60,{},1,frame/60.f);
+            delayed.update(1.f/60,{},1,frame/60.f);
+            require((spriteCenter(*referenceRoot)-spriteCenter(*delayedRoot)).length()<.001f,
+                "Blood sprite froze or changed trajectory while a receiver was unavailable");
+            require(sweeps<=2,"Deferred flight replay performed unbounded catch-up raycasts");
+        }
+        const auto position=spriteCenter(*delayedRoot);
+        delayed.update(0,{},1,3);
+        require((spriteCenter(*delayedRoot)-position).length2()==0,"Paused blood continued moving");
+        ready=false;
+        for (unsigned frame=0;frame<90;++frame) delayed.update(1.f/60,{},1,3+frame/60.f);
+        require(!delayed.particleCount(),"Unavailable receiver retained expired airborne sprites");
+
+        // A downward drop has already passed the floor visually before the
+        // receiver is published. Its retained trajectory must still leave the
+        // same contact, without projecting a floating patch at its new height.
+        const auto surface=Trail::visualSurface(floorSnapshot({},1000));
+        std::array<osg::ref_ptr<osg::Group>,2> roots{new osg::Group,new osg::Group};
+        std::array<std::vector<MWRender::BloodStamp>,2> deposits;
+        std::vector<std::unique_ptr<Trail>> trails;
+        ready=false;
+        for (unsigned i=0;i<2;++i)
+            trails.push_back(std::make_unique<Trail>(*roots[i],surface.mRaycast,
+                [&,i](const auto& stamp) {deposits[i].push_back(stamp);},surface.mProjector,
+                [&,i] {return i==0 || ready;}));
+        const std::vector<Trail::Source> down{{{0,0,1},{0,0,-1},1,false}};
+        for (auto& trail:trails) trail->update(.04f,down,1,0);
+        for (unsigned frame=0;frame<120;++frame)
+        {
+            ready=frame>=60;
+            for (auto& trail:trails) trail->update(1.f/60,{},1,frame/60.f);
+        }
+        require(deposits[0].size()==1 && deposits[1].size()==1,
+            "Deferred droplet contact was lost or deposited repeatedly");
+        require(std::abs(deposits[1].front().mCenter.z())<.001f
+                && (deposits[0].front().mCenter-deposits[1].front().mCenter).length()<.25f,
+            "Receiver publication placed deferred blood away from the original floor impact");
+        require(!trails[1]->particleCount(),"Impacted deferred droplet remained in the air");
+        std::cout<<"PASS continuous sprite flight through delayed/rebuilt receivers, bounded collision replay, expiry, pause and recovered floor impacts\n";
     }
 
     void organicBloodRules()
@@ -2134,6 +2201,7 @@ int main(int argc, char** argv)
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
         bloodReceiversAndSprites();
+        bloodFlightDuringReceiverBuild();
         organicBloodRules();
         bloodDensityAndLoading();
         bloodProjectionScheduling();
