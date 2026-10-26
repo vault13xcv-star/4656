@@ -1,13 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1360): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1361): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1367): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1368): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
             _Ty=float
         ]
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1399): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
@@ -178,3 +168,13 @@ D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(74): warning C4267: 'argumen
 [720/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\worker.cpp.obj
 [721/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\landbindings.cpp.obj
 [722/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\dialoguebindings.cpp.obj
+[723/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\stats.cpp.obj
+[724/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\factionbindings.cpp.obj
+[725/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\classbindings.cpp.obj
+[726/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\itemdata.cpp.obj
+[727/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\animationbindings.cpp.obj
+[728/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\birthsignbindings.cpp.obj
+[729/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\markupbindings.cpp.obj
+[730/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\racebindings.cpp.obj
+[731/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\regionbindings.cpp.obj
+[732/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\types.cpp.obj
