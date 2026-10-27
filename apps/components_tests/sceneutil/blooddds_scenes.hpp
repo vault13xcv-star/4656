@@ -180,6 +180,41 @@ namespace BloodDDS
         std::cout<<"PASS five actual uploaded gore/corpse DDS, physical caps, ambient/dark/sun/torch lighting and no emission\n";
     }
 
+    void procedural(osgViewer::Viewer& viewer,bool reversed)
+    {
+        for(bool floor:{false,true})
+        {
+            Scene scene(viewer,reversed,floor);
+            MWRender::BloodDecals blood(*scene.mRoot);
+            blood.setCellActive("procedural",true);
+            for(unsigned i=0;i<4;++i)
+                blood.add("procedural",quad(floor,{float(i)*100-150,0,floor?0.f:50.f},42,i+1));
+            if(floor)
+                blood.add("procedural",quad(true,{0,80,0},35,MWRender::BloodStamp::ProceduralPoolSeed,true));
+            blood.update(.1f,600);
+            const auto bright=scene.read(floor?"procedural-floor":"procedural-wall");
+            unsigned pixels=0;
+            unsigned long energy=0;
+            for(std::size_t i=0;i<bright.size();i+=3)
+            {
+                pixels+=bright[i]>bright[i+1]+8 && bright[i]>bright[i+2]+8;
+                energy+=bright[i]+bright[i+1]+bright[i+2];
+            }
+            require(pixels>80,"Procedural blood produced no visible floor/wall marks");
+            scene.mAmbient->setAmbientIntensity({.02f,.02f,.02f,1});
+            const auto dark=scene.read();
+            unsigned long darkEnergy=0;for(auto value:dark)darkEnergy+=value;
+            require(darkEnergy<energy/8,"Procedural blood glows without ambient light");
+            osg::ref_ptr<osg::Light> sun=new osg::Light;
+            sun->setPosition(floor?osg::Vec4f(0,0,1,0):osg::Vec4f(0,-1,0,0));
+            sun->setDiffuse({1,1,1,1});scene.mRoot->setSunlight(sun);
+            const auto lit=scene.read();
+            unsigned long litEnergy=0;for(auto value:lit)litEnergy+=value;
+            require(litEnergy>darkEnergy*3,"Procedural blood did not react to sunlight");
+        }
+        std::cout<<"PASS procedural wall/floor blood and pooled footprint under actual native light and darkness\n";
+    }
+
     void materials(osgViewer::Viewer& viewer,bool reversed)
     {
         Assets assets;

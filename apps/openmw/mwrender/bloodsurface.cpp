@@ -12,6 +12,34 @@
 
 namespace MWRender
 {
+    BloodTrail::Surface BloodTrail::combineSurfaces(Surface visual, Surface collision)
+    {
+        if (!visual) return collision;
+        if (!collision) return visual;
+        return {
+            [visual,collision](const auto& from,const auto& to,auto& point,auto& normal) {
+                osg::Vec3f visualPoint,visualNormal,collisionPoint,collisionNormal;
+                const bool v=visual.mRaycast(from,to,visualPoint,visualNormal);
+                const bool c=collision.mRaycast(from,to,collisionPoint,collisionNormal);
+                if (!v && !c) return false;
+                // Use visible geometry when it is near the collision hit;
+                // retain solid collision as fallback for outdoor terrain and
+                // for obstacles substantially in front of a visible mesh.
+                const bool useVisual=v && (!c || (visualPoint-from).length() <= (collisionPoint-from).length()+4.f);
+                point=useVisual?visualPoint:collisionPoint;
+                normal=useVisual?visualNormal:collisionNormal;
+                return true;
+            },
+            [visual,collision](const auto& point,const auto& normal,float radius) {
+                osg::Vec3f hit,hitNormal;
+                if (visual.mProjector && visual.mRaycast(point+normal*2.f,point-normal*2.f,hit,hitNormal)
+                    && (hit-point).length2()<1.f && hitNormal*normal>.5f)
+                    return visual.mProjector(point,normal,radius);
+                return collision.mProjector ? collision.mProjector(point,normal,radius) : std::vector<osg::Vec3f>{};
+            }
+        };
+    }
+
     namespace
     {
         constexpr float SurfaceOffset = .03f;

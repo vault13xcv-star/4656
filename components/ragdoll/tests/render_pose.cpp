@@ -31,6 +31,7 @@
 #include <osgUtil/IncrementalCompileOperation>
 
 #include <array>
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <iostream>
@@ -321,8 +322,7 @@ namespace
         for (const auto& v : curved) { minX = std::min(minX,v.x()); maxX = std::max(maxX,v.x()); }
         require(maxX-minX > .5f, "Interior column blood was projected onto a flat invisible box");
 
-        // Only actual visible receivers are queried; procedural pool probes
-        // must not add a second floor/collision workload.
+        // Drops and pooled footprints use the same visible receiver.
         osg::ref_ptr<osg::Group> particles = new osg::Group;
         std::vector<MWRender::BloodStamp> deposits;
         bool ready = true;
@@ -330,17 +330,22 @@ namespace
             surface.mProjector,[&] { return ready; });
         const std::vector<Trail::Source> source{ {{0,0,8},{0,0,-1},1,false} };
         for (int i=0; i<60; ++i) spray.update(1.f/60,source,1,i/60.f);
-        bool splatter = false;
+        bool splatter = false, pooled = false;
         for (const auto& stamp : deposits)
         {
-            require(!stamp.mPool,"Procedural pools are still generated");
+            if(stamp.mPool)
             {
-                splatter = true;
+                pooled=true;
+                require(stamp.mVisualSeed==MWRender::BloodStamp::ProceduralPoolSeed,
+                    "Pool cannot be distinguished from legacy saved pool geometry");
+            }
+            {
+                if(!stamp.mPool) splatter = true;
                 require(std::abs(stamp.mCenter.z()-2) < .001f || std::abs(stamp.mCenter.z()) < .001f,
                     "Flying drop did not leave blood at its actual receiver");
             }
         }
-        require(splatter,"Visible-surface blood impacts produced no decals");
+        require(splatter && pooled,"Visible-surface impacts did not create splashes and pools");
 
         // Pending receivers must neither suspend sprites in mid-air nor lose
         // the swept contacts while their triangles are being rebuilt.
@@ -371,7 +376,7 @@ namespace
         require(Ragdoll::bloodLaunchScale(3) > Ragdoll::bloodLaunchScale(1)
                 && Ragdoll::bloodSpreadScale(3) > Ragdoll::bloodSpreadScale(1),
             "Blood quantity no longer increases launch distance and spread");
-        std::cout << "PASS visible carpet/stairs/column, actor exclusion, no procedural pools, receiver invalidation, sprite geometry and doubled emission\n";
+        std::cout << "PASS visible carpet/stairs/column, actor exclusion, pooled impacts, receiver invalidation, sprite geometry and doubled emission\n";
     }
 
     void bloodFlightDuringReceiverBuild()
@@ -431,12 +436,18 @@ namespace
             ready=frame>=60;
             for (auto& trail:trails) trail->update(1.f/60,{},1,frame/60.f);
         }
-        require(deposits[0].size()==1 && deposits[1].size()==1,
+        const auto countSplashes=[](const auto& stamps) {
+            return std::count_if(stamps.begin(),stamps.end(),[](const auto& stamp) {return !stamp.mPool;});
+        };
+        require(countSplashes(deposits[0])==1 && countSplashes(deposits[1])==1,
             "Deferred droplet contact was lost or deposited repeatedly");
         require(std::abs(deposits[1].front().mCenter.z())<.001f
                 && (deposits[0].front().mCenter-deposits[1].front().mCenter).length()<.25f,
             "Receiver publication placed deferred blood away from the original floor impact");
-        require(!trails[1]->particleCount(),"Impacted deferred droplet remained in the air");
+        for (unsigned frame=0;frame<120;++frame)
+            for (auto& trail:trails) trail->update(1.f/60,{},1,2+frame/60.f);
+        require(!trails[1]->particleCount() && !trails[1]->hasPendingSurfaceFlow(),
+            "Impacted deferred droplet or pool emitter did not expire");
         std::cout<<"PASS continuous sprite flight through delayed/rebuilt receivers, bounded collision replay, expiry, pause and recovered floor impacts\n";
     }
 
@@ -457,6 +468,103 @@ namespace
         std::cout << "PASS organic creature classification and fresh-death fountain lifecycle\n";
     }
 
+    void proceduralSurfaceFlow()
+    {
+        const Ragdoll::BloodFlowRay wall = [](const auto& a,const auto& b,auto& point,auto& normal) {
+            const float dx=b.x()-a.x();
+            if (std::abs(dx)<.0001f) return false;
+            const float t=-a.x()/dx;
+            if(t<0 || t>1) return false;
+            point=a+(b-a)*t;
+            if(point.z()<0 || point.z()>100) return false;
+            normal={1,0,0};return true;
+        };
+        Ragdoll::BloodFlow rivulet{{0,0,90},{1,0,0},{}};
+        for(int i=0;i<10;++i)
+            require(Ragdoll::advanceBloodFlow(rivulet,.1f,wall)==Ragdoll::BloodFlowResult::Attached,
+                "Blood did not follow a vertical surface");
+        require(rivulet.mPosition.z()<85 && std::abs(rivulet.mPosition.x())<.001f,
+            "Gravity did not move the rivulet down the contacted wall");
+        bool fell=false;
+        for(int i=0;i<40 && !fell;++i)
+            fell=Ragdoll::advanceBloodFlow(rivulet,.1f,wall)==Ragdoll::BloodFlowResult::Detached;
+        require(fell && rivulet.mPosition.z()>=0, "Flow did not detach at the wall edge");
+        Ragdoll::BloodFlow ceiling{{0,0,100},{0,0,-1},{}};
+        require(Ragdoll::advanceBloodFlow(ceiling,.1f,wall)==Ragdoll::BloodFlowResult::Attached
+            && Ragdoll::advanceBloodFlow(ceiling,.1f,wall)==Ragdoll::BloodFlowResult::Detached,
+            "Ceiling blood did not detach under gravity");
+        Ragdoll::BloodFlow flat{{0,0,0},{0,0,1},{}};
+        require(Ragdoll::advanceBloodFlow(flat,.1f,wall)==Ragdoll::BloodFlowResult::Settled,
+            "Stationary blood on a level surface did not settle");
+        const Ragdoll::BloodFlowRay slope=[](const auto& a,const auto& b,auto& point,auto& normal) {
+            const float from=a.z()-.5f*a.x(), to=b.z()-.5f*b.x();
+            if(std::abs(from-to)<.0001f) return false;
+            const float t=from/(from-to);
+            if(t<0 || t>1) return false;
+            point=a+(b-a)*t;normal={-.4472136f,0,.8944272f};return true;
+        };
+        Ragdoll::BloodFlow sloped{{30,0,15},{-.4472136f,0,.8944272f},{}};
+        for(int i=0;i<10;++i)
+            require(Ragdoll::advanceBloodFlow(sloped,.1f,slope)==Ragdoll::BloodFlowResult::Attached,
+                "Blood did not remain on a sloping receiver");
+        require(sloped.mPosition.x()<25 && std::abs(sloped.mPosition.z()-.5f*sloped.mPosition.x())<.01f,
+            "Gravity did not carry blood downhill on the slope");
+        std::cout<<"PASS surface flow downhill, wall edge detachment, ceiling drip and level settling\n";
+    }
+
+    void outdoorVisualCollisionFallback()
+    {
+        using Trail=MWRender::BloodTrail;
+        const std::vector<osg::Vec3f> wall{ {0,-20,0},{0,20,0},{0,20,30}, {0,-20,0},{0,20,30},{0,-20,30} };
+        auto collider=wall;
+        for(auto& point:collider) point.x()=1;
+        const auto floor=floorSnapshot({},1000);
+        collider.insert(collider.end(),floor.begin(),floor.end());
+        const auto surface=Trail::combineSurfaces(Trail::visualSurface(wall),Trail::collisionSurface(collider));
+        osg::Vec3f point,normal;
+        require(surface.mRaycast({10,0,10},{-10,0,10},point,normal) && std::abs(point.x())<.01f,
+            "Outdoor blood chose an offset collision box over its visible wall");
+        require(!surface.mProjector(point,normal,3).empty(), "Visible outdoor wall could not receive a projected stain");
+        require(surface.mRaycast({10,0,10},{10,0,-10},point,normal) && std::abs(point.z())<.01f,
+            "Outdoor visible meshes suppressed the collision-based terrain fallback");
+        require(!surface.mProjector(point,normal,3).empty(), "Outdoor terrain fallback could not receive a stain");
+        for(auto& v:collider) if(v.x()==1) v.x()=8;
+        const auto obstructed=Trail::combineSurfaces(Trail::visualSurface(wall),Trail::collisionSurface(collider));
+        require(obstructed.mRaycast({10,0,10},{-10,0,10},point,normal) && std::abs(point.x()-8)<.01f,
+            "Outdoor fallback allowed a stain through a nearer solid obstacle");
+        std::cout<<"PASS outdoor visible-mesh preference, collision terrain fallback and nearer obstacle\n";
+    }
+
+    void surfaceFlowFromActualDrops()
+    {
+        using Trail=MWRender::BloodTrail;
+        const std::vector<osg::Vec3f> wall{ {0,-100,0},{0,100,0},{0,100,100},
+            {0,-100,0},{0,100,100},{0,-100,100} };
+        auto geometry=wall;
+        const auto floor=floorSnapshot({},1000);
+        geometry.insert(geometry.end(),floor.begin(),floor.end());
+        const auto surface=Trail::visualSurface(geometry);
+        osg::ref_ptr<osg::Group> root=new osg::Group;
+        std::vector<MWRender::BloodStamp> marks;
+        Trail spray(*root,surface.mRaycast,[&](const auto& stamp) {marks.push_back(stamp);},surface.mProjector);
+        const std::vector<Trail::Source> source{{{4,0,40},{-1,0,0},1,false}};
+        for(int frame=0;frame<240;++frame)
+            spray.update(1.f/60,frame<15?source:std::vector<Trail::Source>{},1,frame/60.f);
+        bool wallImpact=false, lowerWall=false, floorPool=false;
+        for(const auto& mark:marks)
+        {
+            if(std::abs(mark.mCenter.x())<.01f && mark.mNormal.x()>.8f)
+            {
+                wallImpact=true;
+                if(mark.mCenter.z()<25) lowerWall=true;
+            }
+            if(mark.mPool && std::abs(mark.mCenter.z())<.01f) floorPool=true;
+        }
+        require(wallImpact && lowerWall && floorPool,
+            "Wall impacts did not produce descending marks and pooled blood on the floor");
+        std::cout<<"PASS actual droplet impacts, downhill wall traces, edge falls and floor pools\n";
+    }
+
     void bloodDensityAndLoading()
     {
         osg::ref_ptr<osg::Group> root=new osg::Group;
@@ -475,6 +583,36 @@ namespace
             s.mTriangles={center-x-y+z,center+x-y+z,center+x+y+z,center-x-y+z,center+x+y+z,center-x+y+z};
             return s;
         };
+        {
+            osg::ref_ptr<osg::Group> proceduralRoot = new osg::Group;
+            MWRender::BloodDecals procedural(*proceduralRoot);
+            procedural.setCellActive("room", true);
+            for (int i = 0; i < 1000; ++i) procedural.add("room", stamp({}, unsigned(i + 1)));
+            require(procedural.size() == 4, "Procedural stains piled up on one surface");
+            procedural.add("room", stamp({24,0,0}, 1));
+            procedural.add("room", stamp({0,0,10}, 1));
+            procedural.add("other-room", stamp({}, 1));
+            require(procedural.size() == 7, "Procedural density limit erased another surface or cell");
+            auto dense = procedural.saveState();
+            for (int i=0; i<100; ++i) dense.push_back(dense.front());
+            procedural.restoreState(dense);
+            require(procedural.size() == 7, "Loaded procedural stains bypassed the density limit");
+            procedural.clear();
+            auto pool=stamp({},MWRender::BloodStamp::ProceduralPoolSeed);
+            pool.mPool=true;
+            procedural.add("room",pool);
+            auto larger=pool;larger.mRadius=12;
+            for (auto& point:larger.mTriangles) {point.x()*=1.5f;point.y()*=1.5f;}
+            procedural.add("room",larger);
+            require(procedural.size()==1 && procedural.saveState().front().mStamp.mRadius==12,
+                "A growing pool stacked multiple decals instead of replacing its footprint");
+            const auto pooled=procedural.getSaveRecord();
+            procedural.clear();procedural.loadSaveRecord(pooled);
+            require(procedural.size()==1 && procedural.saveState().front().mStamp.mPool,
+                "A procedural pool disappeared after save and load");
+            procedural.update(601,600);
+            require(procedural.size()==0,"A procedural pool survived its configured lifetime");
+        }
         for (int i=0;i<1000;++i) blood.add("room",stamp({},8));
         require(blood.size()==2,"Identical blood splatters stacked without a local density limit");
         blood.add("room",stamp({},4));
@@ -543,13 +681,21 @@ namespace
         budget.setFrame(100);
         for (auto& client:clients) client->mPending=false;
         require(!budget.take(clients[0]),"An empty blood queue consumed projection work");
+        for (auto& client:clients) client->mFlowPending=true;
+        budget.setFrame(101);
+        for (unsigned i=0;i<20;++i)
+            require(budget.takeFlow(clients[i%clients.size()]) == (i<Budget::MaxFlowQueries),
+                "Surface-flow queries exceeded their shared limit or lost fairness");
+        budget.setFrame(102);
+        require(budget.takeFlow(clients[1]),"Flow-query budget did not recover on the next frame");
 
         osg::ref_ptr<osg::Group> root=new osg::Group;
         auto shared=std::make_shared<Budget>();
         const auto surface=MWRender::BloodTrail::visualSurface(floorSnapshot({},1000));
         unsigned deposits=0;
         MWRender::BloodTrail trail(*root,surface.mRaycast,[&](const auto& stamp) {
-            require(!stamp.mPool,"Queued blood generated an untextured pool");++deposits;
+            require(!stamp.mPool || stamp.mVisualSeed==MWRender::BloodStamp::ProceduralPoolSeed,
+                "Projection queue generated an invalid legacy pool");++deposits;
         },surface.mProjector,{},shared);
         const std::vector<MWRender::BloodTrail::Source> sources{{{0,0,20},{0,0,-1},1,true,true}};
         for (unsigned frame=0;frame<120;++frame)
@@ -559,7 +705,8 @@ namespace
         }
         require(deposits>0,"Budgeted flying blood never left floor decals");
         shared->setFrame(121);trail.update(1.f/60,sources,0,2);
-        require(trail.particleCount()==0 && trail.queuedImpacts()==0,"Blood amount 0 retained live fountain work");
+        require(trail.particleCount()==0 && trail.queuedImpacts()==0 && !trail.hasPendingSurfaceFlow(),
+            "Blood amount 0 retained live fountain work");
         const auto stopped=deposits;
         for (unsigned frame=122;frame<150;++frame) {shared->setFrame(frame);trail.update(1.f/60,{},0,frame/60.f);}
         require(deposits==stopped,"Disabled blood continued projecting decals");
@@ -2290,6 +2437,9 @@ int main(int argc, char** argv)
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
         bloodReceiversAndSprites();
+        proceduralSurfaceFlow();
+        outdoorVisualCollisionFallback();
+        surfaceFlowFromActualDrops();
         BrutalTextureTests::run();
         bloodFlightDuringReceiverBuild();
         organicBloodRules();

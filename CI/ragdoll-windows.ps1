@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.1'
+$ragdollVersion = '1.2-procedural.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -132,16 +132,7 @@ switch ($Phase) {
         )
         Run 'cmake' ($options + $common) 'configure.log'
         Assert-GoreAssets $build
-        # Resource lists are explicit. Fail before compiling if installation
-        # would omit artwork or a shader needed by the blood renderer.
-        $bloodAssets = Get-Content (Join-Path $PSScriptRoot 'brutal-blood-dds-sha256.json') -Raw | ConvertFrom-Json
-        foreach ($asset in $bloodAssets.PSObject.Properties) {
-            $assetPath = Join-Path $build ("resources/vfs/textures/brutal/blood/" + $asset.Name)
-            if (-not (Test-Path $assetPath)) { throw "Blood DDS absent after configure: $($asset.Name)" }
-            if ((Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.Value) {
-                throw "Configured blood DDS differs from the uploaded original: $($asset.Name)"
-            }
-        }
+        # The procedural blood shader requires no packaged blood DDS files.
         foreach ($shader in @('brutalblood_shadow.vert', 'brutalblood_shadow.frag')) {
             $assetPath = Join-Path $build "resources/shaders/compatibility/$shader"
             if (-not (Test-Path $assetPath)) { throw "Blood shader absent after configure: $shader" }
@@ -179,14 +170,14 @@ switch ($Phase) {
         foreach ($required in @('openmw.exe', 'defaults.bin', 'openmw.cfg', 'resources', 'LICENSE.txt', 'SDL2.dll', 'MyGUIEngine.dll')) {
             if (-not (Test-Path (Join-Path $install $required))) { throw "Incomplete package: $required is missing." }
         }
-        # Check the exact uploaded DXT5 artwork after installation, including
-        # original filenames containing spaces and parentheses.
-        $bloodAssets = Get-Content (Join-Path $PSScriptRoot 'brutal-blood-dds-sha256.json') -Raw | ConvertFrom-Json
-        foreach ($asset in $bloodAssets.PSObject.Properties) {
-            $assetPath = Join-Path $install ("resources/vfs/textures/brutal/blood/" + $asset.Name)
-            if (-not (Test-Path $assetPath)) { throw "Missing blood DDS: $($asset.Name)" }
-            if ((Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.Value) {
-                throw "Blood DDS differs from the uploaded original: $($asset.Name)"
+        $bloodDir = Join-Path $install 'resources/vfs/textures/brutal/blood'
+        if (Test-Path $bloodDir) {
+            # Incremental builds can retain resources removed from CMake's
+            # list. Remove only old generated blood textures from the package.
+            $legacyBlood = @(Get-ChildItem $bloodDir -Filter '*.dds' -File -ErrorAction SilentlyContinue)
+            foreach ($file in $legacyBlood) { Remove-Item $file.FullName -Force }
+            if (@(Get-ChildItem $bloodDir -Filter '*.dds' -File -ErrorAction SilentlyContinue).Count -gt 0) {
+                throw 'Legacy blood textures are still present in the package.'
             }
         }
         foreach ($shader in @('brutalblood_shadow.vert', 'brutalblood_shadow.frag')) {
@@ -270,9 +261,10 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Version 1.1 includes the five supplied corpse and cut DDS textures: burnt, poisoned, cut_limb, cut_body_torso and sliced_body. Periodic stochastic coatings avoid regular tiled patterns. Elliptical limb/waist meshes and anatomy-aligned left/right longitudinal UVs avoid opaque image backdrops. Wound materials receive actual world ambient/sun/point lighting and shadows.
-The current version doubles the visible burnt/poisoned pattern size. Fire/frost dismemberment no longer emits blood from wounds or lethal enchanted-weapon hits, including after save/load and after the fire effect expires. Ordinary, poison and shock bleeding are retained.
-Successful two-handed hammer torso dismemberment randomly detaches 3-5 distinct arms/legs/head, keeping the waist intact and applying the configured dismemberment chance.
+This experimental build uses procedural blood sprites and stains, with gravity-driven
+surface flow and growing pools. Visible receiver meshes supplement collision-backed
+outdoor terrain. Original corpse/cut materials remain included. Surface behavior,
+performance and compatibility must still be checked in the actual game.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

@@ -9,6 +9,7 @@
 #include <osg/Image>
 #include <osg/Texture2D>
 #include <components/esm3/brutalbloodstate.hpp>
+#include <components/ragdoll/bloodflow.hpp>
 #include <cstdint>
 #include <array>
 #include <list>
@@ -27,26 +28,30 @@ namespace MWRender
     {
     public:
         static constexpr unsigned MaxJobs = 4;
+        static constexpr unsigned MaxFlowQueries = 16;
         static constexpr double MaxMilliseconds = 1.5;
-        struct Client { bool mPending=false; };
+        struct Client { bool mPending=false, mFlowPending=false; };
         using Frame = std::function<std::uint64_t()>;
         explicit BloodProjectionBudget(Frame frame = {}) : mFrame(std::move(frame)) {}
         std::shared_ptr<Client> addClient();
         void setFrame(std::uint64_t frame) { mManualFrame=frame; }
         bool take(const std::shared_ptr<Client>& client);
+        bool takeFlow(const std::shared_ptr<Client>& client);
         void complete(double milliseconds) { mSpent+=milliseconds; }
         unsigned jobs() const { return mJobs; }
     private:
         Frame mFrame;
         std::vector<std::weak_ptr<Client>> mClients;
         std::uint64_t mLastFrame=~std::uint64_t(0), mManualFrame=0;
-        std::size_t mCursor=0;
-        unsigned mJobs=0;
+        std::size_t mCursor=0, mFlowCursor=0;
+        unsigned mJobs=0, mFlowJobs=0;
         double mSpent=0;
+        void refreshFrame();
     };
 
     struct BloodStamp
     {
+        static constexpr std::uint32_t ProceduralPoolSeed = 0x42504f4fu;
         using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
         osg::Vec3f mCenter, mNormal;
         std::vector<osg::Vec3f> mTriangles;
@@ -165,9 +170,11 @@ namespace MWRender
         static Raycast collisionRaycast(const std::vector<osg::Vec3f>& triangles);
         static Surface visualSurface(const std::vector<osg::Vec3f>& triangles);
         static Surface collisionSurface(const std::vector<osg::Vec3f>& triangles);
+        static Surface combineSurfaces(Surface visual, Surface collision);
         ~BloodTrail();
         void update(float duration, const std::vector<Source>& sources, float amount, float age);
         std::size_t particleCount() const { return mDrops.size(); }
+        bool hasPendingSurfaceFlow() const { return !mFlows.empty() || !mPools.empty(); }
         std::size_t emittedCount() const { return mEmitted; }
         std::size_t queuedImpacts() const { return mImpacts.size(); }
 
@@ -193,8 +200,21 @@ namespace MWRender
         std::function<bool()> mReady;
         Deposit mDeposit;
         std::vector<Drop> mDrops;
+        struct Flow
+        {
+            Ragdoll::BloodFlow mState;
+            osg::Vec3f mLastMark;
+            float mAccumulator = 0, mLifetime = 0, mSize = 1;
+        };
+        std::vector<Flow> mFlows;
+        struct Pool
+        {
+            osg::Vec3f mCenter, mNormal;
+            float mVolume = 0, mQueuedRadius = 0, mSinceQueue = 0, mIdle = 0;
+        };
+        std::vector<Pool> mPools;
         std::vector<float> mRemainders;
-        struct Impact { osg::Vec3f mPosition,mNormal; float mRadius=1,mAge=0; };
+        struct Impact { osg::Vec3f mPosition,mNormal; float mRadius=1,mAge=0; bool mPool=false; };
         std::deque<Impact> mImpacts;
         std::shared_ptr<BloodProjectionBudget> mBudget;
         std::shared_ptr<BloodProjectionBudget::Client> mBudgetClient;
@@ -203,7 +223,7 @@ namespace MWRender
         std::size_t mEmitted = 0;
         unsigned mRandom = 0x91a37u;
         float random();
-        void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius);
+        void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool=false);
     };
 
     osg::ref_ptr<osg::StateSet> createWetGoreState(bool decal = false);

@@ -1568,23 +1568,11 @@ namespace MWRender
                         const auto cellId = mPtr.getCell()->getCell()->getId().serializeText();
                         MWBase::Environment::get().getWorld()->getRenderingManager()->addBloodDecal(cellId, stamp);
                     };
-                    if (!mPtr.getCell()->isExterior()) config.mBloodSurface = [this](const osg::Vec3f& center, float radius) {
+                    config.mBloodSurface = [this](const osg::Vec3f& center, float radius) {
                         if (!mPtr.isInCell()) return BloodTrail::Surface{};
                         return MWBase::Environment::get().getWorld()->getRenderingManager()->getBloodSurface(mPtr.getCell(), center, radius);
                     };
                 }
-                const int bloodType = config.mNpc ? mPtr.get<ESM::NPC>()->mBase->mBloodType : 0;
-                config.mBloodEffect = [bloodType](const osg::Vec3f& position) {
-                    MWBase::World* world = MWBase::Environment::get().getWorld();
-                    const auto& gmst = world->getStore().get<ESM::GameSetting>();
-                    const auto* model = gmst.search("Blood_Model_0");
-                    const auto* texture = gmst.search("Blood_Texture_" + std::to_string(bloodType));
-                    if (!texture || texture->mValue.getString().empty())
-                        texture = gmst.search("Blood_Texture_0");
-                    if (model && texture)
-                        world->spawnEffect(VFS::Path::Normalized("meshes/" + model->mValue.getString()),
-                            texture->mValue.getString(), position, 1.f, false, false);
-                };
                 config.mReferenceHeight = settings.mReferenceHeight;
                 if (mPtr.getType() == ESM::Creature::sRecordId)
                 {

@@ -106,7 +106,7 @@ jobs:
           retention-days: 30
 
       - name: Publish the downloadable prerelease
-        if: steps.tests.outcome == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || github.ref == 'refs/heads/experimental/ragdoll-brutal-1.1')
+        if: steps.tests.outcome == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.publish_release) || github.ref == 'refs/heads/experimental/ragdoll-procedural-blood')
         run: |
           ./CI/ragdoll-report.ps1 -Stage publish -Result running
           ./CI/ragdoll-windows.ps1 -Phase Publish

@@ -198,6 +198,7 @@ int main(int argc, char** argv)
         require(program && program->getNumShaders() == 4, "Native factory did not replace blood's fallback shadow libraries");
         viewer.setSceneData(root); viewer.realize();
 
+        if(argc>2 && std::string(argv[2])=="procedural") {BloodDDS::procedural(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="dds") {BloodDDS::materials(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="gore") {BloodDDS::gore(viewer,reversed);return 0;}
         if(argc>2 && std::string(argv[2])=="spray") {BloodDDS::spray(viewer,reversed);return 0;}

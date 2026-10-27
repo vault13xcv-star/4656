@@ -140,6 +140,19 @@ int main(int argc, char** argv)
                 "Aging uploaded another copy of the blood vertex buffer");
             blood.update(600, 600); check(read() == baseline, "Expired blood left a visible overlay");
 
+            MWRender::BloodStamp pool;
+            pool.mCenter={-30,0,40};pool.mNormal={0,-1,0};pool.mRadius=15;
+            pool.mPool=true;pool.mVisualSeed=MWRender::BloodStamp::ProceduralPoolSeed;
+            pool.mTriangles={{-45,0,25},{-15,0,25},{-15,0,55}, {-45,0,25},{-15,0,55},{-45,0,55}};
+            blood.add("test",pool);blood.update(.1f,600);
+            const auto poolPixels=read();
+            unsigned poolVisible=0;
+            for(std::size_t i=0;i<poolPixels.size();i+=3)
+                if(poolPixels[i]>baseline[i]+10 && poolPixels[i]>poolPixels[i+1]+10) ++poolVisible;
+            check(poolVisible>200,"Procedural pooled blood is invisible or its shader failed");
+            blood.clear();check(read()==baseline,"Procedural pool leaked after cleanup");
+            blood.setCellActive("test",true);
+
             // Exercise an actual full GPU cache while eight wounds continue to
             // bleed. This crosses the eviction threshold repeatedly, rather
             // than checking only the first splat on a single corpse.

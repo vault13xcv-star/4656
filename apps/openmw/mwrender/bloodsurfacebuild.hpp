@@ -11,13 +11,14 @@ namespace MWRender
     class BloodSurfaceBuild final : public SceneUtil::WorkItem
     {
     public:
-        explicit BloodSurfaceBuild(std::vector<osg::Vec3f> triangles) : mTriangles(std::move(triangles)) {}
+        explicit BloodSurfaceBuild(std::vector<osg::Vec3f> triangles, BloodTrail::Surface fallback = {})
+            : mTriangles(std::move(triangles)), mFallback(std::move(fallback)) {}
         void doWork() override
         {
             if (!mAborted.load())
             {
                 auto surface=BloodTrail::visualSurface(mTriangles);
-                if (!mAborted.load()) mSurface=std::move(surface);
+                if (!mAborted.load()) mSurface=BloodTrail::combineSurfaces(std::move(surface),std::move(mFallback));
             }
             std::vector<osg::Vec3f>().swap(mTriangles);
         }
@@ -26,6 +27,7 @@ namespace MWRender
     private:
         std::vector<osg::Vec3f> mTriangles;
         BloodTrail::Surface mSurface;
+        BloodTrail::Surface mFallback;
         std::atomic_bool mAborted{false};
     };
 }

@@ -8,12 +8,6 @@ set(BUILTIN_DATA_FILES
     textures/brutal/gore/cut_limb.dds
     textures/brutal/gore/sliced_body.dds
     textures/brutal/gore/cut_body_torso.dds
-    "textures/brutal/blood/floor (1).dds"
-    "textures/brutal/blood/floor (2).dds"
-    "textures/brutal/blood/floor (3).dds"
-    "textures/brutal/blood/wall (1).dds"
-    "textures/brutal/blood/wall (2).dds"
-    "textures/brutal/blood/walll.dds"
     textures/omw_map_color_palette.dds
     textures/omw_menu_scroll_down.dds
     textures/omw_menu_scroll_up.dds

@@ -746,7 +746,8 @@ namespace MWRender
             }
             std::erase_if(mBloodBursts, [](const auto& burst) {
                 return burst.mAge>burst.mEmissionDuration
-                    && ((!burst.mTrail->particleCount() && !burst.mTrail->queuedImpacts())
+                    && ((!burst.mTrail->particleCount() && !burst.mTrail->queuedImpacts()
+                            && !burst.mTrail->hasPendingSurfaceFlow())
                         || burst.mAge>burst.mEmissionDuration+BloodTrail::MaxDropAge+BloodTrail::MaxPendingAge+.25f);
             });
             mSky->update(dt);
@@ -1254,15 +1255,18 @@ namespace MWRender
         };
         const auto captureCenter = reusable == mBloodSurfaceSnapshots.end() ? center : reusable->mCenter;
         const float captureRadius = reusable == mBloodSurfaceSnapshots.end() ? radius + 128.f : reusable->mRadius;
-        auto triangles = cell->isExterior()
+        const auto collisionTriangles = cell->isExterior()
             ? MWBase::Environment::get().getWorld()->getRagdollCollisionTriangles(captureCenter, captureRadius)
-            : collectBloodSurfaceTriangles(*mSceneRoot, captureCenter, captureRadius, filter, mViewer->getFrameStamp(), false);
-        if (triangles.empty()) return {};
-        auto surface = cell->isExterior() ? BloodTrail::collisionSurface(triangles) : BloodTrail::Surface{};
+            : std::vector<osg::Vec3f>{};
+        // Terrain collision remains available over the full range; cap the
+        // more expensive exterior visible-mesh scan around the source.
+        const float visualRadius=cell->isExterior()?std::min(captureRadius,512.f):captureRadius;
+        auto triangles = collectBloodSurfaceTriangles(*mSceneRoot, captureCenter, visualRadius, filter, mViewer->getFrameStamp(), false);
+        auto surface = cell->isExterior() ? BloodTrail::collisionSurface(collisionTriangles) : BloodTrail::Surface{};
         osg::ref_ptr<BloodSurfaceBuild> build;
-        if (!cell->isExterior())
+        if (!triangles.empty())
         {
-            build=new BloodSurfaceBuild(std::move(triangles));
+            build=new BloodSurfaceBuild(std::move(triangles),surface);
             mWorkQueue->addWorkItem(build,/*front=*/true);
         }
         if (cell->isExterior() && mBloodSurfaceTime - mBloodSurfaceWarningTime >= 10)
@@ -1274,7 +1278,7 @@ namespace MWRender
                 mBloodSurfaceWarningTime = mBloodSurfaceTime;
                 Log(Debug::Warning) << "Brutal Morrowind: exterior blood ground probe missed; cell="
                     << cell->getCell()->getId().serializeText() << " position=" << center.x() << ',' << center.y() << ',' << center.z()
-                    << " radius=" << captureRadius << " receiver triangles=" << triangles.size() / 3;
+                    << " radius=" << captureRadius << " receiver triangles=" << collisionTriangles.size() / 3;
             }
         }
         if (!surface && !build) return {};
