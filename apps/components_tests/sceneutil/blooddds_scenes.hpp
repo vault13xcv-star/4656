@@ -187,8 +187,9 @@ namespace BloodDDS
             Scene scene(viewer,reversed,floor);
             MWRender::BloodDecals blood(*scene.mRoot);
             blood.setCellActive("procedural",true);
+            constexpr std::array<unsigned,4> seeds{0x17a51d3u,0x283a9e7u,0x3fa64b1u,0x522ba21u};
             for(unsigned i=0;i<4;++i)
-                blood.add("procedural",quad(floor,{float(i)*100-150,0,floor?0.f:50.f},42,i+1));
+                blood.add("procedural",quad(floor,{float(i)*100-150,0,floor?0.f:50.f},42,seeds[i]));
             if(floor)
                 blood.add("procedural",quad(true,{0,80,0},35,MWRender::BloodStamp::ProceduralPoolSeed,true));
             blood.update(.1f,600);
@@ -211,6 +212,36 @@ namespace BloodDDS
             const auto lit=scene.read();
             unsigned long litEnergy=0;for(auto value:lit)litEnergy+=value;
             require(litEnergy>darkEnergy*3,"Procedural blood did not react to sunlight");
+        }
+        {
+            // Exercise actual rendered moving liquid, not just simulation
+            // coordinates or the presence of a surface-stain shader.
+            Scene scene(viewer,reversed,false);
+            scene.camera(false,65);
+            const std::vector<osg::Vec3f> wall{{-100,0,0},{100,0,100},{100,0,0},
+                {-100,0,0},{-100,0,100},{100,0,100}};
+            auto surface=MWRender::BloodTrail::visualSurface(wall);
+            MWRender::BloodTrail trail(*scene.mRoot,surface.mRaycast,[](const auto&) {},surface.mProjector);
+            const std::vector<MWRender::BloodTrail::Source> source{{{0,-3,70},{0,1,0},1,false}};
+            trail.update(.1f,source,1,0);
+            for(int i=0;i<10;++i)trail.update(1.f/60,{},1,(i+1)/60.f);
+            require(trail.flowCount()>0,"Wall impact did not create surface liquid");
+            const auto first=scene.read("surface-flow-before");
+            for(int i=0;i<35;++i)trail.update(1.f/60,{},1,(i+11)/60.f);
+            require(trail.flowCount()>0,"Surface liquid expired before the visibility test");
+            const auto second=scene.read("surface-flow-after");
+            const auto centroid=[](const auto& pixels) {
+                double weighted=0,weight=0;
+                for(int y=0;y<Height;++y)for(int x=0;x<Width;++x)
+                {
+                    const auto i=(y*Width+x)*3;
+                    const float red=std::max(0,int(pixels[i])-int(pixels[i+1])-3);
+                    weighted+=y*red;weight+=red;
+                }
+                require(weight>20,"Moving surface liquid did not render in the framebuffer");
+                return weighted/weight;
+            };
+            require(centroid(second)+5<centroid(first),"Rendered surface liquid did not visibly move down the wall");
         }
         std::cout<<"PASS procedural wall/floor blood and pooled footprint under actual native light and darkness\n";
     }

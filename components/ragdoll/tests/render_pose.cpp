@@ -565,6 +565,62 @@ namespace
         std::cout<<"PASS actual droplet impacts, downhill wall traces, edge falls and floor pools\n";
     }
 
+    void visibleSurfaceFlowAndCeilingDrips()
+    {
+        using Trail=MWRender::BloodTrail;
+        auto scene=floorSnapshot({},1000);
+        const std::vector<osg::Vec3f> wall{{0,-100,0},{0,100,0},{0,100,100},
+            {0,-100,0},{0,100,100},{0,-100,100}};
+        scene.insert(scene.end(),wall.begin(),wall.end());
+        const auto surface=Trail::visualSurface(scene);
+        osg::ref_ptr<osg::Group> root=new osg::Group;
+        std::vector<MWRender::BloodStamp> marks;
+        Trail spray(*root,surface.mRaycast,[&](const auto& stamp) {marks.push_back(stamp);},surface.mProjector);
+        const std::vector<Trail::Source> source{{{4,0,70},{-1,0,0},1,false}};
+        bool visibleFlow=false, falling=false;
+        for(int frame=0;frame<500;++frame)
+        {
+            spray.update(1.f/60,frame<6?source:std::vector<Trail::Source>{},1,frame/60.f);
+            auto* transform=root->getChild(0)->asGroup();
+            auto* geode=dynamic_cast<osg::Geode*>(transform->getChild(0));
+            auto* geom=dynamic_cast<osg::Geometry*>(geode->getDrawable(0));
+            if (spray.flowCount())
+            {
+                require(geom->getVertexArray()->getNumElements()==4*(spray.particleCount()+spray.flowCount()),
+                    "Surface flow is simulated but has no visible moving sprite");
+                visibleFlow=true;
+            }
+            if (visibleFlow && !spray.flowCount() && spray.particleCount()) falling=true;
+        }
+        require(visibleFlow && falling,"A wall flow did not visibly move and fall from an edge");
+        require(std::any_of(marks.begin(),marks.end(),[](const auto& mark) {
+            return (mark.mVisualSeed & MWRender::BloodStamp::FlowSeedMask)==MWRender::BloodStamp::FlowSeed;
+        }),"Moving wall blood left no differentiated narrow trace");
+
+        auto ceilingScene=floorSnapshot({},1000);
+        const std::vector<osg::Vec3f> ceiling{{-100,-100,30},{100,100,30},{100,-100,30},
+            {-100,-100,30},{-100,100,30},{100,100,30}};
+        ceilingScene.insert(ceilingScene.end(),ceiling.begin(),ceiling.end());
+        const auto ceilingSurface=Trail::visualSurface(ceilingScene);
+        osg::ref_ptr<osg::Group> ceilingRoot=new osg::Group;
+        std::vector<MWRender::BloodStamp> ceilingMarks;
+        Trail drip(*ceilingRoot,ceilingSurface.mRaycast,[&](const auto& mark) {ceilingMarks.push_back(mark);},ceilingSurface.mProjector);
+        const std::vector<Trail::Source> upwards{{{0,0,26},{0,0,1},1,false}};
+        bool ceilingAttached=false, ceilingFell=false;
+        for(int frame=0;frame<240;++frame)
+        {
+            drip.update(1.f/60,frame<5?upwards:std::vector<Trail::Source>{},1,frame/60.f);
+            ceilingAttached|=drip.flowCount()>0;
+            if(ceilingAttached && !drip.flowCount() && drip.particleCount()) ceilingFell=true;
+        }
+        const bool floorHit=std::any_of(ceilingMarks.begin(),ceilingMarks.end(),[](const auto& mark) {
+            return mark.mNormal.z()>.7f && std::abs(mark.mCenter.z())<.1f;
+        });
+        require(ceilingAttached && ceilingFell && floorHit,
+            "Ceiling impact failed to detach a droplet and leave a floor mark");
+        std::cout<<"PASS visible moving wall liquid, narrow trace, wall-edge fall and ceiling drip to floor\n";
+    }
+
     void bloodDensityAndLoading()
     {
         osg::ref_ptr<osg::Group> root=new osg::Group;
@@ -2440,6 +2496,7 @@ int main(int argc, char** argv)
         proceduralSurfaceFlow();
         outdoorVisualCollisionFallback();
         surfaceFlowFromActualDrops();
+        visibleSurfaceFlowAndCeilingDrips();
         BrutalTextureTests::run();
         bloodFlightDuringReceiverBuild();
         organicBloodRules();

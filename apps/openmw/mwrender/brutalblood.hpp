@@ -52,6 +52,8 @@ namespace MWRender
     struct BloodStamp
     {
         static constexpr std::uint32_t ProceduralPoolSeed = 0x42504f4fu;
+        static constexpr std::uint32_t FlowSeed = 0x7c000000u;
+        static constexpr std::uint32_t FlowSeedMask = 0xff000000u;
         using Projector = std::function<std::vector<osg::Vec3f>(const osg::Vec3f&, const osg::Vec3f&, float)>;
         osg::Vec3f mCenter, mNormal;
         std::vector<osg::Vec3f> mTriangles;
@@ -148,6 +150,7 @@ namespace MWRender
         static constexpr unsigned MaxQueuedImpacts = 32;
         static constexpr unsigned MaxProjectionsPerUpdate = 2;
         static constexpr float MaxPendingAge = .5f;
+        static constexpr float MaxFlowAge = 8.f;
         using Raycast = std::function<bool(const osg::Vec3f&, const osg::Vec3f&, osg::Vec3f&, osg::Vec3f&)>;
         using Deposit = std::function<void(const BloodStamp&)>;
         using Projector = BloodStamp::Projector;
@@ -174,6 +177,7 @@ namespace MWRender
         ~BloodTrail();
         void update(float duration, const std::vector<Source>& sources, float amount, float age);
         std::size_t particleCount() const { return mDrops.size(); }
+        std::size_t flowCount() const { return mFlows.size(); }
         bool hasPendingSurfaceFlow() const { return !mFlows.empty() || !mPools.empty(); }
         std::size_t emittedCount() const { return mEmitted; }
         std::size_t queuedImpacts() const { return mImpacts.size(); }
@@ -214,7 +218,7 @@ namespace MWRender
         };
         std::vector<Pool> mPools;
         std::vector<float> mRemainders;
-        struct Impact { osg::Vec3f mPosition,mNormal; float mRadius=1,mAge=0; bool mPool=false; };
+        struct Impact { osg::Vec3f mPosition,mNormal; float mRadius=1,mAge=0; bool mPool=false,mFlow=false; };
         std::deque<Impact> mImpacts;
         std::shared_ptr<BloodProjectionBudget> mBudget;
         std::shared_ptr<BloodProjectionBudget::Client> mBudgetClient;
@@ -223,7 +227,7 @@ namespace MWRender
         std::size_t mEmitted = 0;
         unsigned mRandom = 0x91a37u;
         float random();
-        void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool=false);
+        void stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool=false, bool flow=false);
     };
 
     osg::ref_ptr<osg::StateSet> createWetGoreState(bool decal = false);

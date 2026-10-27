@@ -748,7 +748,8 @@ namespace MWRender
                 return burst.mAge>burst.mEmissionDuration
                     && ((!burst.mTrail->particleCount() && !burst.mTrail->queuedImpacts()
                             && !burst.mTrail->hasPendingSurfaceFlow())
-                        || burst.mAge>burst.mEmissionDuration+BloodTrail::MaxDropAge+BloodTrail::MaxPendingAge+.25f);
+                        || burst.mAge>burst.mEmissionDuration+2*BloodTrail::MaxDropAge
+                            +BloodTrail::MaxFlowAge+BloodTrail::MaxPendingAge+.25f);
             });
             mSky->update(dt);
 

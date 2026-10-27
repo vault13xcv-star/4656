@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.2-procedural.1'
+$ragdollVersion = '1.2-procedural.2'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -261,10 +261,12 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-This experimental build uses procedural blood sprites and stains, with gravity-driven
-surface flow and growing pools. Visible receiver meshes supplement collision-backed
-outdoor terrain. Original corpse/cut materials remain included. Surface behavior,
-performance and compatibility must still be checked in the actual game.
+This experimental build draws moving surface drops and simulates bounded downhill
+movement and ceiling/edge falls. Surface stains and pools are still projected decals
+whose shapes are generated in a shader; pools are not simulated liquid volumes.
+Visible receiver meshes supplement collision-backed outdoor terrain. Original
+corpse/cut materials remain included. Surface behavior, performance and compatibility
+must still be checked in the actual game.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

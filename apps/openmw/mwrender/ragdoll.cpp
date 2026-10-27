@@ -684,7 +684,10 @@ namespace MWRender
                 }
                 mBlood->update(duration, sources, mSettings.mBloodAmount, mElapsed);
             }
-            if (mElapsed >= mSettings.mBleedDuration + BloodTrail::MaxDropAge + BloodTrail::MaxPendingAge + .25f)
+            if (mBlood && mElapsed >= mSettings.mBleedDuration
+                && ((!mBlood->particleCount() && !mBlood->queuedImpacts() && !mBlood->hasPendingSurfaceFlow())
+                    || mElapsed >= mSettings.mBleedDuration + 2 * BloodTrail::MaxDropAge
+                        + BloodTrail::MaxFlowAge + BloodTrail::MaxPendingAge + .25f))
             {
                 mBlood.reset();
                 mBloodColliders.clear();

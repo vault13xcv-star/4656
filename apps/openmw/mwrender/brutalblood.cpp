@@ -244,20 +244,28 @@ namespace MWRender
             "if(bloodInfo.y>.5){vec4 texel=texture2D(brutalBloodAtlas,uv);"
             "vec3 pigment=texel.rgb;"
             "c=vec4(pigment*tint.rgb,texel.a*tint.a);}"
-            "else{vec2 q=uv*2.0-1.0;bool pool=bloodInfo.y < -1.5;"
-            "float seed=pool?(-bloodInfo.y-2.0)*257.0:-bloodInfo.y*257.0;"
+            "else{vec2 q=uv*2.0-1.0;bool floorMark=bloodInfo.y < -4.0;"
+            "bool flow=bloodInfo.y < -3.0 && !floorMark;bool pool=bloodInfo.y < -1.5 && !flow && !floorMark;"
+            "float seed=floorMark?(-bloodInfo.y-4.0)*257.0:flow?(-bloodInfo.y-3.0)*257.0:pool?(-bloodInfo.y-2.0)*257.0:-bloodInfo.y*257.0;"
             "float angle=atan(q.y,q.x);float phase=rnd(seed+41.0)*6.2831853;"
-            "float edge=(pool?.82:.49)+.06*sin(angle*(3.0+floor(rnd(seed+2.0)*4.0))+phase)"
-            "+.05*sin(angle*7.0-seed*.1)+.025*sin(angle*13.0+phase*.43);"
-            "float ink=1.0-smoothstep(edge-.025,edge+.025,length(q));"
-            "for(int i=0;i<7 && bloodInfo.y > -1.5;++i){float k=float(i)+seed*11.0;"
-            "float a=rnd(k+2.0)*6.2831853;float d=.48+rnd(k+9.0)*.37;"
+            "vec2 shapeQ=q*vec2(.8+.45*rnd(seed+51.0),.8+.45*rnd(seed+64.0));"
+            "float edge=(pool?.82:floorMark?.28:.36)+.12*rnd(seed+21.0)"
+            "+.09*sin(angle*(3.0+floor(rnd(seed+2.0)*4.0))+phase)"
+            "+.06*sin(angle*(6.0+floor(rnd(seed+71.0)*5.0))-seed*.1)+.035*sin(angle*13.0+phase*.43);"
+            "float ink=1.0-smoothstep(edge-.025,edge+.025,length(shapeQ));"
+            "if(flow){float width=.18+.035*sin(q.y*8.0+phase);"
+            "ink=(1.0-smoothstep(width,width+.04,abs(q.x)))*(1.0-smoothstep(.82,.98,abs(q.y)));}"
+            "for(int i=0;i<7 && !pool && !flow;++i){float k=float(i)+seed*11.0;"
+            "float a=rnd(k+2.0)*6.2831853;float d=(floorMark?.32:.48)+rnd(k+9.0)*.37;"
             "vec2 dir=vec2(cos(a),sin(a));"
             "ink=max(ink,spot(q,dir*d,.025+rnd(k+20.0)*.065));"
             "float along=dot(q,dir);float side=abs(dot(q,vec2(-dir.y,dir.x)));"
             "float tip=.55+rnd(k+31.0)*.33;float width=.012+.02*max(0.0,1.0-along/tip);"
             "float streak=(1.0-smoothstep(width,width+.012,side))*smoothstep(.12,.2,along)"
             "*(1.0-smoothstep(tip-.03,tip+.02,along));ink=max(ink,streak); }"
+            "if(!floorMark&&!pool&&!flow){float w=.05+.02*rnd(seed+3.0);"
+            "float drips=(1.0-smoothstep(w,w+.02,abs(q.x-.18*sin(phase))))"
+            "*smoothstep(-.9,-.78,q.y)*(1.0-smoothstep(.15,.25,q.y));ink=max(ink,drips*.8);}"
             "c.rgb*=.94+.06*sin(q.x*31.0+sin(q.y*17.0)+phase)*sin(q.y*37.0+phase);c.a*=ink;}"
             "c.rgb*=1.0-.5*dry;c.a*=clamp((brutalBloodLifetime-age)/10.0,0.0,1.0);"
             "if(c.a<.003)discard;"
@@ -694,11 +702,12 @@ namespace MWRender
                 chunk.mTransform->setMatrix(osg::Matrixd::translate(osg::Vec3d(chunk.mOrigin)));
             }
             const bool floor = stamp.mNormal.z() >= .7f;
+            const auto seed = stamp.mVisualSeed;
+            const bool flow = !stamp.mPool && (seed & BloodStamp::FlowSeedMask) == BloodStamp::FlowSeed;
             const auto& tiles = floor ? mFloorTiles : mWallTiles;
             const bool textured = !stamp.mPool && mAtlas && !tiles.empty();
-            const auto seed = stamp.mVisualSeed;
             const auto tile = textured ? tiles[(seed >> 2) % tiles.size()] : osg::Vec4f(0,0,1,1);
-            const osg::Vec3f up = floor ? osg::Vec3f(0,1,0) : osg::Vec3f(0,0,1);
+            const osg::Vec3f up = floor && !flow ? osg::Vec3f(0,1,0) : osg::Vec3f(0,0,1);
             const auto vertical = unit(up - stamp.mNormal * (up * stamp.mNormal), {0,1,0});
             const auto horizontal = unit(vertical ^ stamp.mNormal, {1,0,0});
             auto* vertices = static_cast<osg::Vec3Array*>(chunk.mGeometry->getVertexArray());
@@ -721,13 +730,14 @@ namespace MWRender
                 const auto relative = vertex - stamp.mCenter;
                 float u = std::clamp(.5f + (relative * horizontal) / (stamp.mRadius * 2), 0.f, 1.f);
                 float v = std::clamp(.5f + (relative * vertical) / (stamp.mRadius * 2), 0.f, 1.f);
-                if (floor && (seed & 2)) { u = 1-u; v = 1-v; }
+                if (floor && !flow && (seed & 2)) { u = 1-u; v = 1-v; }
                 if (seed & 1) u = 1-u;
                 vertices->push_back(vertex - chunk.mOrigin); normals->push_back(normal);
                 colors->push_back(textured ? osg::Vec4f(shade,shade,shade,.94f) : osg::Vec4f(.29f,.009f,.014f,.94f));
                 coords->push_back({ tile.x()+u*(tile.z()-tile.x()), tile.y()+v*(tile.w()-tile.y()) });
+                const float phase=float((seed & 65535u)+1u)/65537.f;
                 births->push_back({ static_cast<float>(mTime-stain.mAge), textured ? 1.f : stamp.mPool
-                    ? -2.f-(poolPhase-std::floor(poolPhase)) : -float((seed & 65535u)+1u)/65536.f });
+                    ? -2.f-(poolPhase-std::floor(poolPhase)) : flow ? -3.f-phase : floor ? -4.f-phase : -phase });
             }
         }
         constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;
@@ -931,14 +941,17 @@ namespace MWRender
         return { ray, [ray](const auto& p, const auto& n, float r) { return collisionSplat(ray,p,n,r); } };
     }
 
-    void BloodTrail::stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool)
+    void BloodTrail::stamp(const osg::Vec3f& position, const osg::Vec3f& normal, float radius, bool pool, bool flow)
     {
         if (!mDeposit || !mRaycast) return;
         BloodStamp stamp;
         stamp.mCenter=position;stamp.mNormal=unit(normal);
         stamp.mPool=pool;
         stamp.mVisualSeed=pool ? BloodStamp::ProceduralPoolSeed : nextSeed(mRandom);
-        stamp.mRadius=pool ? radius : radius*3.f*(.9f+random()*.2f);
+        if (flow) stamp.mVisualSeed=BloodStamp::FlowSeed | (stamp.mVisualSeed & ~BloodStamp::FlowSeedMask);
+        else if (!pool && (stamp.mVisualSeed & BloodStamp::FlowSeedMask)==BloodStamp::FlowSeed)
+            stamp.mVisualSeed ^= 0x01000000u;
+        stamp.mRadius=pool || flow ? radius : radius*3.f*(.9f+random()*.2f);
         stamp.mTriangles=mProjector?mProjector(position,stamp.mNormal,stamp.mRadius)
             :collisionSplat(mRaycast,position,stamp.mNormal,stamp.mRadius);
         if (validStamp(stamp)) mDeposit(stamp);
@@ -987,15 +1000,15 @@ namespace MWRender
         std::erase_if(mImpacts,[](const auto& impact){return impact.mAge>MaxPendingAge;});
         unsigned splats=0;
         const bool ready=(!mDrops.empty() || !mImpacts.empty() || !mFlows.empty() || !mPools.empty()) && (!mReady || mReady());
-        const auto queueImpact = [&](const osg::Vec3f& point, const osg::Vec3f& normal, float radius, bool pool=false) {
+        const auto queueImpact = [&](const osg::Vec3f& point, const osg::Vec3f& normal, float radius, bool pool=false, bool flow=false) {
             auto same=std::find_if(mImpacts.begin(),mImpacts.end(),[&](const auto& impact) {
-                return impact.mPool==pool && (impact.mPosition-point).length2()<(pool?1.f:9.f) && impact.mNormal*normal>.98f;
+                return impact.mPool==pool && impact.mFlow==flow && (impact.mPosition-point).length2()<(pool?1.f:flow?1.f:9.f) && impact.mNormal*normal>.98f;
             });
             if (same!=mImpacts.end()) same->mRadius=std::max(same->mRadius,radius);
             else
             {
                 if (mImpacts.size()>=MaxQueuedImpacts) mImpacts.pop_front();
-                mImpacts.push_back({point,normal,radius,0,pool});
+                mImpacts.push_back({point,normal,radius,0,pool,flow});
             }
         };
         for (auto& drop:mDrops)
@@ -1035,11 +1048,12 @@ namespace MWRender
                             pool->mIdle=0;
                         }
                     }
-                    if (normal.z() < .94f && mFlows.size() < 4)
+                    if (normal.z() < .94f && mFlows.size() < 8)
                     {
-                        Ragdoll::BloodFlow flow{point,unit(normal),drop.mTraceVelocity};
-                        flow.mVelocity -= flow.mNormal * (flow.mVelocity * flow.mNormal);
-                        mFlows.push_back({flow, point, 0, 0, drop.mSize});
+                        // Impact deposits blood; gravity, not the high tangential
+                        // impact velocity, drives the subsequent slow rivulet.
+                        Ragdoll::BloodFlow flow{point,unit(normal),{}};
+                        mFlows.push_back({flow, point, 0, 0, std::max(1.5f,drop.mSize)});
                     }
                 }
                 drop.mAge=MaxDropAge+1;
@@ -1067,17 +1081,17 @@ namespace MWRender
             {
                 detached.emplace_back(flow.mState.mPosition + flow.mState.mNormal * .3f,
                     flow.mState.mVelocity + osg::Vec3f(0,0,-12), flow.mSize);
-                flow.mLifetime = 4.f;
+                flow.mLifetime = MaxFlowAge+1.f;
             }
             else if (result == Ragdoll::BloodFlowResult::Settled)
-                flow.mLifetime = 4.f;
-            else if ((flow.mState.mPosition-flow.mLastMark).length2() >= 16.f)
+                flow.mLifetime = MaxFlowAge+1.f;
+            else if ((flow.mState.mPosition-flow.mLastMark).length2() >= 4.f)
             {
-                queueImpact(flow.mState.mPosition,flow.mState.mNormal,std::max(1.f,flow.mSize));
+                queueImpact(flow.mState.mPosition,flow.mState.mNormal,std::max(3.f,flow.mSize*2.f),false,true);
                 flow.mLastMark = flow.mState.mPosition;
             }
         }
-        std::erase_if(mFlows,[](const auto& flow) { return flow.mLifetime >= 3.f; });
+        std::erase_if(mFlows,[](const auto& flow) { return flow.mLifetime >= MaxFlowAge; });
         if (mBudgetClient) mBudgetClient->mFlowPending=ready && !mFlows.empty();
         for (auto& drop : detached)
             if (mDrops.size() < MaxParticles) mDrops.push_back(std::move(drop));
@@ -1100,7 +1114,7 @@ namespace MWRender
             if (mBudget && !mBudget->take(mBudgetClient)) break;
             const auto impact=mImpacts.front();mImpacts.pop_front();
             const auto start=std::chrono::steady_clock::now();
-            stamp(impact.mPosition,impact.mNormal,impact.mRadius,impact.mPool);
+            stamp(impact.mPosition,impact.mNormal,impact.mRadius,impact.mPool,impact.mFlow);
             if (mBudget) mBudget->complete(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
             if (mBudgetClient) mBudgetClient->mPending=!mImpacts.empty();
         }
@@ -1110,25 +1124,26 @@ namespace MWRender
         auto* uv = static_cast<osg::Vec2Array*>(mGeometry->getTexCoordArray(0));
         auto* sizes = static_cast<osg::Vec2Array*>(mGeometry->getTexCoordArray(1));
         auto* indices = static_cast<osg::DrawElementsUShort*>(mGeometry->getPrimitiveSet(0));
-        if (vertices->empty() && mDrops.empty()) return;
+        if (vertices->empty() && mDrops.empty() && mFlows.empty()) return;
         vertices->clear(); normals->clear(); colors->clear(); uv->clear(); sizes->clear(); indices->clear();
         osg::BoundingBox bounds;
-        const osg::Vec3f origin = mDrops.empty() ? osg::Vec3f() : mDrops.front().mPosition;
+        const osg::Vec3f origin = !mDrops.empty() ? mDrops.front().mPosition
+            : !mFlows.empty() ? mFlows.front().mState.mPosition : osg::Vec3f();
         const std::array<osg::Vec2f, SpriteVertices> corners{
             osg::Vec2f(0, 0), osg::Vec2f(1, 0), osg::Vec2f(1, 1), osg::Vec2f(0, 1)
         };
         constexpr std::array<unsigned short, SpriteIndices> triangleIndices{ 0, 1, 2, 0, 2, 3 };
-        for (const auto& drop : mDrops)
+        const auto appendSprite = [&](const osg::Vec3f& position, const osg::Vec3f& velocity, float width, float length)
         {
-            const auto axis = unit(drop.mVelocity);
-            const osg::Vec2f size(drop.mSize, std::max(drop.mSize, std::min(8.f, drop.mVelocity.length() * .009f)));
+            const auto axis = unit(velocity, {0,0,-1});
+            const osg::Vec2f size(width, length);
             const auto base = static_cast<unsigned short>(vertices->size());
             // All four positions are the physical particle centre. The vertex
             // shader expands one textured quad in the current camera's plane,
             // stretching its long axis along the projected flight direction.
             for (const auto& corner : corners)
             {
-                vertices->push_back(drop.mPosition - origin);
+                vertices->push_back(position - origin);
                 normals->push_back(axis);
                 colors->push_back({ .26f, .007f, .028f, .94f });
                 uv->push_back(corner);
@@ -1140,8 +1155,19 @@ namespace MWRender
             // Include every possible billboard orientation in culling/light
             // selection bounds, including when viewed along its travel axis.
             const float extent = size.length();
-            bounds.expandBy(drop.mPosition - origin - osg::Vec3f(extent, extent, extent));
-            bounds.expandBy(drop.mPosition - origin + osg::Vec3f(extent, extent, extent));
+            bounds.expandBy(position - origin - osg::Vec3f(extent, extent, extent));
+            bounds.expandBy(position - origin + osg::Vec3f(extent, extent, extent));
+        };
+        for (const auto& drop : mDrops)
+            appendSprite(drop.mPosition, drop.mVelocity, drop.mSize,
+                std::max(drop.mSize, std::min(8.f, drop.mVelocity.length() * .009f)));
+        // Show the liquid moving across the surface; otherwise gravity only
+        // creates almost invisible static marks with no visible moving front.
+        for (const auto& flow : mFlows)
+        {
+            const auto& state=flow.mState;
+            const float width=std::clamp(flow.mSize*1.4f,2.f,5.f);
+            appendSprite(state.mPosition+state.mNormal*.18f, state.mVelocity, width, width*1.8f);
         }
         vertices->dirty(); normals->dirty(); colors->dirty(); uv->dirty(); sizes->dirty(); indices->dirty();
         mGeometry->setInitialBound(bounds);
