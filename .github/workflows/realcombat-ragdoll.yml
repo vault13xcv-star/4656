@@ -129,3 +129,13 @@ jobs:
             build-ragdoll-tests/Testing/Temporary/LastTest.log
           if-no-files-found: warn
           retention-days: 30
+
+  projectile-release-notes:
+    if: github.ref == 'refs/heads/experimental/ragdoll-physical-projectiles' && contains(github.event.head_commit.message, '[publish-only]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Update notes on the already compiled experimental release
+        run: gh release edit brutal-1.2-projectiles.1 --repo "$GITHUB_REPOSITORY" --notes-file docs/projectiles-release-notes.md --prerelease --latest=false
