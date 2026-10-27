@@ -1,0 +1,31 @@
+{
+  "result": "success",
+  "version": "1.1",
+  "tag": "v1.1",
+  "releaseUrl": "https://github.com/vault13xcv-star/4656/releases/tag/v1.1",
+  "sourceCommit": "316a754dfdbbe1f8d9db027bcee0c96af532dfea",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40472504443",
+  "stableLatest": true,
+  "assets": [
+    {
+      "file": "Brutal-Morrowind-1.1-Windows-x64.zip",
+      "bytes": 51714473,
+      "sha256": "994d01b4e67eb940c38b49f3be6f3d5d79448ec3454c8de7b89a6f592eb44277"
+    },
+    {
+      "file": "Brutal-Morrowind-1.1-Source.zip",
+      "bytes": 12892576,
+      "sha256": "cd65ad70ff5ad1fca246718cc68feae825239dab854792a85bce77073280eb72"
+    },
+    {
+      "file": "RELEASE-INFO.json",
+      "bytes": 1184,
+      "sha256": "7727ce56eaa530a9cbf76ca4396566d73d95dda2ec18b1d01c4579b7e2c4282c"
+    },
+    {
+      "file": "SHA256SUMS",
+      "bytes": 285,
+      "sha256": "fa16c34fda7a688f2cec554f14b01070a72e634d38fb1093aa74496f344ee3b1"
+    }
+  ]
+}

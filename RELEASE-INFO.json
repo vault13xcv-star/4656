@@ -1,0 +1,25 @@
+{
+  "product": "Brutal Morrowind",
+  "version": "1.1",
+  "tag": "v1.1",
+  "releaseCommit": "316a754dfdbbe1f8d9db027bcee0c96af532dfea",
+  "releaseSource": "https://github.com/vault13xcv-star/4656/tree/v1.1",
+  "binarySourceCommit": "1a74a9df1d6e1ae69d9e34627041db170003d46e",
+  "correspondingBaselineSourceCommit": "ca675a68b9cf72d2bd08e1a693558a722091e3c2",
+  "binaryBuild": "https://github.com/vault13xcv-star/4656/actions/runs/40463620815",
+  "baselineArchiveSha256": "8e37d2b740f4b835729cbd0e4ec286132384889b52ea01f41ff1b4f28a9cd52d",
+  "openmwExecutableSha256": "8d0e1fb2d5db5513bf442e031b23b9455b2ea77e0e9ce7ded87f414358f30974",
+  "recompiled": false,
+  "runtimePayloadUnchanged": true,
+  "validation": {
+    "windowsComponentTests": 1402,
+    "windowsItemIntegrationTestsPassed": 38,
+    "windowsItemIntegrationTestsTotal": 39,
+    "windowsPhysicsRenderGroups": 4,
+    "correctedWindowsIntegrationTestRerun": false,
+    "knownTestException": "ItemPhysicsIntegration.NativeWeaponClassesAndAnimationKeysSelectOnlyEligibleWounds expected the removed hammer waist cut",
+    "inGamePlaytest": false
+  },
+  "originalWindowsTestResult": "failure",
+  "knownIssues": "KNOWN-ISSUES.md"
+}
