@@ -68,6 +68,7 @@
 #include "../mwgui/postprocessorhud.hpp"
 
 #include "../mwmechanics/actorutil.hpp"
+#include "../mwmechanics/creaturestats.hpp"
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -1331,6 +1332,11 @@ namespace MWRender
         const bool creature = victim.getType() == ESM::Creature::sRecordId;
         if (!victim.isInCell() || (!victim.getClass().isNpc() && !creature) || victim == world->getPlayerPtr()
             || !hit.mHasWeaponContact || Settings::ragdoll().mBloodAmount.get() <= 0) return;
+        // _onHit calls this after applying damage. Do not leave a one-shot
+        // weapon spray before a fire/frost corpse starts its bloodless wounds.
+        if (!creature && victim.getClass().getCreatureStats(victim).isDead()
+            && !Ragdoll::woundsHaveBlood(hit.mDeathElement))
+            return;
         if (creature)
         {
             const auto& record = *victim.get<ESM::Creature>()->mBase;

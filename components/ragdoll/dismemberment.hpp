@@ -2,6 +2,7 @@
 #define OPENMW_RAGDOLL_DISMEMBERMENT_HPP
 
 #include "impact.hpp"
+#include <array>
 #include <cstdint>
 
 namespace Ragdoll
@@ -37,7 +38,28 @@ namespace Ragdoll
             return {};
         const bool swing = hit.mAttackType == AttackType::Chop || hit.mAttackType == AttackType::Slash;
         if (hit.mTwoHandedHammer && swing && part <= 1)
-            return { bit(1) | bit(2) | bit(3) | bit(5) | bit(7) | bit(9), false, false, true };
+        {
+            // Reuse the conditional uniform roll after the normal chance gate:
+            // equal odds of 3/4/5 extremities, then equal odds of each subset.
+            // The torso/waist stays intact; selected arms/legs keep their joints.
+            const float selection = std::clamp(roll / std::min(chance, 1.f), 0.f, 1.f) * 3.f;
+            const unsigned group = std::min(2u, static_cast<unsigned>(selection));
+            const unsigned count = 3 + group;
+            const unsigned combinations = count == 3 ? 10 : count == 4 ? 5 : 1;
+            unsigned choice = std::min(combinations - 1,
+                static_cast<unsigned>((selection - group) * combinations));
+            constexpr std::array<unsigned, 5> extremities{ 2, 3, 5, 7, 9 };
+            for (unsigned mask = 0; mask < 32; ++mask)
+            {
+                unsigned setBits = 0;
+                for (unsigned bits = mask; bits; bits >>= 1) setBits += bits & 1;
+                if (setBits != count || choice-- != 0) continue;
+                std::uint32_t cuts = 0;
+                for (unsigned i = 0; i < extremities.size(); ++i)
+                    if (mask & (1u << i)) cuts |= bit(extremities[i]);
+                return { cuts, false, false, true };
+            }
+        }
         // Only a descending chop through the centre line can split lengthwise.
         // The native hit key describes the swing; the direction rejects upward contacts.
         if (hit.mTwoHandedCutting && hit.mAttackType == AttackType::Chop && (part <= 2)

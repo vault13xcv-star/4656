@@ -18,6 +18,13 @@ namespace Ragdoll
         Shock
     };
 
+    // Use the lethal element, not a short-lived flame/frost particle timer.
+    // This also applies to cuts caused by enchanted weapons and restored corpses.
+    inline bool woundsHaveBlood(DeathElement element)
+    {
+        return element != DeathElement::Fire && element != DeathElement::Frost;
+    }
+
     enum class WoundWeapon { None, Blade, HeavyBlade, Blunt, Bolt };
     // Native animation hit key, independent of the direction of the death impulse.
     enum class AttackType { Unknown, Chop, Slash, Thrust, Projectile };

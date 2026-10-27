@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.1-experimental.1'
+$ragdollVersion = '1.1-experimental.2'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -271,6 +271,8 @@ The launcher/editor are not bundled. Keep your stable installation and separate 
 Source commit: $($env:GITHUB_SHA)
 Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
 Experimental 1.1 adds the five supplied corpse and cut DDS textures: burnt, poisoned, cut_limb, cut_body_torso and sliced_body. Periodic stochastic coatings avoid regular tiled patterns. Elliptical limb/waist meshes and anatomy-aligned left/right longitudinal UVs avoid opaque image backdrops. Wound materials receive actual world ambient/sun/point lighting and shadows. V1.0 remains the stable release.
+Experimental 2 doubles the visible burnt/poisoned pattern size. Fire/frost dismemberment no longer emits blood from wounds or lethal enchanted-weapon hits, including after save/load and after the fire effect expires. Ordinary, poison and shock bleeding are retained.
+Successful two-handed hammer torso dismemberment randomly detaches 3-5 distinct arms/legs/head, keeping the waist intact and applying the configured dismemberment chance.
 Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
 These checks do not replace testing animations and gameplay inside Morrowind.
 

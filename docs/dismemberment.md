@@ -4,7 +4,8 @@ New blood, physical intestines, longitudinal cuts and hammer torso tearing are
 documented in [brutal-morrowind.md](brutal-morrowind.md). This continues preview.5;
 the previous directional/elemental rules below remain except that a descending
 two-handed sword/axe chop into head/torso now selects a longitudinal cut, and a
-two-handed hammer torso swing can tear the body apart.
+two-handed hammer torso swing can detach 3–5 random extremities while the torso
+remains intact (1.1 Experimental 2). The existing wound-chance slider still applies.
 
 Wounds now retain the native chop/slash/thrust hit key and the anatomical part
 captured on the living NPC before weapon damage, on-strike magic and deferred
@@ -25,7 +26,7 @@ Unsupported skeletons still fall back to the native death animation.
 | Two-handed long blade or axe, horizontal slash into arm | Sever that arm or continue through the torso (equal shares of the wound chance) |
 | Two-handed long blade / two-handed axe, descending chop into head/torso | Longitudinal separation |
 | Other cutting chops into head/limb | Sever that extremity; no waist separation |
-| Two-handed hammer, chop/slash into torso | Tear torso and extremities apart |
+| Two-handed hammer, chop/slash into torso | Detach 3–5 random distinct parts from two arms, two legs and head; no waist cut |
 | Thrust, spear, short blade or unarmed | No physical severing or head burst |
 | Blunt chop/slash into head | Head burst; other hit locations do not burst the head |
 | Crossbow bolt into head | Head burst; other hit locations do not burst the head |

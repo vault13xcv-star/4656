@@ -31,6 +31,7 @@
 #include <osgUtil/IncrementalCompileOperation>
 
 #include <array>
+#include <bit>
 #include <cmath>
 #include <iostream>
 #include <map>
@@ -696,15 +697,19 @@ namespace
             ESM::RagdollState saved;
             corpse->writeState(saved);
             require(saved.mLongitudinal == longitudinal && saved.mCrushed == crushing, "Brutal wound type lost");
-            require(saved.mGutsCount == 36 && saved.mGutsStart == (longitudinal ? 18 : 15), "Physical intestines missing");
-            require(saved.mBodies.size() == (longitudinal ? 54 : 51), "Intestines are visual-only instead of rigid bodies");
+            require(crushing ? saved.mGutsCount == 0 && saved.mGutsStart == -1
+                : saved.mGutsCount == 36 && saved.mGutsStart == (longitudinal ? 18 : 15),
+                "Intestines must belong to open body splits, not intact hammer-hit torsos");
+            require(saved.mBodies.size() == (crushing ? 15 : longitudinal ? 54 : 51), "Physical gore body count is incorrect");
             if (longitudinal)
             {
                 bool arm = false, leg = false;
                 for (const auto& j : saved.mJoints) { arm |= j.mChild == 5 && j.mParent == 16; leg |= j.mChild == 9 && j.mParent == 15; }
                 require(arm && leg, "Right limbs remain linked to the left longitudinal half");
             }
-            else require(saved.mCuts == (crushing ? 686u : 2u), "Hammer tearing/horizontal waist separation selected incorrect parts");
+            else require(crushing ? std::popcount(saved.mCuts) >= 3 && std::popcount(saved.mCuts) <= 5
+                    && !(saved.mCuts & ~684u) : saved.mCuts == 2u,
+                "Hammer tearing/horizontal waist separation selected incorrect parts");
             for (int frame = 0; frame < 150; ++frame) corpse->update(1.f / 60);
             corpse->writeState(saved);
             if (longitudinal)
@@ -719,7 +724,7 @@ namespace
             }
             for (const auto& body : saved.mBodies)
                 for (float v : body.mTransform) require(std::isfinite(v), "Gore physics diverged");
-            for (int chain = 0; chain < 2; ++chain)
+            for (int chain = 0; !crushing && chain < 2; ++chain)
                 for (int i = 1; i < 18; ++i)
                 {
                     const auto& a = saved.mBodies[saved.mGutsStart + chain * 18 + i - 1].mTransform;
@@ -736,7 +741,8 @@ namespace
             corpse->writeState(saved);
             corpse.reset();
             corpse = MWRender::RagdollController::restore(*fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, saved);
-            require(corpse && corpse->getWounds().mLongitudinal == longitudinal, "Brutal wound failed to restore");
+            require(corpse && corpse->getWounds().mLongitudinal == longitudinal
+                && corpse->getWounds().mCuts == saved.mCuts, "Brutal wound failed to restore or rerolled its limbs");
             if (longitudinal)
             {
                 corpse->splitPart(*torso, 1); corpse->setSkinParts({ torso });
@@ -752,6 +758,80 @@ namespace
             require(fixture.mSkeleton->getNumChildren() == 1, "Brutal gore nodes leaked on cleanup");
         }
         std::cout << "PASS real longitudinal halves, right-side articulated limbs, hammer tearing, 36 intestinal segments and pose restoration\n";
+    }
+
+    void elementalWoundBlood()
+    {
+        for (auto element : { Ragdoll::DeathElement::None, Ragdoll::DeathElement::Poison,
+                 Ragdoll::DeathElement::Shock, Ragdoll::DeathElement::Fire, Ragdoll::DeathElement::Frost })
+            for (unsigned kind = 0; kind < 4; ++kind)
+                for (bool legacy : { false, true })
+                {
+                    // The legacy NIF callback has joint outlets only; actual
+                    // longitudinal bleeding uses the ballistic sprite path.
+                    if (legacy && kind == 3)
+                        continue;
+                    SkeletonFixture fixture;
+                    MWRender::RagdollController::Settings config;
+                    config.mNpc = true;
+                    config.mWoundRoll = 0;
+                    config.mWoundChance = 1;
+                    config.mMaxSimulationTime = .05f;
+                    config.mBleedDuration = 8;
+                    config.mFireEffectDuration = .05f;
+                    int deposits = 0, sprites = 0, receivers = 0;
+                    config.mBloodEffect = [&](const auto&) { ++sprites; };
+                    if (!legacy)
+                    {
+                        config.mBloodDeposit = [&](const auto&) { ++deposits; };
+                        config.mBloodSurface = [&](const auto& center, float radius) {
+                            ++receivers;
+                            return MWRender::BloodTrail::collisionSurface(floorSnapshot(center, radius));
+                        };
+                    }
+                    Ragdoll::Impact hit;
+                    hit.mValid = hit.mHasWeaponContact = true;
+                    hit.mDeathElement = element;
+                    hit.mAttackType = kind == 0 || kind == 3 ? Ragdoll::AttackType::Chop : Ragdoll::AttackType::Slash;
+                    hit.mWoundWeapon = kind == 0 ? Ragdoll::WoundWeapon::Blunt
+                        : kind == 1 ? Ragdoll::WoundWeapon::Blade : Ragdoll::WoundWeapon::HeavyBlade;
+                    hit.mWeaponHitBody = kind == 1 ? 3 : kind == 2 ? 1 : 2;
+                    hit.mWeaponDirection = { 0, 1, kind == 3 ? -1.f : 0.f };
+                    hit.mTwoHandedCutting = kind == 3;
+                    hit.mDirectMagic = kind == 0 && element != Ragdoll::DeathElement::None
+                        && element != Ragdoll::DeathElement::Poison;
+                    auto corpse = MWRender::RagdollController::create(
+                        *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, hit);
+                    require(corpse && corpse->getWounds().any(), "Elemental blood fixture did not actually dismember");
+                    const bool bloodless = element == Ragdoll::DeathElement::Fire || element == Ragdoll::DeathElement::Frost;
+                    const auto verify = [&] {
+                        if (!bloodless && !(legacy ? sprites > 0 : deposits > 0))
+                            std::cerr << "Blood fixture element=" << int(element) << " kind=" << kind
+                                << " legacy=" << legacy << " deposits=" << deposits
+                                << " sprites=" << sprites << " receivers=" << receivers << '\n';
+                        if (bloodless)
+                            require(deposits == 0 && sprites == 0 && receivers == 0,
+                                "Fire/frost dismemberment emitted blood or requested blood surfaces");
+                        else
+                            require(legacy ? sprites > 0 : deposits > 0,
+                                "Ordinary/poison/shock dismemberment lost its bleeding");
+                    };
+                    for (int frame = 0; frame < 180; ++frame) corpse->update(1.f / 60);
+                    require(!corpse->isSimulating(), "Blood fixture did not cover frozen corpses");
+                    verify();
+                    ESM::RagdollState saved;
+                    corpse->writeState(saved);
+                    corpse.reset();
+                    deposits = sprites = receivers = 0;
+                    corpse = MWRender::RagdollController::restore(
+                        *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, config, saved);
+                    require(bool(corpse), "Elemental blood fixture failed to restore");
+                    // Slider changes must not reopen sealed elemental wounds.
+                    corpse->setRuntimeSettings(100, .05f, 2.5f, .05f, 10, 10, 12, 3);
+                    for (int frame = 0; frame < 180; ++frame) corpse->update(1.f / 60);
+                    verify();
+                }
+        std::cout << "PASS bloodless fire/frost explosions and enchanted limb/waist/longitudinal cuts, save/load, expired fire, live settings and bleeding controls\n";
     }
 
     void oneHandedBladeWithoutVisibleMeshIntersection()
@@ -1363,7 +1443,7 @@ namespace
                 total = maximum = 0;
             }
         }
-        require(tubes.size() == 20, "Concurrent waist/longitudinal/hammer deaths lost their physical intestines");
+        require(tubes.size() == (benchmark ? 0 : 12), "Waist/longitudinal cuts lost intestines or intact hammer torsos gained them");
         for (auto& corpse : corpses)
         {
             corpse->update(20);
@@ -1710,17 +1790,23 @@ namespace
             impact.mAttackType = Ragdoll::AttackType::Chop;
             impact.mWeaponPosition = worldMatrix(*fixture.mBones.at("Head")).getTrans();
             impact.mWeaponHitBody = MWRender::RagdollController::findHitBody(*fixture.mSkeleton, impact.mWeaponPosition);
-            impact.mDeathElement = Ragdoll::DeathElement::Fire;
             auto corpse = MWRender::RagdollController::create(
                 *fixture.mSkeleton, *fixture.mSkeleton, floorSnapshot, settings, impact);
+            SkeletonFixture flames;
+            impact.mDeathElement = Ragdoll::DeathElement::Fire;
+            auto fireCorpse = MWRender::RagdollController::create(
+                *flames.mSkeleton, *flames.mSkeleton, floorSnapshot, settings, impact);
             require(bool(corpse), "Status slider fixture failed to create");
+            require(bool(fireCorpse), "Fire slider fixture failed to create");
             corpse->update(10 * scale - .1f);
-            require(blood > 1 && corpse->hasFireEffect(), "Scaled blood/fire ended before their deadline");
+            fireCorpse->update(10 * scale - .1f);
+            require(blood > 1 && fireCorpse->hasFireEffect(), "Scaled blood/fire ended before their deadline");
             const int before = blood;
             corpse->update(.2f);
+            fireCorpse->update(.2f);
             require(blood == before, "Bleeding did not end at the scaled deadline");
-            corpse->update(5 * scale);
-            require(!corpse->hasFireEffect(), "Flames did not end at the scaled deadline");
+            fireCorpse->update(5 * scale);
+            require(!fireCorpse->hasFireEffect(), "Flames did not end at the scaled deadline");
         }
         std::cout << "PASS min/max wall pin range and 50%/100%/300% blood/flame deadlines after physics freeze\n";
     }
@@ -2149,6 +2235,7 @@ int main(int argc, char** argv)
     try
     {
         if(argc>1 && std::string(argv[1])=="--gore-textures") {BrutalTextureTests::run();return 0;}
+        if(argc>1 && std::string(argv[1])=="--elemental-blood") {elementalWoundBlood();return 0;}
         if (argc>1 && std::string(argv[1])=="--blood-work-benchmark")
         {
             bloodWorkBenchmark();return 0;
@@ -2211,6 +2298,7 @@ int main(int argc, char** argv)
         backgroundBloodSurface();
         brutalMeshClipAndPose();
         brutalPhysicalWounds();
+        elementalWoundBlood();
         bloodCacheCapacityAndBuffers();
         goreLoadMeasurements(false);
         livingContactAnatomy();

@@ -6,6 +6,9 @@
 #include <components/ragdoll/dismemberment.hpp>
 
 #include <cmath>
+#include <array>
+#include <bit>
+#include <set>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -504,6 +507,62 @@ namespace
         }
     }
 
+    void testHammerTearsRandomExtremities()
+    {
+        Ragdoll::Impact hammer;
+        hammer.mValid = hammer.mHasWeaponContact = hammer.mTwoHandedHammer = true;
+        hammer.mWoundWeapon = Ragdoll::WoundWeapon::Blunt;
+        hammer.mAttackType = Ragdoll::AttackType::Chop;
+        for (float chance : { .3f, 1.f })
+        {
+            std::array<unsigned, 3> counts{};
+            std::set<std::uint32_t> masks;
+            unsigned successes = 0;
+            for (unsigned i = 0; i < 60000; ++i)
+            {
+                const float roll = (i + .5f) / 60000;
+                const auto wound = Ragdoll::selectWounds(hammer, i % 2, roll, chance);
+                if (roll >= chance)
+                {
+                    check(!wound.any(), "Hammer bypassed the dismemberment chance");
+                    continue;
+                }
+                ++successes;
+                const unsigned count = std::popcount(wound.mCuts);
+                check(count >= 3 && count <= 5 && !(wound.mCuts & ~684u),
+                    "Hammer detached a torso or selected outside 3-5 distinct extremities");
+                check(wound.mCrushed && !wound.mBurstHead && !wound.mLongitudinal,
+                    "A torso hammer hit invented a head burst or a body split");
+                ++counts[count - 3];
+                masks.insert(wound.mCuts);
+            }
+            check(successes == unsigned(chance * 60000), "Hammer changed the configured probability");
+            check(masks.size() == 16, "Hammer could not select every 3/4/5-extremity combination");
+            for (auto count : counts)
+                check(std::abs(int(count * 3) - int(successes)) <= 3,
+                    "Hammer count selection is biased toward always detaching all five parts");
+        }
+        for (auto type : { Ragdoll::AttackType::Chop, Ragdoll::AttackType::Slash })
+        {
+            hammer.mAttackType = type;
+            for (float roll : { 0.f, .1f, .5f, .9f, 1.f })
+            {
+                check(!Ragdoll::selectWounds(hammer, 1, roll, 0).any(), "0% still enabled hammer tearing");
+                check(Ragdoll::selectWounds(hammer, 1, roll, 1).mCrushed,
+                    "100% failed to enable hammer tearing at an RNG endpoint");
+            }
+            check(Ragdoll::selectWounds(hammer, 2, 0, 1).mBurstHead,
+                "Changing torso tearing broke blunt head bursts");
+            for (unsigned part : { 3u, 5u, 7u, 9u })
+                check(!Ragdoll::selectWounds(hammer, part, 0, 1).any(),
+                    "A hammer limb hit incorrectly tore off unrelated extremities");
+        }
+        hammer.mAttackType = Ragdoll::AttackType::Thrust;
+        check(!Ragdoll::selectWounds(hammer, 1, 0, 1).any(), "A hammer thrust tore the body apart");
+        hammer.mAttackType = Ragdoll::AttackType::Chop;
+        hammer.mTwoHandedHammer = false;
+        check(!Ragdoll::selectWounds(hammer, 1, 0, 1).any(), "One-handed blunt weapons gained torso tearing");
+    }
 }
 
 int main()
@@ -571,7 +630,8 @@ int main()
         testStrikeTypeAndAnatomyRules();
         testOneSecondDeathWindow();
         testZeroTimePrimingAndEnchantmentOrder();
-        std::cout << "Ragdoll impact: 15 groups passed\n";
+        testHammerTearsRandomExtremities();
+        std::cout << "Ragdoll impact: 16 groups passed\n";
     }
     catch (const std::exception& error)
     {

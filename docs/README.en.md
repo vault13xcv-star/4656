@@ -6,7 +6,13 @@ This separate branch adds uploaded burnt/poisoned body coatings, circular limb
 cross-sections, waist tissue and left/right longitudinal anatomy. The stable
 V1.0 release remains unchanged. See [1.1 materials and limitations](brutal-morrowind.md).
 
-[Download 1.1 Experimental](https://github.com/vault13xcv-star/4656/releases/tag/brutal-1.1-experimental.1)
+[Download 1.1 Experimental](https://github.com/vault13xcv-star/4656/releases/tag/brutal-1.1-experimental.2)
+
+Experimental 2 doubles the visible burnt/poisoned pattern size. Fire/frost
+dismemberment is bloodless, including lethal enchanted-weapon hits and saved
+corpses. Ordinary, poison and shock bleeding remain available.
+Successful two-handed hammer torso dismemberment now selects 3–5 random
+extremities (arms, legs and head), keeping the torso intact.
 
 The links below document the stable V1.0 baseline.
 

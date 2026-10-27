@@ -444,13 +444,16 @@ namespace MWRender
             coating->allocateImage(size,size,1,GL_RGBA,GL_UNSIGNED_BYTE);
             for (int y=0;y<size;++y) for (int x=0;x<size;++x)
             {
-                const float u=float(x)*4/(size-1),v=float(y)*4/(size-1);
+                // Half the former repeat frequency doubles the visible size
+                // of both coatings, including their stochastic blend regions.
+                constexpr int repeats=2;
+                const float u=float(x)*repeats/(size-1),v=float(y)*repeats/(size-1);
                 const int ix=int(std::floor(u)),iy=int(std::floor(v));
                 float fx=u-ix,fy=v-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
                 osg::Vec4f color;float squares=0;
                 for (int dy=0;dy<2;++dy) for (int dx=0;dx<2;++dx)
                 {
-                    const int cx=(ix+dx)%4,cy=(iy+dy)%4;
+                    const int cx=(ix+dx)%repeats,cy=(iy+dy)%repeats;
                     const unsigned hash=unsigned(cx)*374761393u+unsigned(cy)*668265263u+kind*91643u;
                     float a=(hash&1)?v:u,b=(hash&1)?u:v;
                     if(hash&2)a=-a;if(hash&4)b=-b;

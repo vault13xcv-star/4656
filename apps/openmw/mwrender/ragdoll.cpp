@@ -638,6 +638,8 @@ namespace MWRender
             for (const auto& visual : mWoundVisuals)
                 visual.mNode->setMatrix(visual.mLocal * mBodyMatrices[visual.mBody] * inverseRoot);
             updateGuts();
+            if (!hasBleedingWounds())
+                return;
             if (!mBlood && mSettings.mBloodDeposit && mWounds.any()
                 && mElapsed < mSettings.mBleedDuration && mSettings.mBloodAmount > 0)
                 mBlood = std::make_unique<BloodTrail>(*mRoot,
@@ -707,6 +709,11 @@ namespace MWRender
             // a whole system at both ends of every severed joint every pulse.
             for (std::size_t i = 0; i < std::min<std::size_t>(2, spritePositions.size()); ++i)
                 mSettings.mBloodEffect(spritePositions[mNextBloodSprite++ % spritePositions.size()]);
+        }
+
+        bool hasBleedingWounds() const
+        {
+            return mWounds.any() && Ragdoll::woundsHaveBlood(mAppearanceElement);
         }
 
         void updateAppearance()
@@ -834,7 +841,7 @@ namespace MWRender
 
         void freeze()
         {
-            if (!mSettings.mBloodSurface && mSettings.mBloodDeposit && mWounds.any() && mElapsed < mSettings.mBleedDuration + BloodTrail::MaxDropAge + BloodTrail::MaxPendingAge + .25f)
+            if (!mSettings.mBloodSurface && mSettings.mBloodDeposit && hasBleedingWounds() && mElapsed < mSettings.mBleedDuration + BloodTrail::MaxDropAge + BloodTrail::MaxPendingAge + .25f)
                 mBloodColliders = makeCollisionMesh(mCollisionVertices);
             // Keep the final matrices and pose overrides, but release physics world and mesh memory.
             mSimulation.reset();
@@ -1524,7 +1531,7 @@ namespace MWRender
             impl->mSettings.mMaxSimulationTime = saved.mTimeLeft;
             impl->acquireBudget(impl);
         }
-        if (!impl->mSimulation && settings.mBloodDeposit && impl->mWounds.any()
+        if (!impl->mSimulation && settings.mBloodDeposit && impl->hasBleedingWounds()
             && impl->mElapsed < impl->mSettings.mBleedDuration)
             impl->mCollisionVertices = impl->mSnapshot(impl->mBodyMatrices.front().getTrans(), settings.mCollisionRadius);
         impl->mPinned = saved.mPinnedBody >= 0;
@@ -1574,7 +1581,7 @@ namespace MWRender
         impl.mSettings.mPoisonEffectDuration = poisonDuration;
         impl.mSettings.mShockDuration = shockDuration;
         if (impl.mSettings.mBleedDuration != bleedDuration && !impl.mSimulation && impl.mSettings.mBloodDeposit
-            && impl.mWounds.any() && impl.mElapsed < bleedDuration && impl.mBloodColliders.empty())
+            && impl.hasBleedingWounds() && impl.mElapsed < bleedDuration && impl.mBloodColliders.empty())
             impl.mCollisionVertices = impl.mSnapshot(impl.mBodyMatrices.front().getTrans(), impl.mSettings.mCollisionRadius);
         impl.mSettings.mBleedDuration = bleedDuration;
         impl.mSettings.mBloodAmount = bloodAmount;

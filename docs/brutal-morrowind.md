@@ -21,7 +21,25 @@ maps are prepared once at scene loading from burnt/poisoned: periodic boundaries
 rotations/reflections and blended offsets hide regular tile repetition. They
 fade into per-instance diffuse images using the existing material/UV pipeline;
 clothing alpha, shared original assets and the native skin lighting are retained.
+Experimental 2 halves the sampling frequency in both UV directions, doubling
+the visible burnt/poisoned feature size while retaining periodic boundaries.
 Frost, smoke, fire timers, inventories and the blood projection budget are unchanged.
+
+Fire/frost corpses do not spray or deposit blood from severed limbs, head bursts
+or body splits. This also covers lethal enchanted-weapon contact sprays. The
+rule uses the saved lethal element, so it survives expired flames, physics
+freeze, save/load and blood/status slider changes. It does not erase existing
+stains or suppress ordinary, poison or shock wound bleeding, nor living-target
+weapon-hit blood.
+
+On a successful dismemberment roll, a two-handed hammer chop/slash into the
+torso now detaches 3, 4 or 5 distinct extremities, with equal count probabilities
+and uniformly selected subsets of the two arms, two legs and head. The normal
+chance slider still gates the result. The waist remains intact, so these new
+hammer deaths do not expose intestines or add their 36 physics segments. Selected
+limbs retain ragdoll joints; save/load preserves the selected set without rerolling.
+Head strikes retain the separate blunt head-burst rule. Existing corpse saves
+keep their original wounds.
 
 Limb cuts use disk/rim geometry and an art-fitted circular UV contour at every
 radius. Waist cuts use elliptical geometry with the torso image. The opaque
