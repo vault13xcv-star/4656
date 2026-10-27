@@ -1789,8 +1789,22 @@ namespace MWMechanics
             const MWWorld::Class& cls = actor.getPtr().getClass();
             CreatureStats& stats = cls.getCreatureStats(actor.getPtr());
 
+            const bool freshDeath=actor.observeDeath(stats.isDead());
             if (!stats.isDead())
                 continue;
+
+            const auto player=getPlayer();
+            std::set<MWWorld::Ptr> followers;
+            if(freshDeath)getActorsFollowing(player,followers);
+            if (freshDeath && actor.getPtr()!=player && !player.getClass().getCreatureStats(player).isDead()
+                && (actor.getPtr().getRefData().getPosition().asVec3()-player.getRefData().getPosition().asVec3()).length2()
+                    <= float(Settings::game().mActorsProcessingRange.get())*float(Settings::game().mActorsProcessingRange.get())
+                && !cls.isPureWaterCreature(actor.getPtr())
+                && (stats.getAiSequence().isInCombat(player)
+                    || (followers.find(actor.getPtr())==followers.end()
+                        && MWBase::Environment::get().getMechanicsManager()->isAggressive(actor.getPtr(),player)))
+                && getEnemiesNearby(player).empty())
+                MWBase::Environment::get().getWorld()->getTimeManager()->startKillSlowMotion();
 
             MWBase::Environment::get().getWorld()->removeActorPath(actor.getPtr());
             CharacterController::KillResult killResult = actor.getCharacterController().kill();

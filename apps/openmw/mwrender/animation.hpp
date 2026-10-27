@@ -456,6 +456,8 @@ namespace MWRender
 
         /// True for both simulating and settled corpse poses; no saved actor position is changed.
         bool getRagdollPosition(osg::Vec3f& position) const;
+        std::string findProjectileBone(const osg::Vec3f& position) const;
+        bool getProjectileBoneMatrix(std::string_view bone, osg::Matrixf& world) const;
 
         void setLoopingEnabled(std::string_view groupname, bool enabled);
 

@@ -1029,10 +1029,10 @@ void OMW::Engine::go()
     const std::chrono::steady_clock::duration maxSimulationInterval(std::chrono::milliseconds(200));
     while (!mViewer->done() && !mStateManager->hasQuitRequest())
     {
-        const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(
-                              std::min(frameRateLimiter.getLastFrameDuration(), maxSimulationInterval))
-                              .count()
-            * timeManager.getSimulationTimeScale();
+        const double realDt = std::chrono::duration<double>(frameRateLimiter.getLastFrameDuration()).count();
+        timeManager.updateKillSlowMotion(static_cast<float>(realDt));
+        const double dt=std::min(realDt,std::chrono::duration<double>(maxSimulationInterval).count())
+            *timeManager.getSimulationTimeScale();
 
         mViewer->advance(timeManager.getRenderingSimulationTime());
 

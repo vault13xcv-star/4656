@@ -32,6 +32,14 @@ namespace MWMechanics
             : mCharacterController(ptr, animation)
             , mPositionAdjusted(ptr.getClass().getCreatureStats(ptr).getFallHeight() > 0)
         {
+            mObservedAlive = !ptr.getClass().getCreatureStats(ptr).isDead();
+        }
+
+        bool observeDeath(bool dead)
+        {
+            const bool newlyDead=mObservedAlive && dead;
+            mObservedAlive=!dead;
+            return newlyDead;
         }
 
         const MWWorld::Ptr& getPtr() const { return mCharacterController.getPtr(); }
@@ -70,6 +78,7 @@ namespace MWMechanics
         bool isInvalid() const { return mInvalid; }
 
     private:
+        bool mObservedAlive = false;
         CharacterController mCharacterController;
         int mGreetingTimer{ 0 };
         float mTargetAngleRadians{ 0.f };

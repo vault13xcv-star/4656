@@ -6,6 +6,11 @@
 #include <sstream>
 
 #include <osg/PositionAttitudeTransform>
+#include <osg/ComputeBoundsVisitor>
+#include <osgUtil/LineSegmentIntersector>
+#include <osgUtil/IntersectionVisitor>
+#include <components/ragdoll/projectiles.hpp>
+#include <components/ragdoll/blood.hpp>
 
 #include <components/debug/debuglog.hpp>
 
@@ -13,6 +18,7 @@
 #include <components/esm3/esmreader.hpp>
 #include <components/esm3/esmwriter.hpp>
 #include <components/esm3/loadench.hpp>
+#include <components/esm3/loadcrea.hpp>
 #include <components/esm3/loadmgef.hpp>
 #include <components/esm3/loadrace.hpp>
 #include <components/esm3/projectilestate.hpp>
@@ -44,6 +50,8 @@
 #include "../mwbase/soundmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
+#include "../mwbase/mechanicsmanager.hpp"
+#include "datetimemanager.hpp"
 
 #include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/combat.hpp"
@@ -62,6 +70,25 @@
 
 namespace
 {
+    bool actorSurface(MWRender::Animation& animation,const osg::Vec3f& from,const osg::Vec3f& to,
+        osg::Vec3f& point)
+    {
+        auto* root=animation.getObjectRoot();
+        if(!root)return false;
+        osg::ref_ptr<osgUtil::LineSegmentIntersector> ray=new osgUtil::LineSegmentIntersector(from,to);
+        ray->setIntersectionLimit(osgUtil::Intersector::LIMIT_NEAREST);
+        osgUtil::IntersectionVisitor visitor(ray);
+        visitor.setTraversalMask(~MWRender::Mask_Effect);
+        auto paths=root->getParentalNodePaths();
+        if(!paths.empty())
+        {
+            paths.front().pop_back();
+            visitor.pushModelMatrix(new osg::RefMatrix(osg::computeLocalToWorld(paths.front())));
+        }
+        root->accept(visitor);
+        if(!ray->containsIntersections())return false;
+        point=ray->getFirstIntersection().getWorldIntersectPoint();return true;
+    }
     ESM::EffectList getMagicBoltData(std::vector<ESM::RefId>& projectileIDs, std::set<ESM::RefId>& sounds, float& speed,
         std::string& texture, std::string& sourceName, const ESM::RefId& id)
     {
@@ -509,11 +536,15 @@ namespace MWWorld
             // gravity constant - must be way lower than the gravity affecting actors, since we're not
             // simulating aerodynamics at all
             projectileState.mVelocity
-                -= osg::Vec3f(0, 0, Constants::GravityConst * Constants::UnitsPerMeter * 0.1f) * duration;
+                -= osg::Vec3f(0, 0, Constants::GravityConst * Constants::UnitsPerMeter) * duration;
 
             projectile->setVelocity(projectileState.mVelocity);
 
-            projectileState.mNode->setAttitude(lookAt(projectileState.mVelocity));
+            const auto* record=MWBase::Environment::get().getESMStore()->get<ESM::Weapon>().find(projectileState.mIdArrow);
+            if(record->mData.mType==ESM::Weapon::MarksmanThrown)
+                projectileState.mSpin += duration*12.f;
+            projectileState.mNode->setAttitude(osg::Quat(projectileState.mSpin,osg::Vec3f(1,0,0))
+                *lookAt(projectileState.mVelocity));
 
             update(projectileState, duration);
 
@@ -537,13 +568,31 @@ namespace MWWorld
 
             auto* projectile = mPhysics->getProjectile(projectileState.mProjectileId);
 
+            const osg::Vec3f previous=projectileState.mNode->getPosition();
             const auto pos = projectile->getSimulationPosition();
+            MWWorld::Ptr corpse;
+            osg::Vec3f corpsePoint;
+            const osg::Vec3f end=projectile->isActive()?pos:osg::Vec3f(Misc::Convert::toOsg(projectile->getHitPosition()));
+            float nearest=(end-previous).length2()+.01f;
+            // Corpse collision is disabled by the actor controller. Intersect
+            // the visible corpse as well, bounded by the first native solid hit.
+            std::vector<MWWorld::Ptr> nearby;
+            MWBase::Environment::get().getMechanicsManager()->getActorsInRange(
+                (previous+end)*.5f,(end-previous).length()*.5f+256.f,nearby);
+            for(const auto& actor:nearby)
+            {
+                if(actor==projectileState.getCaster() || !actor.getClass().getCreatureStats(actor).isDead())continue;
+                if(auto* animation=mRendering->getAnimation(actor))
+                {
+                    osg::Vec3f point;
+                    if(actorSurface(*animation,previous,end,point) && (point-previous).length2()<nearest)
+                    {corpse=actor;corpsePoint=point;nearest=(point-previous).length2();}
+                }
+            }
             projectileState.mNode->setPosition(pos);
+            if (projectile->isActive() && corpse.isEmpty())continue;
 
-            if (projectile->isActive())
-                continue;
-
-            const auto target = projectile->getTarget();
+            const auto target = corpse.isEmpty()?projectile->getTarget():corpse;
             auto caster = projectileState.getCaster();
             assert(target != caster);
 
@@ -561,14 +610,17 @@ namespace MWWorld
                     bow = *invIt;
             }
 
-            const auto hitPosition = Misc::Convert::toOsg(projectile->getHitPosition());
+            const osg::Vec3f hitPosition = corpse.isEmpty()?osg::Vec3f(Misc::Convert::toOsg(projectile->getHitPosition())):corpsePoint;
 
-            if (projectile->getHitWater())
+            if (projectile->getHitWater() && corpse.isEmpty())
                 mRendering->emitWaterRipple(hitPosition);
 
-            MWMechanics::projectileHit(
-                caster, target, bow, projectileRef.getPtr(), hitPosition, projectileState.mAttackStrength,
-                projectileState.mVelocity);
+            if(target.isEmpty() || !target.getClass().isActor() || !target.getClass().getCreatureStats(target).isDead())
+                MWMechanics::projectileHit(caster, target, bow, projectileRef.getPtr(), hitPosition,
+                    projectileState.mAttackStrength,projectileState.mVelocity);
+            if(!projectile->getHitWater() || !corpse.isEmpty())
+                retainProjectile(projectileState,target,hitPosition,corpse.isEmpty()
+                    ?osg::Vec3f(Misc::Convert::toOsg(projectile->getHitNormal())):osg::Vec3f());
             projectileState.mToDelete = true;
         }
         const MWWorld::ESMStore& esmStore = *MWBase::Environment::get().getESMStore();
@@ -635,10 +687,163 @@ namespace MWWorld
             mMagicBolts.end());
     }
 
+    void ProjectileManager::retainProjectile(ProjectileState& state,const MWWorld::Ptr& target,
+        const osg::Vec3f& contact,const osg::Vec3f& normal)
+    {
+        auto residue=std::make_unique<Residue>();
+        residue->mNode=state.mNode;
+        residue->mCell=MWMechanics::getPlayer().getCell();
+        osg::ComputeBoundsVisitor bounds;
+        for(unsigned i=0;i<state.mNode->getNumChildren();++i)state.mNode->getChild(i)->accept(bounds);
+        auto box=bounds.getBoundingBox();
+        if(!box.valid())box=osg::BoundingBox(-.5f,-8.f,-.5f,.5f,8.f,.5f);
+        osg::Vec3f direction=state.mVelocity;
+        if(direction.normalize()<.001f)direction={0,1,0};
+        osg::Vec3f point=contact;
+        const bool actor=!target.isEmpty() && target.getClass().isActor();
+        if(actor)
+        {
+            residue->mVictim=target;
+            auto* animation=mRendering->getAnimation(target);
+            if(animation)
+            {
+                osg::Vec3f surface;
+                if(actorSurface(*animation,contact-direction*8.f,contact+direction*80.f,surface))point=surface;
+                residue->mBone=animation->findProjectileBone(point);
+            }
+            float tip=-1e9f;
+            for(unsigned i=0;i<8;++i)
+                tip=std::max(tip,float((state.mNode->getAttitude()*box.corner(i))*direction));
+            state.mNode->setPosition(point+direction*(3.f-tip));
+            osg::Matrixf bone;
+            if(animation && animation->getProjectileBoneMatrix(residue->mBone,bone))
+            {
+                residue->mLocal=osg::Matrixf::rotate(state.mNode->getAttitude())
+                    *osg::Matrixf::translate(state.mNode->getPosition())*osg::Matrixf::inverse(bone);
+                residue->mWoundPosition=point;
+                residue->mWoundLocal=point*osg::Matrixf::inverse(bone);
+            }
+            else residue->mVictim=MWWorld::Ptr();
+            bool organic=target.getClass().isNpc();
+            if(target.getType()==ESM::Creature::sRecordId)
+            {
+                const auto& record=*target.get<ESM::Creature>()->mBase;
+                organic=Ragdoll::creatureHasBlood(record.mId.toString(),record.mOriginal.toString(),record.mModel);
+            }
+            if(organic && !residue->mVictim.isEmpty())residue->mBleedLeft=5.f*Settings::ragdoll().mStatusDurationScale.get();
+        }
+        else
+        {
+            const auto n=normal.length2()>.001f?normal:osg::Vec3f(0,0,1);
+            float reach=0;
+            for(unsigned i=0;i<8;++i)reach=std::max(reach,float(-(state.mNode->getAttitude()*box.corner(i))*n));
+            // Keep the complete shaft outside the wall before the rigid body
+            // takes over, rather than starting a long hull inside the solid.
+            state.mNode->setPosition(contact+n*(reach+.5f));
+            const auto center=box.center();
+            osg::Vec3f half=(box._max-box._min)*.5f;
+            for(int i=0;i<3;++i)half[i]=std::max(.2f,half[i]);
+            ManualRef ref(*MWBase::Environment::get().getESMStore(),state.mIdArrow);
+            mPhysics->addProjectileDebris(reinterpret_cast<std::uintptr_t>(residue.get()),center,half,
+                state.mNode->getPosition(),state.mNode->getAttitude(),ref.getPtr().getClass().getWeight(ref.getPtr()),
+                Ragdoll::projectileBounce(state.mVelocity,n));
+        }
+        if(mResidues.size()>=1024)
+        {removeResidue(*mResidues.front());mResidues.erase(mResidues.begin());}
+        mResidues.push_back(std::move(residue));
+        state.mNode=nullptr;
+    }
+
+    void ProjectileManager::removeResidue(Residue& residue)
+    {
+        mPhysics->removeProjectileDebris(reinterpret_cast<std::uintptr_t>(&residue));
+        mParent->removeChild(residue.mNode);
+    }
+
+    void ProjectileManager::updateResidues(float dt)
+    {
+        const auto* cell=MWMechanics::getPlayer().getCell();
+        const auto now=std::chrono::steady_clock::now();
+        for(auto it=mResidues.begin();it!=mResidues.end();)
+        {
+            auto& residue=**it;
+            if(residue.mCell!=cell || std::chrono::duration<float>(now-residue.mCreated).count()>=600.f
+                || (!residue.mVictim.isEmpty() && (residue.mVictim.getCellRef().getCount()<=0
+                    || !residue.mVictim.getRefData().isEnabled())))
+            {removeResidue(residue);it=mResidues.erase(it);continue;}
+            if(!residue.mVictim.isEmpty())
+            {
+                osg::Matrixf bone;
+                auto* animation=mRendering->getAnimation(residue.mVictim);
+                osg::Vec3f corpsePosition;
+                if(animation && !residue.mBone.starts_with("ragdoll ") && animation->getRagdollPosition(corpsePosition))
+                {
+                    // The corpse can split into separately simulated halves.
+                    // Re-anchor to an actual body once, then follow that body.
+                    residue.mBone=animation->findProjectileBone(residue.mWoundPosition);
+                    if(animation->getProjectileBoneMatrix(residue.mBone,bone))
+                    {
+                        residue.mLocal=osg::Matrixf::rotate(residue.mNode->getAttitude())
+                            *osg::Matrixf::translate(residue.mNode->getPosition())*osg::Matrixf::inverse(bone);
+                        residue.mWoundLocal=residue.mWoundPosition*osg::Matrixf::inverse(bone);
+                    }
+                }
+                if(animation && animation->getProjectileBoneMatrix(residue.mBone,bone))
+                {
+                    const auto world=residue.mLocal*bone;
+                    residue.mNode->setPosition(world.getTrans());residue.mNode->setAttitude(world.getRotate());
+                    residue.mWoundPosition=residue.mWoundLocal*bone;
+                }
+            }
+            else
+            {
+                osg::Vec3f position;osg::Quat rotation;
+                if(mPhysics->getProjectileDebrisPose(reinterpret_cast<std::uintptr_t>(&residue),position,rotation))
+                {residue.mNode->setPosition(position);residue.mNode->setAttitude(rotation);}
+            }
+            if(residue.mBleedLeft>0 || residue.mBlood)
+            {
+                if(Settings::ragdoll().mBloodAmount.get()<=0)
+                {
+                    residue.mBlood.reset();residue.mBleedLeft=std::max(0.f,residue.mBleedLeft-dt);
+                    residue.mBleedAge+=dt;++it;continue;
+                }
+                const osg::Vec3f direction=residue.mNode->getAttitude()*osg::Vec3f(0,1,0);
+                // The entry point follows the same bone as the shaft. Its
+                // world-space model tip is recovered from the attachment.
+                const auto wound=residue.mWoundPosition;
+                residue.mSinceSurface+=dt;
+                if(!residue.mSurface)residue.mSurface=std::make_shared<MWRender::BloodTrail::Surface>();
+                if(residue.mSinceSurface>=.5f)
+                {
+                    auto surface=mRendering->getBloodSurface(residue.mVictim.getCell(),wound,768.f);
+                    if(surface){*residue.mSurface=std::move(surface);residue.mSinceSurface=0;}
+                }
+                if(!residue.mBlood)
+                {
+                    const auto surface=residue.mSurface;
+                    const auto id=residue.mVictim.getCell()->getCell()->getId().serializeText();
+                    residue.mBlood=std::make_unique<MWRender::BloodTrail>(*mParent,
+                        [surface](const auto& a,const auto& b,auto& p,auto& n){return surface->mRaycast&&surface->mRaycast(a,b,p,n);},
+                        [this,id](const auto& stamp){mRendering->addBloodDecal(id,stamp);},
+                        [surface](const auto& p,const auto& n,float r){return surface->mProjector?surface->mProjector(p,n,r):std::vector<osg::Vec3f>{};},
+                        [surface]{return bool(*surface);},mRendering->getBloodProjectionBudget());
+                }
+                const std::vector<MWRender::BloodTrail::Source> sources=residue.mBleedLeft>0
+                    ?std::vector<MWRender::BloodTrail::Source>{{wound,-direction,.5f,false,false,.5f}}
+                    :std::vector<MWRender::BloodTrail::Source>{};
+                residue.mBlood->update(dt,sources,Settings::ragdoll().mBloodAmount.get(),residue.mBleedAge);
+                residue.mBleedAge+=dt;residue.mBleedLeft=std::max(0.f,residue.mBleedLeft-dt);
+                if(residue.mBleedLeft<=0 && !residue.mBlood->particleCount() && !residue.mBlood->queuedImpacts())residue.mBlood.reset();
+            }
+            ++it;
+        }
+    }
+
     void ProjectileManager::cleanupProjectile(ProjectileManager::ProjectileState& state)
     {
-        mParent->removeChild(state.mNode);
-        mPhysics->removeProjectile(state.mProjectileId);
+        if(state.mNode)mParent->removeChild(state.mNode);
+        if(state.mProjectileId>=0)mPhysics->removeProjectile(state.mProjectileId);
         state.mToDelete = true;
     }
 
@@ -655,6 +860,8 @@ namespace MWWorld
 
     void ProjectileManager::clear()
     {
+        for(auto& residue:mResidues)removeResidue(*residue);
+        mResidues.clear();
         for (auto& mProjectile : mProjectiles)
             cleanupProjectile(mProjectile);
         mProjectiles.clear();

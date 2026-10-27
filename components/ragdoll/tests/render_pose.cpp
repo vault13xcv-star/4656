@@ -34,6 +34,7 @@
 #include <bit>
 #include <cmath>
 #include <iostream>
+#include <components/ragdoll/projectiles.hpp>
 #include <map>
 #include <stdexcept>
 #include <utility>
@@ -171,6 +172,32 @@ namespace
                 <<" p95_ms="<<frames[456]<<" max_ms="<<maximum<<" rays="<<rays<<" projects="<<projects
                 <<" project_ms="<<projectMs<<" stains="<<stains<<" pools="<<pools<<std::endl;
         }
+    }
+
+    void projectileBleedAndSlowMotion()
+    {
+        Ragdoll::KillSlowMotion slow;
+        require(slow.scale()==1,"Kill slowdown active before a kill");
+        slow.trigger();slow.advance(1,true);
+        require(slow.mRemaining==2 && std::abs(slow.scale()-1.f/3)<.00001f,"Pause consumed kill slowdown");
+        slow.advance(1,false);slow.trigger();
+        require(slow.mRemaining==1,"Repeated deaths extended the slowdown");
+        slow.advance(1,false);require(slow.scale()==1,"Kill slowdown failed to end after two real seconds");
+        const auto incoming=osg::Vec3f(100,-200,-10);
+        const auto bounced=Ragdoll::projectileBounce(incoming,{0,1,0});
+        require(bounced.y()>0 && bounced.length2()<incoming.length2(),"Hard surface impact gained energy or failed to rebound");
+        osg::ref_ptr<osg::Group> root=new osg::Group;
+        MWRender::BloodTrail limb(*root,{},{}), puncture(*root,{},{});
+        const std::vector<MWRender::BloodTrail::Source> full{{{0,0,100},{1,0,0},1,false,false,1}};
+        const std::vector<MWRender::BloodTrail::Source> half{{{0,0,100},{1,0,0},.5f,false,false,.5f}};
+        for(int frame=0;frame<600;++frame)
+        {
+            limb.update(1.f/60,full,1,frame/60.f);
+            puncture.update(1.f/60,frame<300?half:std::vector<MWRender::BloodTrail::Source>{},1,frame/60.f);
+        }
+        require(std::abs(float(puncture.emittedCount())*4-float(limb.emittedCount()))<5,
+            "Projectile punctures did not halve both the bleeding duration and emission rate");
+        std::cout<<"PASS two-real-second slowdown, pause/nonextension, dissipative projectile bounce and quarter-volume puncture bleeding\n";
     }
 
     void brutalBloodAndPersistence()
@@ -714,6 +741,12 @@ namespace
             corpse->writeState(saved);
             if (longitudinal)
             {
+                osg::Matrixf left,right;
+                require(corpse->getProjectileBodyMatrix(1,left) && corpse->getProjectileBodyMatrix(16,right),
+                    "Split bodies have no projectile attachment matrices");
+                const auto chosen=corpse->findProjectileBody(osg::Vec3f(0,0,1)*right);
+                require(chosen<18,"A projectile was attached to intestinal segments");
+                require(!corpse->getProjectileBodyMatrix(100000,left),"Invalid projectile body index accepted");
                 std::vector<osg::Matrixf> transforms;
                 for (unsigned i = 0; i < fixture.mSkeleton->getNumChildren(); ++i)
                     if (auto* node = dynamic_cast<osg::MatrixTransform*>(fixture.mSkeleton->getChild(i));
@@ -2289,6 +2322,7 @@ int main(int argc, char** argv)
         }
         oneHandedBladeWithoutVisibleMeshIntersection();
         brutalBloodAndPersistence();
+        projectileBleedAndSlowMotion();
         bloodReceiversAndSprites();
         BrutalTextureTests::run();
         bloodFlightDuringReceiverBuild();

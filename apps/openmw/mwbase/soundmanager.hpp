@@ -102,6 +102,7 @@ namespace MWBase
         using Type = MWSound::Type;
 
         float mSimulationTimeScale = 1.0;
+        bool mForceTimeScaling = false;
 
     public:
         SoundManager() {}
@@ -238,8 +239,10 @@ namespace MWBase
 
         virtual void updatePtr(const MWWorld::ConstPtr& old, const MWWorld::ConstPtr& updated) = 0;
 
-        void setSimulationTimeScale(float scale) { mSimulationTimeScale = scale; }
+        virtual void setSimulationTimeScale(float scale) { mSimulationTimeScale = scale; }
         float getSimulationTimeScale() const { return mSimulationTimeScale; }
+        void setForceTimeScaling(bool force) { mForceTimeScaling=force; }
+        bool getForceTimeScaling() const { return mForceTimeScaling; }
 
         virtual void clear() = 0;
     };

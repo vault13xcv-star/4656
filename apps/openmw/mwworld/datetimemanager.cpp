@@ -58,6 +58,9 @@ namespace MWWorld
         mMonth = globalVariables[Globals::sMonth].getInteger();
         mYear = globalVariables[Globals::sYear].getInteger();
         mGameTimeScale = globalVariables[Globals::sTimeScale].getFloat();
+        mKillSlowMotion = {};
+        mKillSlowMotionRequested = false;
+        MWBase::Environment::get().getSoundManager()->setForceTimeScaling(false);
         setSimulationTimeScale(1.0);
         mPaused = false;
         mPausedTags.clear();
@@ -242,7 +245,28 @@ namespace MWWorld
     void DateTimeManager::setSimulationTimeScale(float scale)
     {
         mSimulationTimeScale = std::max(0.f, scale);
-        MWBase::Environment::get().getSoundManager()->setSimulationTimeScale(mSimulationTimeScale);
+        MWBase::Environment::get().getSoundManager()->setSimulationTimeScale(getSimulationTimeScale());
+    }
+
+    void DateTimeManager::startKillSlowMotion()
+    {
+        mKillSlowMotionRequested=true;
+    }
+
+    void DateTimeManager::updateKillSlowMotion(float realSeconds)
+    {
+        const float before=mKillSlowMotion.scale();
+        mKillSlowMotion.advance(realSeconds,isPaused());
+        if(mKillSlowMotionRequested && !isPaused())
+        {
+            mKillSlowMotion.trigger();mKillSlowMotionRequested=false;
+        }
+        if (before!=mKillSlowMotion.scale())
+        {
+            const auto sound=MWBase::Environment::get().getSoundManager();
+            sound->setForceTimeScaling(mKillSlowMotion.mRemaining>0);
+            sound->setSimulationTimeScale(getSimulationTimeScale());
+        }
     }
 
     void DateTimeManager::unpause(std::string_view tag)

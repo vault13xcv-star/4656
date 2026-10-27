@@ -916,7 +916,7 @@ namespace MWRender
             if (!std::isfinite(source.mPosition.length2()) || !std::isfinite(source.mDirection.length2())
                 || !std::isfinite(source.mPressure)) continue;
             const float rate = source.mNeck ? 60.f : source.mMajorWound ? 35.f : 14.f;
-            mRemainders[i] += dt * emission * rate;
+            mRemainders[i] += dt * emission * rate * std::clamp(source.mRateScale,0.f,1.f);
             const auto count = static_cast<unsigned>(mRemainders[i]);
             mRemainders[i] -= count; mPendingDrops[i] = count; pending += count;
         }

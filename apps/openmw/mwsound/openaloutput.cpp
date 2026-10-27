@@ -1603,7 +1603,7 @@ namespace MWSound
 
     float OpenALOutput::getTimeScaledPitch(SoundBase* sound)
     {
-        const bool shouldScale = !(sound->mParams.mFlags & PlayMode::NoScaling);
+        const bool shouldScale = mManager.getForceTimeScaling() || !(sound->mParams.mFlags & PlayMode::NoScaling);
         return shouldScale ? sound->getPitch() * mManager.getSimulationTimeScale() : sound->getPitch();
     }
 

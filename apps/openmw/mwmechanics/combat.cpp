@@ -429,15 +429,7 @@ namespace MWMechanics
             if (attacker == getPlayer())
                 MWBase::Environment::get().getWindowManager()->setEnemy(victim);
 
-            int skillValue = static_cast<int>(attacker.getClass().getSkill(attacker, weaponSkill));
-
-            if (Misc::Rng::roll0to99(world->getPrng()) >= getHitChance(attacker, victim, skillValue))
-            {
-                MWBase::Environment::get().getLuaManager()->onHit(attacker, victim, weapon, projectile, 0,
-                    attackStrength, damage, false, hitPosition, false, MWMechanics::DamageSourceType::Ranged);
-                MWMechanics::reduceWeaponCondition(damage, false, weapon, attacker);
-                return;
-            }
+            // The swept projectile has physically contacted this actor.
 
             {
                 const auto& attack = weapon.get<ESM::Weapon>()->mBase->mData.mChop;
@@ -480,21 +472,14 @@ namespace MWMechanics
 
         auto ragdollHit = makeRagdollHit(attacker, victim, weapon, projectile, 0, hitPosition, impactDirection);
         // Apply "On hit" effect of the projectile with the same contact identity.
-        bool appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
+        applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
         if (weapon != projectile)
-            appliedEnchantment = applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit)
-                || appliedEnchantment;
+            applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit);
 
         if (validVictim)
         {
-            // Non-enchanted arrows shot at enemies have a chance to turn up in their inventory
-            if (victim != getPlayer() && !appliedEnchantment)
-            {
-                static const float fProjectileThrownStoreChance
-                    = gmst.find("fProjectileThrownStoreChance")->mValue.getFloat();
-                if (Misc::Rng::rollProbability(world->getPrng()) < fProjectileThrownStoreChance / 100.f)
-                    victim.getClass().getContainerStore(victim).add(projectile, 1);
-            }
+            // Impact visuals have no inventory/world reference and cannot be
+            // recovered. Do not mint a second ammunition item in the corpse.
 
             MWBase::Environment::get().getLuaManager()->onHit(attacker, victim, weapon, projectile, 0, attackStrength,
                 damage, true, hitPosition, true, MWMechanics::DamageSourceType::Ranged,

@@ -8,6 +8,9 @@
 #include "apps/openmw/mwphysics/physicssystem.hpp"
 #include "apps/openmw/mwphysics/projectile.hpp"
 #include "apps/openmw/mwphysics/projectileconvexcallback.hpp"
+#include "apps/openmw/mwrender/animation.hpp"
+#include <components/ragdoll/projectiles.hpp>
+#include <osg/MatrixTransform>
 #include "apps/openmw/mwworld/cellvisitors.hpp"
 #include "apps/openmw/mwworld/class.hpp"
 #include "apps/openmw/mwworld/esmstore.hpp"
@@ -153,6 +156,79 @@ namespace
                 });
         }
     };
+
+    TEST_F(ItemPhysicsIntegration, ProjectileDebrisSharesClutterSolverAndIsNotAWorldReference)
+    {
+        Reference<ESM::Static> floor(0,0,-1);
+        Reference<ESM::Book> book(0,0,2.1f,.1f);
+        insert(floor.ptr(),"meshes/floor.osgt");insert(book.ptr());
+        constexpr std::uintptr_t id=0x1234;
+        mPhysics->addProjectileDebris(id,{}, {.4f,4,.4f},{-15,0,2.1f},{},.2f,{180,0,0});
+        advance(.5f);
+        EXPECT_GT(book.ptr().getRefData().getPosition().pos[0],1.f);
+        osg::Vec3f position;osg::Quat rotation;
+        ASSERT_TRUE(mPhysics->getProjectileDebrisPose(id,position,rotation));
+        EXPECT_GT(position.z(),-.5f);
+        mPhysics->removeProjectileDebris(id);
+        EXPECT_FALSE(mPhysics->getProjectileDebrisPose(id,position,rotation));
+        mPhysics->remove(book.ptr());mPhysics->remove(floor.ptr());
+    }
+
+    TEST_F(ItemPhysicsIntegration, ProjectileDebrisUsesTheItemDeadlineAndPause)
+    {
+        const float old=Settings::ragdoll().mItemSimulationTime.get();
+        Settings::ragdoll().mItemSimulationTime.set(5.f);
+        constexpr std::uintptr_t id=0x1235;
+        Reference<ESM::Static> floor(0,0,8999);
+        insert(floor.ptr(),"meshes/floor.osgt");
+        mPhysics->addProjectileDebris(id,{}, {.3f,5,.3f},{0,0,10000},{},.1f,{50,0,0});
+        advance(5.5f);
+        osg::Vec3f first,second;osg::Quat rotation;
+        ASSERT_TRUE(mPhysics->getProjectileDebrisPose(id,first,rotation));
+        EXPECT_LT(first.z(),9990.f);
+        advance(.5f);
+        ASSERT_TRUE(mPhysics->getProjectileDebrisPose(id,second,rotation));
+        EXPECT_EQ(first,second);
+        mPhysics->removeProjectileDebris(id);
+        mPhysics->remove(floor.ptr());
+        Settings::ragdoll().mItemSimulationTime.set(old);
+    }
+
+    TEST_F(ItemPhysicsIntegration, ProjectileAnchorFollowsPoseAndBoneRebuild)
+    {
+        struct Animation : MWRender::Animation
+        {
+            Animation():MWRender::Animation({},new osg::Group,nullptr)
+            {
+                mObjectRoot=new osg::Group;mInsert->addChild(mObjectRoot);
+            }
+            void resetBone(osg::MatrixTransform* bone)
+            {
+                mObjectRoot->removeChildren(0,mObjectRoot->getNumChildren());
+                mObjectRoot->addChild(bone);mNodeMap.clear();mNodeMapCreated=false;
+            }
+        } animation;
+        osg::ref_ptr<osg::MatrixTransform> bone=new osg::MatrixTransform;
+        bone->setName("Bip01 L Forearm");bone->setMatrix(osg::Matrixf::translate(10,0,40));
+        osg::ref_ptr<osg::MatrixTransform> hand=new osg::MatrixTransform;
+        hand->setName("Bip01 L Hand");hand->setMatrix(osg::Matrixf::translate(0,10,0));bone->addChild(hand);
+        animation.resetBone(bone);
+        const auto name=animation.findProjectileBone({10,7,40});
+        ASSERT_FALSE(name.empty());
+        EXPECT_EQ(name,"Bip01 L Forearm");
+        osg::Matrixf pose;
+        ASSERT_TRUE(animation.getProjectileBoneMatrix(name,pose));
+        const osg::Vec3f hit(10,0,42);
+        const auto local=hit*osg::Matrixf::inverse(pose);
+        bone->setMatrix(osg::Matrixf::rotate(.7f,osg::Vec3f(1,0,0))*osg::Matrixf::translate(30,0,10));
+        ASSERT_TRUE(animation.getProjectileBoneMatrix(name,pose));
+        EXPECT_GT((local*pose-hit).length(),20);
+        osg::ref_ptr<osg::MatrixTransform> replacement=new osg::MatrixTransform(*bone);
+        animation.resetBone(replacement);
+        osg::Matrixf rebuilt;
+        ASSERT_TRUE(animation.getProjectileBoneMatrix(name,rebuilt));
+        EXPECT_LT((local*rebuilt-local*pose).length(),.001f);
+    }
 
     template <class Record>
     class ItemPhysicsRecords : public ItemPhysicsIntegration
@@ -535,7 +611,7 @@ namespace
                 contact->mWeapon.mWeaponHitBody = 1;
                 contact->applyWeapon();
                 const auto torso = Ragdoll::selectWounds(contact->mApplied, 1, 0, 1);
-                EXPECT_EQ(torso.cuts(1), group == Weapon::HeavyBlade && attack == Attack::Slash);
+                EXPECT_EQ(torso.cuts(1), !torso.mCrushed && group == Weapon::HeavyBlade && attack == Attack::Slash);
                 EXPECT_EQ(torso.mLongitudinal, longitudinal);
                 EXPECT_EQ(torso.mCrushed, hit.mTwoHandedHammer && attack != Attack::Thrust);
                 EXPECT_FALSE(torso.mBurstHead);

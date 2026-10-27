@@ -876,6 +876,27 @@ namespace MWRender
 
     RagdollController::~RagdollController() = default;
 
+    unsigned RagdollController::findProjectileBody(const osg::Vec3f& point) const
+    {
+        unsigned selected=0;float nearest=std::numeric_limits<float>::max();
+        const unsigned count=mImpl->mGutsStart>=0?static_cast<unsigned>(mImpl->mGutsStart):mImpl->mBodyMatrices.size();
+        for(unsigned i=0;i<count;++i)
+        {
+            const auto local=point*osg::Matrixf::inverse(mImpl->mBodyMatrices[i]);
+            const float half=float(mImpl->mDefinitions[i].mLength)*.5f;
+            const osg::Vec3f axis(0,std::clamp(local.y(),-half,half),0);
+            const float surface=(local-axis).length()-float(mImpl->mDefinitions[i].mRadius);
+            const float distance=surface*surface;
+            if(distance<nearest){nearest=distance;selected=i;}
+        }
+        return selected;
+    }
+    bool RagdollController::getProjectileBodyMatrix(unsigned body,osg::Matrixf& world) const
+    {
+        if(body>=mImpl->mBodyMatrices.size())return false;
+        world=mImpl->mBodyMatrices[body];return true;
+    }
+
     int RagdollController::findHitBody(osg::Group& root, const osg::Vec3f& contact)
     {
         const auto matrix = rootWorldMatrix(root);

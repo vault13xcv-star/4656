@@ -159,6 +159,7 @@ namespace MWSound
         ///< Stop the given object from playing given sound buffer.
 
     public:
+        void setSimulationTimeScale(float scale) override;
         SoundManager(const VFS::Manager* vfs, bool useSound);
         ~SoundManager() override;
 

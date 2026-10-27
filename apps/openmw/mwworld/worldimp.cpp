@@ -1387,6 +1387,7 @@ namespace MWWorld
                 moveObject(ptr, position);
             },
             getPlayerPtr().getRefData().getPosition().asVec3());
+        mProjectileManager->updateResidues(duration);
     }
 
     void World::updateNavigator()

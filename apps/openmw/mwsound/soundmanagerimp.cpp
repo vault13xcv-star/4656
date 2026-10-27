@@ -1065,6 +1065,19 @@ namespace MWSound
         mOutput->finishUpdate();
     }
 
+    void SoundManager::setSimulationTimeScale(float scale)
+    {
+        MWBase::SoundManager::setSimulationTimeScale(scale);
+        if(!mOutput->isInitialized())return;
+        mOutput->startUpdate();
+        if(mMusic)mOutput->updateStream(mMusic.get());
+        for(auto& [ptr,sounds]:mActiveSounds)
+            for(auto& entry:sounds.mList)mOutput->updateSound(entry.first.get());
+        for(auto& [ptr,sound]:mActiveSaySounds)mOutput->updateStream(sound.mStream.get());
+        for(auto& stream:mActiveTracks)mOutput->updateStream(stream.get());
+        mOutput->finishUpdate();
+    }
+
     void SoundManager::updateMusic(float duration)
     {
         if (!mMusic || !mMusic->updateFade(duration) || !mOutput->isStreamPlaying(mMusic.get()))

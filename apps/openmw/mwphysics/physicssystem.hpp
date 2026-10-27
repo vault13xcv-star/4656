@@ -171,6 +171,10 @@ namespace MWPhysics
             const MWWorld::Ptr& caster, const osg::Vec3f& position, VFS::Path::NormalizedView mesh, bool computeRadius);
         void setCaster(int projectileId, const MWWorld::Ptr& caster);
         void removeProjectile(const int projectileId);
+        void addProjectileDebris(std::uintptr_t id, const osg::Vec3f& center, const osg::Vec3f& halfExtents,
+            const osg::Vec3f& position, const osg::Quat& rotation, float mass, const osg::Vec3f& velocity);
+        void removeProjectileDebris(std::uintptr_t id);
+        bool getProjectileDebrisPose(std::uintptr_t id, osg::Vec3f& position, osg::Quat& rotation) const;
 
         void updatePtr(const MWWorld::Ptr& old, const MWWorld::Ptr& updated);
 

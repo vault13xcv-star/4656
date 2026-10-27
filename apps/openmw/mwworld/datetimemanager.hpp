@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "globalvariablename.hpp"
+#include <components/ragdoll/projectiles.hpp>
 
 namespace ESM
 {
@@ -36,8 +37,10 @@ namespace MWWorld
         // World simulation time (the number of seconds passed from the beginning of the game).
         double getSimulationTime() const { return mSimulationTime; }
         void setSimulationTime(double t) { mSimulationTime = t; }
-        float getSimulationTimeScale() const { return mSimulationTimeScale; }
+        float getSimulationTimeScale() const { return mSimulationTimeScale*mKillSlowMotion.scale(); }
         void setSimulationTimeScale(float scale); // simulation time to real time ratio
+        void startKillSlowMotion();
+        void updateKillSlowMotion(float realSeconds);
 
         // Whether the game is paused in the current frame.
         bool isPaused() const { return mPaused; }
@@ -68,6 +71,8 @@ namespace MWWorld
         float mGameHour = 0.f;
         float mGameTimeScale = 0.f;
         float mSimulationTimeScale = 1.0;
+        Ragdoll::KillSlowMotion mKillSlowMotion;
+        bool mKillSlowMotionRequested = false;
         double mRenderingSimulationTime = 0.0;
         double mSimulationTime = 0.0;
         bool mPaused = false;

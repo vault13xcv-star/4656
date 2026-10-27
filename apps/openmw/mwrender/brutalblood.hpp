@@ -159,6 +159,7 @@ namespace MWRender
             float mPressure = 1;
             bool mNeck = false;
             bool mMajorWound = false;
+            float mRateScale = 1;
         };
         BloodTrail(osg::Group& root, Raycast raycast, Deposit deposit, Projector projector = {},
             std::function<bool()> ready = {}, std::shared_ptr<BloodProjectionBudget> budget = {});

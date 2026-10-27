@@ -6,6 +6,8 @@
 #include "physicssystem.hpp"
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
+#include <BulletCollision/CollisionShapes/btBoxShape.h>
+#include <BulletCollision/CollisionShapes/btCompoundShape.h>
 #include <components/debug/debuglog.hpp>
 #include <components/misc/convert.hpp>
 #include <components/ragdoll/items.hpp>
@@ -15,6 +17,40 @@
 
 namespace MWPhysics
 {
+    void PhysicsSystem::addProjectileDebris(std::uintptr_t key, const osg::Vec3f& center,
+        const osg::Vec3f& halfExtents, const osg::Vec3f& position, const osg::Quat& rotation,
+        float mass, const osg::Vec3f& velocity)
+    {
+        if (!mItems)
+            mItems=std::make_unique<Ragdoll::ItemSimulation>(Ragdoll::ItemSimulation::Settings{
+                static_cast<std::size_t>(Settings::ragdoll().mMaxActiveItems.get()),Settings::ragdoll().mItemSimulationTime.get()});
+        btBoxShape box(Misc::Convert::toBullet(halfExtents));
+        btCompoundShape shape;
+        auto offset=btTransform::getIdentity();offset.setOrigin(Misc::Convert::toBullet(center));
+        shape.addChildShape(offset,&box);
+        btTransform transform(Misc::Convert::toBullet(rotation),Misc::Convert::toBullet(position));
+        mItems->add(key,shape,transform,std::max(.05f,mass));
+        if (Settings::ragdoll().mItemPhysics)
+        {
+            mItems->wake(key);
+            auto state=mItems->state(key);
+            state.mLinearVelocity=Misc::Convert::toBullet(velocity);
+            state.mAngularVelocity=btVector3(2,1,3);
+            mItems->restore(key,state);
+        }
+        mItemSnapshotAge=1.f;
+    }
+    void PhysicsSystem::removeProjectileDebris(std::uintptr_t key)
+    {
+        if(mItems)mItems->remove(key,false);
+    }
+    bool PhysicsSystem::getProjectileDebrisPose(std::uintptr_t key, osg::Vec3f& position, osg::Quat& rotation) const
+    {
+        if(!mItems || !mItems->contains(key))return false;
+        const auto transform=mItems->state(key).mTransform;
+        position=Misc::Convert::toOsg(transform.getOrigin());
+        rotation=Misc::Convert::toOsg(transform.getRotation());return true;
+    }
     namespace
     {
         Ragdoll::ItemSimulation::Id id(const MWWorld::Ptr& ptr)

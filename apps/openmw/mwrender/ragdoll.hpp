@@ -112,6 +112,8 @@ namespace MWRender
         bool isSimulating() const;
         bool isPinned() const;
         Ragdoll::Wounds getWounds() const;
+        unsigned findProjectileBody(const osg::Vec3f& point) const;
+        bool getProjectileBodyMatrix(unsigned body, osg::Matrixf& world) const;
         // Substitute only influences across a severed joint. Intact joints in
         // the owning part continue to animate; whole robes follow the torso.
         struct PartPose

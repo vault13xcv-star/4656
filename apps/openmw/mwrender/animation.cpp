@@ -441,6 +441,46 @@ namespace
 
 namespace MWRender
 {
+    std::string Animation::findProjectileBone(const osg::Vec3f& position) const
+    {
+        if(mRagdoll)return "ragdoll "+std::to_string(mRagdoll->findProjectileBody(position));
+        float best=std::numeric_limits<float>::max();std::string result;
+        for (const auto& [name,node]:getNodeMap())
+        {
+            if (!node || name.find("weapon")!=std::string::npos || name.find("shield")!=std::string::npos)continue;
+            const auto paths=node->getParentalNodePaths();
+            if(paths.empty())continue;
+            const auto world=osg::computeLocalToWorld(paths.front());
+            const osg::Vec3f start=world.getTrans();
+            float distance=(start-position).length2();
+            if(const auto* group=node->asGroup())
+                for(unsigned i=0;i<group->getNumChildren();++i)
+                {
+                    const auto* child=dynamic_cast<const osg::MatrixTransform*>(group->getChild(i));
+                    if(!child)continue;
+                    const auto end=osg::Vec3f((child->getMatrix()*world).getTrans());
+                    const auto segment=end-start;
+                    const float length=segment.length2();
+                    if(length>.001f)
+                    {
+                        const auto closest=start+segment*std::clamp(((position-start)*segment)/length,0.f,1.f);
+                        distance=std::min(distance,(position-closest).length2());
+                    }
+                }
+            if(distance<best){best=distance;result=name;}
+        }
+        return result;
+    }
+    bool Animation::getProjectileBoneMatrix(std::string_view bone, osg::Matrixf& world) const
+    {
+        if(bone.starts_with("ragdoll "))
+            return mRagdoll && mRagdoll->getProjectileBodyMatrix(static_cast<unsigned>(std::stoul(std::string(bone.substr(8)))),world);
+        const osg::Node* node=bone.empty()?mObjectRoot.get():getNode(bone);
+        if(!node)return false;
+        const auto paths=node->getParentalNodePaths();
+        if(paths.empty())return false;
+        world=osg::computeLocalToWorld(paths.front());return true;
+    }
     class TransparencyUpdater : public SceneUtil::StateSetUpdater
     {
     public:

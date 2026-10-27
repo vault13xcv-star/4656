@@ -2,6 +2,9 @@
 #define OPENMW_MWWORLD_PROJECTILEMANAGER_H
 
 #include <string>
+#include <chrono>
+#include <memory>
+#include "../mwrender/brutalblood.hpp"
 
 #include <osg/PositionAttitudeTransform>
 #include <osg/ref_ptr>
@@ -61,6 +64,7 @@ namespace MWWorld
         void update(float dt);
 
         void processHits();
+        void updateResidues(float dt);
 
         /// Removes all current projectiles. Should be called when switching to a new worldspace.
         void clear();
@@ -121,10 +125,29 @@ namespace MWWorld
 
             osg::Vec3f mVelocity;
             float mAttackStrength;
+            float mSpin = 0;
         };
 
         std::vector<MagicBoltState> mMagicBolts;
         std::vector<ProjectileState> mProjectiles;
+        struct Residue
+        {
+            osg::ref_ptr<osg::PositionAttitudeTransform> mNode;
+            MWWorld::Ptr mVictim;
+            const MWWorld::CellStore* mCell = nullptr;
+            std::string mBone;
+            osg::Matrixf mLocal;
+            osg::Vec3f mWoundLocal, mWoundPosition;
+            std::chrono::steady_clock::time_point mCreated = std::chrono::steady_clock::now();
+            float mBleedLeft = 0, mBleedAge = 0;
+            std::unique_ptr<MWRender::BloodTrail> mBlood;
+            std::shared_ptr<MWRender::BloodTrail::Surface> mSurface;
+            float mSinceSurface = 1;
+        };
+        std::vector<std::unique_ptr<Residue>> mResidues;
+        void retainProjectile(ProjectileState& state, const MWWorld::Ptr& target,
+            const osg::Vec3f& position, const osg::Vec3f& normal);
+        void removeResidue(Residue& residue);
 
         void cleanupProjectile(ProjectileState& state);
         void cleanupMagicBolt(MagicBoltState& state);
