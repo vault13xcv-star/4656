@@ -1,0 +1,68 @@
+name: Brutal Morrowind 1.1 - Publish retained runtime
+
+on:
+  push:
+    branches:
+      - experimental/ragdoll-brutal-1.1
+    paths:
+      - .github/workflows/brutal11-retained.yml
+      - CI/publish-brutal11-retained.py
+      - CI/brutal11-retained.json
+
+permissions:
+  contents: write
+
+concurrency:
+  group: brutal11-retained-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ contains(github.event.head_commit.message, '[publish-only]') }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out corresponding sources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Report publication start
+        run: ./CI/ragdoll-report.ps1 -Stage retained-package -Result running
+      - name: Fetch the exact compiled candidate without compilation
+        run: |
+          $m = Get-Content CI/brutal11-retained.json -Raw | ConvertFrom-Json
+          git fetch --no-tags --depth=1 origin $m.binarySource $m.reportCommit
+          if ($LASTEXITCODE -ne 0) { throw 'Retained candidate fetch failed.' }
+          python CI/publish-brutal11-retained.py prepare
+          if ($LASTEXITCODE -ne 0) { throw 'Retained candidate validation failed.' }
+      - name: Check the retained Windows executable
+        run: |
+          $m = Get-Content CI/brutal11-retained.json -Raw | ConvertFrom-Json
+          Expand-Archive "dist/$($m.runtimeFile)" -DestinationPath runtime
+          $folder = Join-Path $PWD "runtime/$($m.runtimeFile.Replace('.zip',''))"
+          $p = Start-Process (Join-Path $folder 'openmw.exe') -ArgumentList '--version' -WorkingDirectory $folder -Wait -PassThru -RedirectStandardOutput installed-version.log -RedirectStandardError installed-version-errors.log
+          if ($p.ExitCode -ne 0) { throw 'Retained executable did not start.' }
+          if (-not ((Get-Content installed-version.log -Raw).Contains('Revision: 1a74a9df1d'))) { throw 'Wrong retained binary.' }
+      - name: Publish prerelease with the validation note
+        run: |
+          python CI/publish-brutal11-retained.py publish
+          if ($LASTEXITCODE -ne 0) { throw 'Retained prerelease publication failed.' }
+      - name: Publish final report and original test logs
+        if: always()
+        env:
+          BUILD_RESULT: ${{ job.status }}
+        run: ./CI/ragdoll-report.ps1 -Stage completed -Result $env:BUILD_RESULT
+      - name: Preserve archives and publication diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Brutal-Morrowind-retained-1.1-${{ github.sha }}
+          path: |
+            dist/*
+            installed-version*.log
+          if-no-files-found: warn
+          retention-days: 30

@@ -41,6 +41,7 @@
 #include <osgDB/Registry>
 
 #include <gtest/gtest.h>
+#include <bit>
 
 namespace
 {
@@ -534,11 +535,16 @@ namespace
                 contact->mWeapon.mWeaponHitBody = 1;
                 contact->applyWeapon();
                 const auto torso = Ragdoll::selectWounds(contact->mApplied, 1, 0, 1);
-                EXPECT_EQ(torso.cuts(1), (group == Weapon::HeavyBlade && attack == Attack::Slash)
-                    || (hit.mTwoHandedHammer && attack != Attack::Thrust));
+                EXPECT_EQ(torso.cuts(1), group == Weapon::HeavyBlade && attack == Attack::Slash);
                 EXPECT_EQ(torso.mLongitudinal, longitudinal);
                 EXPECT_EQ(torso.mCrushed, hit.mTwoHandedHammer && attack != Attack::Thrust);
                 EXPECT_FALSE(torso.mBurstHead);
+                if (torso.mCrushed)
+                {
+                    EXPECT_GE(std::popcount(torso.mCuts), 3);
+                    EXPECT_LE(std::popcount(torso.mCuts), 5);
+                    EXPECT_EQ(torso.mCuts & ~684u, 0u);
+                }
             }
         }
     }
