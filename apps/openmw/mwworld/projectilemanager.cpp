@@ -60,6 +60,7 @@
 
 #include "../mwrender/animation.hpp"
 #include "../mwrender/renderingmanager.hpp"
+#include "../mwrender/ragdoll.hpp"
 #include "../mwrender/util.hpp"
 #include "../mwrender/vismask.hpp"
 
@@ -578,14 +579,20 @@ namespace MWWorld
             // the visible corpse as well, bounded by the first native solid hit.
             std::vector<MWWorld::Ptr> nearby;
             MWBase::Environment::get().getMechanicsManager()->getActorsInRange(
-                (previous+end)*.5f,(end-previous).length()*.5f+256.f,nearby);
+                (previous+end)*.5f,(end-previous).length()*.5f+768.f,nearby);
             for(const auto& actor:nearby)
             {
                 if(actor==projectileState.getCaster() || !actor.getClass().getCreatureStats(actor).isDead())continue;
                 if(auto* animation=mRendering->getAnimation(actor))
                 {
                     osg::Vec3f point;
-                    if(actorSurface(*animation,previous,end,point) && (point-previous).length2()<nearest)
+                    bool contact=actorSurface(*animation,previous,end,point);
+                    if(!contact && actor.getClass().isNpc() && animation->getObjectRoot())
+                    {
+                        const auto hit=MWRender::RagdollController::findHitContact(*animation->getObjectRoot(),previous,end);
+                        contact=hit.mBody>=0;if(contact)point=hit.mPosition;
+                    }
+                    if(contact && (point-previous).length2()<nearest)
                     {corpse=actor;corpsePoint=point;nearest=(point-previous).length2();}
                 }
             }
@@ -709,6 +716,12 @@ namespace MWWorld
             {
                 osg::Vec3f surface;
                 if(actorSurface(*animation,contact-direction*8.f,contact+direction*80.f,surface))point=surface;
+                else if(auto* root=animation->getObjectRoot())
+                {
+                    const auto hit=MWRender::RagdollController::findHitContact(*root,
+                        contact-direction*8.f,contact+direction*80.f);
+                    if(hit.mBody>=0)point=hit.mPosition;
+                }
                 residue->mBone=animation->findProjectileBone(point);
             }
             float tip=-1e9f;
