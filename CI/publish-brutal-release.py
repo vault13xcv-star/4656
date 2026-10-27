@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish V1.0 after verifying downloaded GitHub Release assets."""
+"""Publish the manifest-selected stable release after verifying its assets."""
 import base64
 import hashlib
 import json
@@ -32,8 +32,8 @@ def release():
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode:
         run('gh', 'release', 'create', TAG, '--repo', REPO, '--verify-tag', '--draft',
-            '--title', 'Brutal Morrowind V1.0 — Windows x64',
-            '--notes-file', str(ROOT / 'docs/releases/v1.0.md'))
+            '--title', f"Brutal Morrowind {M['version']} — Windows x64",
+            '--notes-file', str(ROOT / f'docs/releases/{TAG}.md'))
         data = json.loads(output(*command))
     else:
         data = json.loads(result.stdout)
@@ -59,7 +59,7 @@ def release():
         if latest['tag_name'] == TAG and not latest['prerelease'] and not latest['draft']:
             break
         if attempt == 5:
-            raise RuntimeError('Published V1.0 was not returned as the latest stable release')
+            raise RuntimeError('Published ' + TAG + ' was not returned as the latest stable release')
         time.sleep(2)
     print('PASS published stable Latest release and downloaded asset SHA256 checks')
     return data['url']
@@ -68,7 +68,7 @@ def release():
 def report(result, url, error=None):
     # Git transport makes the publication report accessible to the cloud
     # workspace even where direct GitHub REST access is unavailable.
-    branch = 'build-results/brutal-v1.0'
+    branch = 'build-results/brutal-' + TAG
     directory = Path(tempfile.mkdtemp(prefix='brutal-release-report-'))
     token = os.environ['GH_TOKEN']
     def git(*args):
@@ -102,11 +102,11 @@ def report(result, url, error=None):
             shutil.copyfile(path, directory / name)
     (directory / 'status.json').write_bytes((json.dumps(status, indent=2) + '\n').encode())
     (directory / 'README.md').write_bytes((
-        '# Brutal Morrowind V1.0 publication\n\nResult: **' + result + '**.\n\n'
+        '# Brutal Morrowind ' + M['version'] + ' publication\n\nResult: **' + result + '**.\n\n'
         '[Release](' + url + ') · [Repository](https://github.com/' + REPO + ')\n\n'
         'status.json records release verification and downloadable file hashes.\n').encode())
     git('add', '--all')
-    git('commit', '-m', 'Brutal Morrowind V1.0 publication: ' + result)
+    git('commit', '-m', 'Brutal Morrowind ' + M['version'] + ' publication: ' + result)
     git('push', 'origin', 'HEAD:refs/heads/' + branch)
 
 

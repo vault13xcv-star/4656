@@ -1,9 +1,9 @@
-name: Brutal Morrowind V1.0 release
+name: Brutal Morrowind stable Windows release
 
 on:
   push:
     tags:
-      - v1.0
+      - v1.1
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ jobs:
       - name: Fetch the pinned tested source and binary report
         run: |
           $m = Get-Content CI/brutal-release.json -Raw | ConvertFrom-Json
-          git fetch --no-tags --depth=1 origin $m.baselineSource $m.baselineReport
+          git fetch --no-tags --depth=1 origin $m.baselineSource $m.binarySource $m.baselineReport
           if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the pinned baseline.' }
 
       - name: Verify and promote the existing runtime without compilation
@@ -38,11 +38,12 @@ jobs:
 
       - name: Check the installed Windows executable
         run: |
-          Expand-Archive dist/Brutal-Morrowind-1.0-Windows-x64.zip -DestinationPath runtime
-          $runtime = Join-Path $PWD 'runtime/Brutal-Morrowind-1.0-Windows-x64'
+          $m = Get-Content CI/brutal-release.json -Raw | ConvertFrom-Json
+          Expand-Archive "dist/$($m.runtimeFile)" -DestinationPath runtime
+          $runtime = Join-Path $PWD "runtime/$($m.runtimeFile.Replace('.zip', ''))"
           $process = Start-Process (Join-Path $runtime 'openmw.exe') -ArgumentList '--version' -WorkingDirectory $runtime -Wait -PassThru -RedirectStandardOutput installed-version.log -RedirectStandardError installed-version-errors.log
           if ($process.ExitCode -ne 0) { throw 'Release runtime did not start.' }
-          if (-not ((Get-Content installed-version.log -Raw).Contains('Revision: 436addc398'))) { throw 'Unexpected binary revision.' }
+          if (-not ((Get-Content installed-version.log -Raw).Contains('Revision: ' + $m.binarySource.Substring(0, 10)))) { throw 'Unexpected binary revision.' }
 
       - name: Publish stable release and verify downloaded assets
         run: |
@@ -53,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Brutal-Morrowind-V1.0
+          name: Brutal-Morrowind-V1.1
           path: |
             dist/*
             installed-version*.log

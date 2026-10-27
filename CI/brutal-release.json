@@ -1,14 +1,25 @@
 {
-  "version": "1.0",
-  "tag": "v1.0",
+  "version": "1.1",
+  "tag": "v1.1",
   "repository": "vault13xcv-star/4656",
-  "baselineSource": "436addc3980d6587c4a6f0d6469bc933d4492555",
-  "baselineReport": "c26adf7806eb679b37cdf859383d2ca9d9122354",
-  "baselineRun": "40378426490",
-  "baselineFile": "Brutal-Morrowind-0.7.0-preview.14-OpenMW-0.51-Windows-x64-436addc3980d.zip",
-  "baselineBytes": 47590770,
-  "baselineSha256": "f4f5c5c21ad82548771ac68dc42b606a9662a56be37f90a64bb6ddda4d33c2ac",
-  "executableSha256": "6e3e78d5daf9972c65794c6057f6020e5836d7926dda0336cbbce67c5d03ae95",
-  "runtimeFile": "Brutal-Morrowind-1.0-Windows-x64.zip",
-  "sourceFile": "Brutal-Morrowind-1.0-Source.zip"
+  "baselineSource": "ca675a68b9cf72d2bd08e1a693558a722091e3c2",
+  "baselineReport": "37d8413a1015bef03e0b0499b2e8f6e5fdad478d",
+  "baselineRun": "40463620815",
+  "baselineFile": "Brutal-Morrowind-1.1-experimental.2-OpenMW-0.51-Windows-x64-1a74a9df1d6e.zip",
+  "baselineBytes": 51777738,
+  "baselineSha256": "8e37d2b740f4b835729cbd0e4ec286132384889b52ea01f41ff1b4f28a9cd52d",
+  "executableSha256": "8d0e1fb2d5db5513bf442e031b23b9455b2ea77e0e9ce7ded87f414358f30974",
+  "runtimeFile": "Brutal-Morrowind-1.1-Windows-x64.zip",
+  "sourceFile": "Brutal-Morrowind-1.1-Source.zip",
+  "binarySource": "1a74a9df1d6e1ae69d9e34627041db170003d46e",
+  "baselineTestResult": "38/39 native integration; one obsolete hammer-waist expectation; see KNOWN-ISSUES.md",
+  "validation": {
+    "windowsComponentTests": 1402,
+    "windowsItemIntegrationTestsPassed": 38,
+    "windowsItemIntegrationTestsTotal": 39,
+    "windowsPhysicsRenderGroups": 4,
+    "correctedWindowsIntegrationTestRerun": false,
+    "knownTestException": "ItemPhysicsIntegration.NativeWeaponClassesAndAnimationKeysSelectOnlyEligibleWounds expected the removed hammer waist cut",
+    "inGamePlaytest": false
+  }
 }

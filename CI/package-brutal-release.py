@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Promote the pinned, tested Windows runtime without rebuilding any binaries."""
+"""Promote the pinned Windows runtime without rebuilding any binaries."""
 import argparse
 import hashlib
 import json
@@ -38,7 +38,8 @@ def package(input_zip, output):
     assert status['stage'] == 'completed' and status['result'] == 'success'
     assert status['sourceCommit'] == m['baselineSource']
     assert status['package']['sha256'] == m['baselineSha256']
-    assert status['package']['testResult'] == 'success'
+    assert status['package']['testResult'] == m['baselineTestResult']
+    assert status['package']['sourceCommit'] == m['binarySource']
     assert input_zip.stat().st_size == m['baselineBytes']
     assert sha(input_zip.read_bytes()) == m['baselineSha256']
     timestamp = int(git('show', '-s', '--format=%ct', commit))
@@ -48,19 +49,26 @@ def package(input_zip, output):
     provenance = {
         'product': 'Brutal Morrowind', 'version': m['version'], 'tag': m['tag'],
         'releaseCommit': commit, 'releaseSource': origin + '/tree/' + m['tag'],
-        'binarySourceCommit': m['baselineSource'],
+        'binarySourceCommit': m['binarySource'],
+        'correspondingBaselineSourceCommit': m['baselineSource'],
         'binaryBuild': origin + '/actions/runs/' + m['baselineRun'],
         'baselineArchiveSha256': m['baselineSha256'],
         'openmwExecutableSha256': m['executableSha256'],
         'recompiled': False, 'runtimePayloadUnchanged': True,
-        'validation': {'windowsComponentTests': 1402, 'windowsItemIntegrationTests': 39,
-                       'windowsPhysicsRenderGroups': 4, 'inGamePlaytest': False},
+        'validation': m['validation'],
+        'originalWindowsTestResult': 'failure',
+        'knownIssues': 'KNOWN-ISSUES.md',
     }
     document_paths = {
-        'README.md': 'README.md', 'LICENSE': 'LICENSE',
+        'README.md': 'README.md', 'README.txt': 'README.md', 'LICENSE': 'LICENSE',
         'BRUTAL-MORROWIND-README.md': 'docs/brutal-morrowind.md',
+        'brutal-morrowind.md': 'docs/brutal-morrowind.md',
+        'RAGDOLL-README.md': 'docs/brutal-morrowind.md',
+        'dismemberment.md': 'docs/dismemberment.md',
         'docs/README.en.md': 'docs/README.en.md',
-        'docs/releases/v1.0.md': 'docs/releases/v1.0.md',
+        f"docs/releases/{m['tag']}.md": f"docs/releases/{m['tag']}.md",
+        'KNOWN-ISSUES.md': f"docs/releases/{m['tag']}-known-issues.md",
+        f"docs/releases/{m['tag']}-known-issues.md": f"docs/releases/{m['tag']}-known-issues.md",
         'docs/brutal-morrowind.md': 'docs/brutal-morrowind.md',
         'docs/dismemberment.md': 'docs/dismemberment.md',
         'docs/upstream/README.OpenMW.md': 'docs/upstream/README.OpenMW.md',
@@ -71,14 +79,26 @@ def package(input_zip, output):
     additions['BUILD-INFO.txt'] = (
         f"Brutal Morrowind {m['version']} / OpenMW 0.51 / Windows x64\n"
         f"Release: {origin}/releases/tag/{m['tag']}\nRelease source: {origin}/tree/{commit}\n"
-        f"Binary source commit: {m['baselineSource']}\nBinary build: {provenance['binaryBuild']}\n"
+        f"Binary source commit: {m['binarySource']}\nBinary build: {provenance['binaryBuild']}\n"
         f"openmw.exe SHA256: {m['executableSha256']}\n\n"
-        'The tested preview.14 executable, libraries and gameplay resources are unchanged.\n'
+        'The current compiled executable, libraries and gameplay resources are unchanged.\n'
         'This release changes package branding and documentation without recompilation.\n'
         'Full corresponding engine sources are provided alongside the runtime.\n'
         'Extract the entire ZIP and launch openmw.exe. An existing OpenMW configuration\n'
         'and your own Morrowind game data are required. The launcher/editor are not bundled.\n'
-        'See README.md, RELEASE-INFO.json and the included dependency licenses.\n'
+        'See README.md, KNOWN-ISSUES.md, RELEASE-INFO.json and the included dependency licenses.\n'
+    ).encode('utf-8')
+    additions['VALIDATION.txt'] = (
+        f"Brutal Morrowind {m['version']} validation\n\n"
+        'Original Windows test step: failure; 38/39 native integration tests passed.\n'
+        'One obsolete test expected the intentionally removed hammer waist cut.\n'
+        'Its source expectation is corrected; that Windows test was not rebuilt or rerun.\n'
+        'All 1402 component tests and four physics/render regression groups passed.\n'
+        'The validation directory retains the original test logs without alteration.\n'
+        'Executable/DLL/game-resource hashes, installed startup and ZIP integrity are checked.\n'
+        'No engine recompilation was performed for this stable release.\n'
+        'See KNOWN-ISSUES.md and RELEASE-INFO.json for the disclosed exception.\n'
+        'These checks do not constitute an in-game playtest with Morrowind data.\n'
     ).encode('utf-8')
     runtime = output / m['runtimeFile']
     original_hashes = {}
@@ -89,6 +109,11 @@ def package(input_zip, output):
         assert len(executables) == 1
         old_prefix = executables[0][:-len('openmw.exe')]
         assert sha(before.read(executables[0])) == m['executableSha256']
+        prior = json.loads(before.read(old_prefix + 'RELEASE-INFO.json'))
+        assert prior['binarySourceCommit'] == m['binarySource']
+        assert prior['correspondingSourceCommit'] == m['baselineSource']
+        assert prior['nativeIntegrationTestsPassed'] == 38 and prior['nativeIntegrationTestsTotal'] == 39
+        assert prior['originalWindowsTestResult'] == 'failure' and not prior['correctedWindowsTestRerun']
         for item in before.infolist():
             assert item.filename.startswith(old_prefix)
             relative = item.filename[len(old_prefix):]
@@ -114,17 +139,17 @@ def package(input_zip, output):
         assert json.loads(after.read(prefix + 'RELEASE-INFO.json')) == provenance
     source = output / m['sourceFile']
     subprocess.run(['git', '-C', str(ROOT), '-c', 'core.autocrlf=false', 'archive', '--format=zip',
-                    '--prefix=Brutal-Morrowind-1.0-Source/', '--output=' + str(source), commit], check=True)
+                    f"--prefix={m['sourceFile'][:-4]}/", '--output=' + str(source), commit], check=True)
     with zipfile.ZipFile(source) as archive:
         assert archive.testzip() is None
         for name in ['README.md', 'LICENSE', 'CI/brutal-release.json',
                      'apps/openmw/mwrender/brutalblood.cpp', 'components/ragdoll/tests/render_pose.cpp']:
-            assert archive.read('Brutal-Morrowind-1.0-Source/' + name) == git('show', commit + ':' + name)
+            assert archive.read(m['sourceFile'][:-4] + '/' + name) == git('show', commit + ':' + name)
     (output / 'RELEASE-INFO.json').write_bytes(json_bytes(provenance))
     assets = [runtime, source, output / 'RELEASE-INFO.json']
     checksums = ''.join(sha(path.read_bytes()) + '  ' + path.name + '\n' for path in assets)
     (output / 'SHA256SUMS').write_bytes(checksums.encode('ascii'))
-    print('PASS all original executable/library/resource payloads match preview.14')
+    print('PASS all original executable/library/resource payloads match the current 1.1 build')
     print('PASS runtime/source ZIP integrity and corresponding source revision')
     print(checksums, end='')
 

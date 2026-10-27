@@ -1,11 +1,11 @@
-# Brutal Morrowind 1.1 Experimental
+# Brutal Morrowind 1.1
 
-This separate experimental branch starts from V1.0 and replaces corpse/cut
-materials with the original supplied DDS artwork. V1.0 and its Latest release
-are unchanged. Download the entire 1.1 runtime; its renderer needs the five new
-resources as well as the matching executable.
+Brutal Morrowind 1.1 is the current stable release, based on OpenMW 0.51.
+It includes the latest corpse/cut materials, elemental blood rules and random
+hammer extremity tearing. Download and extract the entire Windows runtime;
+its renderer needs the five gore resources as well as the matching executable.
 
-## Experimental corpse and cut materials
+## Corpse and cut materials
 
 | Supplied file | Installed file | Use |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ maps are prepared once at scene loading from burnt/poisoned: periodic boundaries
 rotations/reflections and blended offsets hide regular tile repetition. They
 fade into per-instance diffuse images using the existing material/UV pipeline;
 clothing alpha, shared original assets and the native skin lighting are retained.
-Experimental 2 halves the sampling frequency in both UV directions, doubling
+Version 1.1 halves the sampling frequency in both UV directions, doubling
 the visible burnt/poisoned feature size while retaining periodic boundaries.
 Frost, smoke, fire timers, inventories and the blood projection budget are unchanged.
 

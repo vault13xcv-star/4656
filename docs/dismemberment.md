@@ -1,11 +1,11 @@
-# Brutal Morrowind 0.7.0-preview.2
+# Brutal Morrowind 1.1 — dismemberment
 
 New blood, physical intestines, longitudinal cuts and hammer torso tearing are
 documented in [brutal-morrowind.md](brutal-morrowind.md). This continues preview.5;
 the previous directional/elemental rules below remain except that a descending
 two-handed sword/axe chop into head/torso now selects a longitudinal cut, and a
 two-handed hammer torso swing can detach 3–5 random extremities while the torso
-remains intact (1.1 Experimental 2). The existing wound-chance slider still applies.
+remains intact (version 1.1). The existing wound-chance slider still applies.
 
 Wounds now retain the native chop/slash/thrust hit key and the anatomical part
 captured on the living NPC before weapon damage, on-strike magic and deferred

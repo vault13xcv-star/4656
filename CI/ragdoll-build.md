@@ -1,8 +1,8 @@
-# Experimental Windows x64 build
+# Windows x64 build and stable release
 
 Push the modified engine to a branch matching `experimental/ragdoll-*` to run
 `.github/workflows/realcombat-ragdoll.yml`. GitHub Actions must be enabled for the
-repository. The current feature branch is `experimental/ragdoll-0.4.0-windows`.
+repository. The current stable source is tag `v1.1` on the default branch.
 A manual `workflow_dispatch` is also supported once GitHub exposes the workflow.
 No personal access token or repository secret is needed: the job uses its
 short-lived `GITHUB_TOKEN` with `contents: write`.
@@ -31,7 +31,7 @@ text or the encoding of the user's game data.
 Successful jobs publish an immutable GitHub prerelease containing the runtime
 ZIP, its SHA256 checksum and the complete corresponding engine source archive.
 Runtime/source ZIP names, the prerelease title, tag and package metadata include
-the ragdoll feature version (currently `0.4.0`) separately from OpenMW `0.51.0`.
+the Brutal Morrowind version (currently `1.1`) separately from OpenMW `0.51.0`.
 Actions also stores these as a 30-day artifact. Physics, synthetic OSG skeleton,
 loose-item dynamics, lethal-hit attribution and component tests,
 the installed executable's `--version` command, and ZIP integrity must pass
@@ -50,8 +50,12 @@ The retained cloud helper accepts this flag:
 MSVC precompiled headers remain enabled; no unverified CMake build directory is
 restored between jobs. Compiler-cache tools that reject MSVC precompiled headers
 would require a separate measured build configuration before being enabled.
-Release tags begin with `ragdoll-windows-`; they do not match
-the upstream release workflow's `openmw-**` tag trigger.
+Stable releases use `v1.1` and `.github/workflows/brutal-release.yml`. The
+manifest `CI/brutal-release.json` pins the current compiled runtime and matching
+sources. Packaging verifies every executable/library/game-resource byte, updates
+release documentation and publishes a normal Latest release without recompiling.
+The known obsolete Windows test expectation remains disclosed in the archive.
+These tags do not match the upstream workflow's `openmw-**` trigger.
 
 ## Poll without GitHub API access
 

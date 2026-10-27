@@ -1,24 +1,11 @@
-# Brutal Morrowind 1.1 Experimental
+# Brutal Morrowind 1.1
 
-**Experimental corpse and cut textures on top of V1.0, based on OpenMW 0.51.**
+**The current stable Windows x64 release, based on OpenMW 0.51.**
 
-This separate branch adds uploaded burnt/poisoned body coatings, circular limb
-cross-sections, waist tissue and left/right longitudinal anatomy. The stable
-V1.0 release remains unchanged. See [1.1 materials and limitations](brutal-morrowind.md).
-
-[Download 1.1 Experimental](https://github.com/vault13xcv-star/4656/releases/tag/brutal-1.1-experimental.2)
-
-Experimental 2 doubles the visible burnt/poisoned pattern size. Fire/frost
-dismemberment is bloodless, including lethal enchanted-weapon hits and saved
-corpses. Ordinary, poison and shock bleeding remain available.
-Successful two-handed hammer torso dismemberment now selects 3–5 random
-extremities (arms, legs and head), keeping the torso intact.
-
-The links below document the stable V1.0 baseline.
-
-[Download Windows x64](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Windows-x64.zip)
-· [Release page](https://github.com/vault13xcv-star/4656/releases/tag/v1.0)
-· [Full source ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Source.zip)
+[Download Windows x64](https://github.com/vault13xcv-star/4656/releases/download/v1.1/Brutal-Morrowind-1.1-Windows-x64.zip)
+· [Release page](https://github.com/vault13xcv-star/4656/releases/latest)
+· [Source tree](https://github.com/vault13xcv-star/4656/tree/v1.1)
+· [Full source ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.1/Brutal-Morrowind-1.1-Source.zip)
 · [Русский](https://github.com/vault13xcv-star/4656)
 
 ## Features
@@ -37,8 +24,11 @@ The links below document the stable V1.0 baseline.
   lifetimes, wound probability, blood amount and stain lifetime. Defaults include
   a 30% wound chance and ten-minute stain persistence.
 
-V1.0 promotes the tested `0.7.0-preview.14` executable and gameplay resources
-unchanged. The established combat system is retained.
+Version 1.1 adds burnt/poisoned corpse coatings with enlarged seamless patterns,
+art-fitted limb/waist caps and left/right longitudinal anatomy. Fire/frost
+severing is bloodless. Successful two-handed hammer torso dismemberment selects
+3–5 random extremities and keeps the waist intact. The established combat system
+is retained; all loot stays with the original body.
 
 ## Installation
 
@@ -56,10 +46,13 @@ When updating, keep the EXE, libraries and resources from the same package.
 
 ## Verification and compatibility
 
-The underlying Windows build passed 1402 component tests, 39 native item
-integration tests and the physics/render regression groups. Executable startup,
-ZIP integrity and resource hashes were checked. These are automated checks,
-not a guarantee of in-game performance or compatibility with every mod.
+The underlying Windows build passed 1402 component tests, four physics/render
+regression groups and 38/39 native integration tests. One old integration
+expectation still required the intentionally removed hammer waist cut. Its
+source is corrected; the compiled engine is retained without recompilation and
+the original test result is disclosed in [KNOWN-ISSUES](releases/v1.1-known-issues.md).
+Executable startup, ZIP integrity and resource hashes were checked. These
+checks do not replace an in-game test with your Morrowind data.
 
 Interior blood follows visible geometry, including carpets, furniture, steps and
 columns. Exterior blood retains collision-backed landscape/object receivers.
@@ -68,9 +61,9 @@ and whole-body NPC meshes retain the established dismemberment limitations.
 
 ## Source and support
 
-- [V1.0 source tree](https://github.com/vault13xcv-star/4656/tree/v1.0),
-  [source ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.0/Brutal-Morrowind-1.0-Source.zip),
-  [checksums](https://github.com/vault13xcv-star/4656/releases/download/v1.0/SHA256SUMS).
+- [V1.1 source tree](https://github.com/vault13xcv-star/4656/tree/v1.1),
+  [source ZIP](https://github.com/vault13xcv-star/4656/releases/download/v1.1/Brutal-Morrowind-1.1-Source.zip),
+  [checksums](https://github.com/vault13xcv-star/4656/releases/download/v1.1/SHA256SUMS).
 - [Build instructions](../CI/ragdoll-build.md), [blood implementation](brutal-morrowind.md),
   [dismemberment rules](dismemberment.md).
 - [Report an issue](https://github.com/vault13xcv-star/4656/issues) with the release,
