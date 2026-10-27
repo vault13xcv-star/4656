@@ -6,9 +6,20 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40466959107",
   "resultsBranch": "build-results/ragdoll-ca675a68b9cf72d2bd08e1a693558a722091e3c2-40466959107-1",
-  "stage": "retained-package",
-  "result": "running",
-  "updatedUtc": "2026-10-27T07:24:56.8078887Z",
-  "releaseUrl": null,
-  "package": null
+  "stage": "completed",
+  "result": "success",
+  "updatedUtc": "2026-10-27T07:25:34.3651108Z",
+  "releaseUrl": "https://github.com/vault13xcv-star/4656/releases/tag/brutal-1.1-experimental.2",
+  "package": {
+    "file": "Brutal-Morrowind-1.1-experimental.2-OpenMW-0.51-Windows-x64-1a74a9df1d6e.zip",
+    "sha256": "8e37d2b740f4b835729cbd0e4ec286132384889b52ea01f41ff1b4f28a9cd52d",
+    "bytes": 51777738,
+    "sourceCommit": "1a74a9df1d6e1ae69d9e34627041db170003d46e",
+    "releaseSourceCommit": "ca675a68b9cf72d2bd08e1a693558a722091e3c2",
+    "sourceFile": "Brutal-Morrowind-1.1-experimental.2-Source-ca675a68b9cf.zip",
+    "ragdollVersion": "1.1-experimental.2",
+    "modName": "Brutal Morrowind",
+    "testResult": "38/39 native integration; one obsolete hammer-waist expectation; see KNOWN-ISSUES.md",
+    "gitDownload": "https://github.com/vault13xcv-star/4656/raw/refs/heads/build-results/ragdoll-ca675a68b9cf72d2bd08e1a693558a722091e3c2-40466959107-1/Brutal-Morrowind-1.1-experimental.2-OpenMW-0.51-Windows-x64-1a74a9df1d6e.zip"
+  }
 }
