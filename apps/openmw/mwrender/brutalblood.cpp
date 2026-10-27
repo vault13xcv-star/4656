@@ -132,37 +132,6 @@ namespace MWRender
             }
             return false;
         }
-        osg::Texture2D* bloodSpriteTexture()
-        {
-            // One small immutable RGBA mask is shared by every airborne spray.
-            // The colour remains in the particle tint, so the same native light
-            // and shadow response applies to the whole droplet texture.
-            static const osg::ref_ptr<osg::Texture2D> texture = [] {
-                constexpr int width = 64, height = 128;
-                osg::ref_ptr<osg::Image> image = new osg::Image;
-                image->allocateImage(width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE);
-                image->setOrigin(osg::Image::BOTTOM_LEFT);
-                for (int y = 0; y < height; ++y)
-                    for (int x = 0; x < width; ++x)
-                    {
-                        const float u = (x + .5f) * 2.f / width - 1.f;
-                        const float v = (y + .5f) * 2.f / height - 1.f;
-                        // A narrow leading tip and a rounded trailing body.
-                        const float radius = std::sqrt(std::max(0.f, 1.f - v * v)) * (.65f - .25f * v);
-                        const float alpha = std::clamp((radius - std::abs(u)) * width * .25f, 0.f, 1.f);
-                        image->setColor({ 1, 1, 1, alpha }, x, y);
-                    }
-                osg::ref_ptr<osg::Texture2D> result = new osg::Texture2D(image);
-                result->setResizeNonPowerOfTwoHint(false);
-                result->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
-                result->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
-                result->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
-                result->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
-                result->setUseHardwareMipMapGeneration(false);
-                return result;
-            }();
-            return texture;
-        }
     }
 
     static osg::ref_ptr<osg::StateSet> makeWetGoreState(bool decal, bool sprite = false, bool textured = false)
@@ -246,12 +215,21 @@ namespace MWRender
             "uniform float brutalBloodTime;uniform float brutalBloodLifetime;"
             "uniform sampler2D brutalBloodAtlas;"
             "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;varying vec2 bloodInfo;"
+            "float rnd(float x){return fract(sin(x*91.345+12.345)*43758.5453);}"
+            "float spot(vec2 q,vec2 center,float radius){return 1.0-smoothstep(radius-.02,radius+.02,length(q-center));}"
             "void main(){vec3 N=normalize(n);"
             "float age=max(0.0,brutalBloodTime-bloodInfo.x);float dry=min(1.0,age/90.0);"
             "vec4 c=tint;"
             "if(bloodInfo.y>.5){vec4 texel=texture2D(brutalBloodAtlas,uv);"
             "vec3 pigment=texel.rgb;"
             "c=vec4(pigment*tint.rgb,texel.a*tint.a);}"
+            "else{vec2 q=uv*2.0-1.0;float seed=-bloodInfo.y*257.0;"
+            "float angle=atan(q.y,q.x);float edge=.47+.09*sin(angle*5.0+seed)+.05*sin(angle*11.0-seed);"
+            "float ink=1.0-smoothstep(edge-.025,edge+.025,length(q));"
+            "for(int i=0;i<7;++i){float k=float(i)+seed*11.0;"
+            "float a=rnd(k+2.0)*6.2831853;float d=.48+rnd(k+9.0)*.37;"
+            "ink=max(ink,spot(q,vec2(cos(a),sin(a))*d,.025+rnd(k+20.0)*.065));}"
+            "c.a*=ink;}"
             "c.rgb*=1.0-.5*dry;c.a*=clamp((brutalBloodLifetime-age)/10.0,0.0,1.0);"
             "if(c.a<.003)discard;"
             "vec3 spec;vec3 light=bloodLighting(N,p,spec);"
@@ -267,9 +245,9 @@ namespace MWRender
             "if(brutalBloodWorldLighting){vec3 wetSpec;vec3 light=bloodLighting(N,p,wetSpec);"
             "color=bloodFog(tint.rgb*light+wetSpec*.035,p);}gl_FragColor=vec4(color,1.0);}";
         const std::string spriteFragment =
-            "uniform sampler2D brutalBloodSprite;"
-            "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
-            "void main(){float alpha=texture2D(brutalBloodSprite,uv).a*tint.a;"
+                        "varying vec4 tint;varying vec3 n;varying vec3 p;varying vec2 uv;"
+            "void main(){vec2 q=uv*2.0-1.0;float radius=sqrt(max(0.0,1.0-q.y*q.y))*(.65-.25*q.y);"
+            "float alpha=clamp((radius-abs(q.x))*16.0,0.0,1.0)*tint.a;"
             "if(alpha<.015)discard;"
             "vec3 spec;vec3 light=bloodLighting(normalize(n),p,spec);"
             "gl_FragColor=vec4(bloodFog(tint.rgb*light+spec*.02,p),alpha);}";
@@ -298,11 +276,6 @@ namespace MWRender
             state->addUniform(new osg::Uniform("brutalBloodTime", 0.f));
             state->addUniform(new osg::Uniform("brutalBloodLifetime", 600.f));
             state->addUniform(new osg::Uniform("brutalBloodAtlas", 0));
-        }
-        if (sprite)
-        {
-            state->addUniform(new osg::Uniform("brutalBloodSprite", 0));
-            state->setTextureAttributeAndModes(0, bloodSpriteTexture(), on);
         }
         return state;
     }
@@ -683,7 +656,7 @@ namespace MWRender
                 vertices->push_back(vertex - chunk.mOrigin); normals->push_back(normal);
                 colors->push_back(textured ? osg::Vec4f(shade,shade,shade,.94f) : osg::Vec4f(.29f,.009f,.014f,.94f));
                 coords->push_back({ tile.x()+u*(tile.z()-tile.x()), tile.y()+v*(tile.w()-tile.y()) });
-                births->push_back({ static_cast<float>(mTime-stain.mAge), textured ? 1.f : 0.f });
+                births->push_back({ static_cast<float>(mTime-stain.mAge), textured ? 1.f : -float((seed & 65535u)+1u)/65536.f });
             }
         }
         constexpr unsigned on = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED;

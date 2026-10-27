@@ -502,7 +502,7 @@ namespace
 
         osgUtil::StateToCompile compile(osgUtil::GLObjectsVisitor::COMPILE_STATE_ATTRIBUTES,nullptr);
         blood.createPrecompileNode()->accept(compile);
-        require(compile._programs.size()==3 && compile._textures.size()>=2,
+        require(compile._programs.size()==3 && compile._textures.size()>=1,
             "Loading does not precompile the shared gore/decal/sprite programs and textures");
         blood.clear(); blood.setCellActive("room",true);
         auto pool=stamp({},8);pool.mPool=true;pool.mRadius=30;

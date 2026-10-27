@@ -264,19 +264,6 @@ namespace MWRender
                 return viewer.valid() && viewer->getFrameStamp() ? std::uint64_t(viewer->getFrameStamp()->getFrameNumber()) : 0;
             });
         mBloodDecals = std::make_unique<BloodDecals>(*sceneRoot);
-        const auto loadBloodTextures = [this](std::initializer_list<const char*> paths) {
-            std::vector<osg::ref_ptr<osg::Image>> images;
-            auto* manager = mResourceSystem->getImageManager();
-            for (const auto* path : paths)
-            {
-                auto image = manager->getImage(VFS::Path::toNormalized(path));
-                if (image && image != manager->getWarningImage())
-                    images.push_back(std::move(image));
-                else
-                    Log(Debug::Warning) << "Brutal Morrowind: blood decal texture unavailable: " << path;
-            }
-            return images;
-        };
         BrutalTextures::Images gore;
         unsigned goreIndex=0;
         for(const char* path:{"textures/brutal/gore/burnt.dds","textures/brutal/gore/poisoned.dds",
@@ -288,10 +275,6 @@ namespace MWRender
             ++goreIndex;
         }
         installBrutalTextures(*sceneRoot,gore);
-        mBloodDecals->setTextures(
-            loadBloodTextures({ "textures/brutal/blood/floor (1).dds", "textures/brutal/blood/floor (2).dds", "textures/brutal/blood/floor (3).dds" }),
-            loadBloodTextures({ "textures/brutal/blood/wall (1).dds", "textures/brutal/blood/wall (2).dds",
-                "textures/brutal/blood/walll.dds" }));
         if (auto* compile=mViewer->getIncrementalCompileOperation())
             compile->add(mBloodDecals->createPrecompileNode());
 
