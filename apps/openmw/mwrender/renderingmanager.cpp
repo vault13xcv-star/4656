@@ -1124,20 +1124,16 @@ namespace MWRender
         const osg::Vec3f& worldPosition, float scale, bool isMagicVFX, bool useAmbientLight, std::string_view effectId,
         bool loop)
     {
-        const float bloodAmount = Ragdoll::bloodEmissionScale(Settings::ragdoll().mBloodAmount.get());
-        if (bloodAmount != 1.f)
-            for (int i = 0; i < 3; ++i)
-            {
-                const auto key = "Blood_Model_" + std::to_string(i);
-                const auto* setting = MWBase::Environment::get().getESMStore()->get<ESM::GameSetting>().search(key);
-                const auto mesh = setting ? std::string_view(setting->mValue.getString()) : Fallback::Map::getString(key);
-                if (!mesh.empty() && model.value() == VFS::Path::Normalized("meshes/" + std::string(mesh)).value())
-                {
-                    if (bloodAmount <= 0) return;
-                    scale *= std::sqrt(bloodAmount);
-                    break;
-                }
-            }
+        // Stock BloodSplat meshes use textured particles. Procedural hit and
+        // wound trails replace them, including calls from other scripts.
+        for (int i = 0; i < 3; ++i)
+        {
+            const auto key = "Blood_Model_" + std::to_string(i);
+            const auto* setting = MWBase::Environment::get().getESMStore()->get<ESM::GameSetting>().search(key);
+            const auto mesh = setting ? std::string_view(setting->mValue.getString()) : Fallback::Map::getString(key);
+            if (!mesh.empty() && model.value() == VFS::Path::Normalized("meshes/" + std::string(mesh)).value())
+                return;
+        }
         mEffectManager->addEffect(model, texture, worldPosition, scale, isMagicVFX, useAmbientLight, effectId, loop);
     }
 

@@ -4,6 +4,8 @@ This branch builds on Brutal Morrowind 1.1. Blood droplets and stains use
 procedural shaders; the runtime package does not include the six blood DDS
 images. Corpse/cut artwork is unchanged. Existing impact particles travel under
 gravity, sweep against receivers and project splashes at actual contacts.
+The stock BloodSplat NIF/DDS effect is suppressed; native weapon-hit blood uses
+the procedural trail rather than adding a second textured effect.
 
 Small bounded volumes can move downhill along contacted surfaces. Ceiling blood
 and flows that reach an edge become airborne drops again. Floor contacts collect

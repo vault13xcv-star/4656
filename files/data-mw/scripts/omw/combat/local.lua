@@ -237,35 +237,8 @@ local function adjustDamageForDifficulty(attack, defendant)
 end
 
 local function spawnBloodEffect(position)
-    -- Blood presentation only; health, armor and hit processing are unchanged.
-    if Creature.objectIsInstance(self.object) and not Creature.record(self.object).hasBlood then
-        return
-    end
-    if isPlayer and not settings:get('spawnBloodEffectsOnPlayer') then
-        return
-    end
-
-    local bloodEffectModel = string.format('Blood_Model_%d', math.random(0, 2)) -- randIntUniformClosed(0, 2)
-
-    -- TODO: implement a Misc::correctMeshPath equivalent instead?
-    -- All it ever does it append 'meshes\\' though
-    bloodEffectModel = 'meshes/'..core.getGMST(bloodEffectModel)
-
-    local record = self.object.type.record(self.object)
-    local bloodTexture = string.format('Blood_Texture_%d', record.bloodType)
-    bloodTexture = core.getGMST(bloodTexture)
-    if not bloodTexture or bloodTexture == '' then
-        bloodTexture = core.getGMST('Blood_Texture_0')
-    end
-    core.sendGlobalEvent('SpawnVfx', {
-        model = bloodEffectModel,
-        position = position,
-        options = {
-            mwMagicVfx = false,
-            particleTextureOverride = bloodTexture,
-            useAmbientLight = true,
-        },
-    })
+    -- Native hit presentation emits procedural ballistic blood after damage.
+    -- Keep the public interface callable without spawning the old NIF/DDS VFX.
 end
 
 local function onHit(data)
