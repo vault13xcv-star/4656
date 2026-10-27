@@ -6,9 +6,17 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40526411777",
   "resultsBranch": "build-results/ragdoll-9a5892d013d9b3412d916ceb66556797f6e3bb60-40526411777-1",
-  "stage": "package",
+  "stage": "publish",
   "result": "running",
-  "updatedUtc": "2026-10-27T15:24:23.4481141Z",
+  "updatedUtc": "2026-10-27T15:24:47.6306059Z",
   "releaseUrl": null,
-  "package": null
+  "package": {
+    "file": "Brutal-Morrowind-1.2-procedural.2-OpenMW-0.51-Windows-x64-9a5892d013d9.zip",
+    "sha256": "5db34b8dba41deb25990c8601b835f0a152cca5fd01cc537720630c1b94fa2ac",
+    "bytes": 47771914,
+    "sourceCommit": "9a5892d013d9b3412d916ceb66556797f6e3bb60",
+    "ragdollVersion": "1.2-procedural.2",
+    "modName": "Brutal Morrowind",
+    "testResult": "success"
+  }
 }
