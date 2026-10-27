@@ -6,9 +6,17 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40564818890",
   "resultsBranch": "build-results/ragdoll-e738572084976cc3f9b43639dfea27e6d7fe1088-40564818890-1",
-  "stage": "package",
+  "stage": "publish",
   "result": "running",
-  "updatedUtc": "2026-10-27T19:24:25.3361427Z",
+  "updatedUtc": "2026-10-27T19:24:47.5520971Z",
   "releaseUrl": null,
-  "package": null
+  "package": {
+    "file": "Brutal-Morrowind-1.2-projectiles.1-OpenMW-0.51-Windows-x64-e73857208497.zip",
+    "sha256": "ea789570b92eb81a2a5ac59cc92b0c8d3378be4d7a2dac84097c41c84bd4abd5",
+    "bytes": 49684059,
+    "sourceCommit": "e738572084976cc3f9b43639dfea27e6d7fe1088",
+    "ragdollVersion": "1.2-projectiles.1",
+    "modName": "Brutal Morrowind",
+    "testResult": "success"
+  }
 }
