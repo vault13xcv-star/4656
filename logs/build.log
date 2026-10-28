@@ -1,16 +1,3 @@
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1436): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1447): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1448): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1449): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-[570/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\brutalblood.cpp.obj
-D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(74): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-[571/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\bloodsurfacevisitor.cpp.obj
 [572/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\bindingsmanager.cpp.obj
 [573/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controllermanager.cpp.obj
 [574/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\actionmanager.cpp.obj
@@ -178,3 +165,16 @@ D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(74): warning C4267: 'argumen
 [736/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\creature.cpp.obj
 [737/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\npc.cpp.obj
 [738/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\activator.cpp.obj
+[739/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\player.cpp.obj
+[740/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\book.cpp.obj
+[741/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockpick.cpp.obj
+[742/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\potion.cpp.obj
+[743/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\apparatus.cpp.obj
+[744/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\probe.cpp.obj
+[745/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\repair.cpp.obj
+[746/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\misc.cpp.obj
+[747/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\ingredient.cpp.obj
+[748/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\armor.cpp.obj
+[749/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\static.cpp.obj
+[750/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\light.cpp.obj
+[751/901] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\clothing.cpp.obj
