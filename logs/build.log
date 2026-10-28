@@ -1,14 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(882): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(882): warning C4267: 'initializing': conversion from 'size_t' to 'const unsigned int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1090): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=GLsizei
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1117): warning C4244: '+=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1118): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1158): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1159): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1388): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1389): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1395): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
@@ -178,3 +167,14 @@ D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(74): warning C4267: 'argumen
 [706/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\nearbybindings.cpp.obj
 [707/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\postprocessingbindings.cpp.obj
 [708/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\objectbindings.cpp.obj
+[709/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\debugbindings.cpp.obj
+[710/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\corebindings.cpp.obj
+[711/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\worldbindings.cpp.obj
+[712/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\worker.cpp.obj
+[713/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\landbindings.cpp.obj
+[714/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\dialoguebindings.cpp.obj
+[715/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\stats.cpp.obj
+[716/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\factionbindings.cpp.obj
+[717/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\classbindings.cpp.obj
+[718/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\itemdata.cpp.obj
+[719/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\animationbindings.cpp.obj
