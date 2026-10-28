@@ -16,6 +16,7 @@
 #include <components/esm3/brutalbloodstate.hpp>
 #include <components/esm3/player.hpp>
 #include <components/esm3/quickkeys.hpp>
+#include <components/esm3/projectilestate.hpp>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -344,6 +345,50 @@ namespace ESM
             EXPECT_EQ(result.mRagdoll.mGutsStart, 18);
             EXPECT_EQ(result.mRagdoll.mGutsCount, 36);
             EXPECT_EQ(result.mRagdoll.mBodies.size(), 54);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, projectileCombatDamageAndAttackAgeShouldRoundTrip)
+        {
+            ProjectileState record{};
+            record.mId = RefId::stringRefId("iron_arrow");
+            record.mBowId = RefId::stringRefId("longbow");
+            record.mAttackStrength = .8f;
+            record.mCombatDamage = .51f;
+            record.mAttackAge = 1.25f;
+            ProjectileState result{};
+            saveAndLoadRecord(record, CurrentSaveGameFormatVersion, result);
+            EXPECT_EQ(result.mId, record.mId);
+            EXPECT_EQ(result.mBowId, record.mBowId);
+            EXPECT_EQ(result.mCombatDamage, record.mCombatDamage);
+            EXPECT_EQ(result.mAttackAge, record.mAttackAge);
+        }
+
+        TEST_F(Esm3SaveLoadRecordTest, oldProjectileWithoutCombatFieldsShouldLoad)
+        {
+            ProjectileState record{};
+            record.mId = RefId::stringRefId("iron_arrow");
+            record.mBowId = RefId::stringRefId("longbow");
+            auto stream = std::make_unique<std::stringstream>();
+            ESMWriter writer;
+            writer.setFormatVersion(CurrentSaveGameFormatVersion);
+            writer.save(*stream);
+            writer.startRecord(fakeRecordId);
+            record.BaseProjectileState::save(writer);
+            writer.writeHNRefId("BOW_", record.mBowId);
+            writer.writeHNT("VEL_", record.mVelocity);
+            writer.writeHNT("STR_", .8f);
+            writer.endRecord(fakeRecordId);
+            ESMReader reader;
+            reader.open(std::move(stream), "legacy-projectile");
+            ASSERT_TRUE(reader.hasMoreRecs());
+            EXPECT_EQ(reader.getRecName().toInt(), fakeRecordId);
+            reader.getRecHeader();
+            ProjectileState result{};
+            result.mCombatDamage = .25f;result.mAttackAge = 1;
+            result.load(reader);
+            EXPECT_EQ(result.mCombatDamage, -1);
+            EXPECT_EQ(result.mAttackAge, -1);
+            EXPECT_EQ(result.mAttackStrength, .8f);
         }
 
         TEST_F(Esm3SaveLoadRecordTest, headerShouldNotChange)

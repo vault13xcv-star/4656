@@ -67,6 +67,8 @@ namespace MWInput
         A_ZoomOut = 49,
 
         A_TogglePostProcessorHUD = 50,
+        A_Block = 51,
+        A_Dodge = 52,
 
         A_Last // Marker for the last item
     };

@@ -57,6 +57,8 @@ namespace ESM
         esm.writeHNRefId("BOW_", mBowId);
         esm.writeHNT("VEL_", mVelocity);
         esm.writeHNT("STR_", mAttackStrength);
+        esm.writeHNT("CDMG",mCombatDamage);
+        esm.writeHNT("CAGE",mAttackAge);
     }
 
     void ProjectileState::load(ESMReader& esm)
@@ -68,6 +70,10 @@ namespace ESM
 
         mAttackStrength = 1.f;
         esm.getHNOT(mAttackStrength, "STR_");
+        mCombatDamage=-1;
+        esm.getHNOT(mCombatDamage,"CDMG");
+        mAttackAge=-1;
+        esm.getHNOT(mAttackAge,"CAGE");
     }
 
 }

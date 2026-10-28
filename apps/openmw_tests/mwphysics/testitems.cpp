@@ -625,6 +625,34 @@ namespace
         }
     }
 
+    TEST_F(ItemPhysicsIntegration, CombatHitChanceIsAlwaysCertainForBothSidesAndAllSkills)
+    {
+        Reference<ESM::Weapon> first(0,0,0), second(10,0,0);
+        for(int skill:{-10,0,5,30,100,150})
+        {
+            EXPECT_EQ(MWMechanics::getHitChance(first.ptr(),second.ptr(),skill),100);
+            EXPECT_EQ(MWMechanics::getHitChance(second.ptr(),first.ptr(),skill),100);
+        }
+    }
+
+    TEST_F(ItemPhysicsIntegration, LoadingAndResurrectionClearTransientActiveCombat)
+    {
+        MWBase::Environment environment;
+        MWWorld::ESMStore store;environment.setESMStore(store);
+        ESM::NPC base;base.blank();
+        const auto* npc=store.insert(base);
+        MWMechanics::CreatureStats stats;stats.getSpells().setSpells(npc->mId);
+        ESM::CreatureStats saved{};saved.blank();
+        stats.mCombat.mGuardHeld=true;stats.mCombat.mAttackActive=true;
+        stats.mCombat.mDodgeLeft=.2f;stats.mCombat.mRecoveryLeft=2;
+        stats.readState(saved);
+        EXPECT_FALSE(stats.mCombat.mGuardHeld);EXPECT_FALSE(stats.mCombat.mAttackActive);
+        EXPECT_EQ(stats.mCombat.mDodgeLeft,0);EXPECT_EQ(stats.mCombat.mRecoveryLeft,0);
+        stats.mCombat.mGuardHeld=true;stats.mCombat.mDodgeLeft=.2f;
+        stats.resurrect();
+        EXPECT_FALSE(stats.mCombat.mGuardHeld);EXPECT_EQ(stats.mCombat.mDodgeLeft,0);
+    }
+
     TEST_F(ItemPhysicsIntegration, PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders)
     {
         MWBase::Environment environment;

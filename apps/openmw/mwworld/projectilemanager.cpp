@@ -11,6 +11,7 @@
 #include <osgUtil/IntersectionVisitor>
 #include <components/ragdoll/projectiles.hpp>
 #include <components/ragdoll/blood.hpp>
+#include <components/misc/rng.hpp>
 
 #include <components/debug/debuglog.hpp>
 
@@ -396,6 +397,14 @@ namespace MWWorld
         state.mCaster = actor.getCellRef().getRefNum();
         state.mBowId = bow.getCellRef().getRefId();
         state.mVelocity = orient * osg::Vec3f(0, 1, 0) * speed;
+        const auto& stats=actor.getClass().getCreatureStats(actor);
+        const float skill=MWMechanics::getCombatSkill(actor,bow);
+        state.mCombatDamage=Ragdoll::Combat::damage(skill,stats.getFatigue().getCurrent()<=0);
+        state.mAttackStarted=stats.mCombat.mAttackStarted;
+        const float first=Misc::Rng::rollClosedProbability(MWBase::Environment::get().getWorld()->getPrng());
+        const float second=Misc::Rng::rollClosedProbability(MWBase::Environment::get().getWorld()->getPrng());
+        state.mVelocity=Ragdoll::Combat::spreadShot(state.mVelocity,skill,
+            stats.getAttribute(ESM::Attribute::Agility).getModified(),first,second);
         state.mIdArrow = projectile.getCellRef().getRefId();
         state.mCasterHandle = actor;
         state.mAttackStrength = attackStrength;
@@ -603,13 +612,10 @@ namespace MWWorld
             auto caster = projectileState.getCaster();
             assert(target != caster);
 
-            if (caster.isEmpty())
-                caster = target;
-
             // Try to get a Ptr to the bow that was used. It might no longer exist.
             MWWorld::ManualRef projectileRef(*MWBase::Environment::get().getESMStore(), projectileState.mIdArrow);
             MWWorld::Ptr bow = projectileRef.getPtr();
-            if (!caster.isEmpty() && projectileState.mIdArrow != projectileState.mBowId)
+            if (!caster.isEmpty() && caster.getClass().hasInventoryStore(caster) && projectileState.mIdArrow != projectileState.mBowId)
             {
                 MWWorld::InventoryStore& inv = caster.getClass().getInventoryStore(caster);
                 MWWorld::ContainerStoreIterator invIt = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
@@ -622,12 +628,14 @@ namespace MWWorld
             if (projectile->getHitWater() && corpse.isEmpty())
                 mRendering->emitWaterRipple(hitPosition);
 
+            bool blocked=false;
             if(target.isEmpty() || !target.getClass().isActor() || !target.getClass().getCreatureStats(target).isDead())
-                MWMechanics::projectileHit(caster, target, bow, projectileRef.getPtr(), hitPosition,
-                    projectileState.mAttackStrength,projectileState.mVelocity);
+                blocked=MWMechanics::projectileHit(caster, target, bow, projectileRef.getPtr(), hitPosition,
+                    projectileState.mAttackStrength,projectileState.mVelocity,projectileState.mCombatDamage,projectileState.mAttackStarted);
             if(!projectile->getHitWater() || !corpse.isEmpty())
-                retainProjectile(projectileState,target,hitPosition,corpse.isEmpty()
-                    ?osg::Vec3f(Misc::Convert::toOsg(projectile->getHitNormal())):osg::Vec3f());
+                retainProjectile(projectileState,blocked?MWWorld::Ptr():target,hitPosition,blocked
+                    ?-projectileState.mVelocity:corpse.isEmpty()
+                        ?osg::Vec3f(Misc::Convert::toOsg(projectile->getHitNormal())):osg::Vec3f());
             projectileState.mToDelete = true;
         }
         const MWWorld::ESMStore& esmStore = *MWBase::Environment::get().getESMStore();
@@ -747,7 +755,8 @@ namespace MWWorld
         }
         else
         {
-            const auto n=normal.length2()>.001f?normal:osg::Vec3f(0,0,1);
+            auto n=normal.length2()>.001f?normal:osg::Vec3f(0,0,1);
+            n.normalize();
             float reach=0;
             for(unsigned i=0;i<8;++i)reach=std::max(reach,float(-(state.mNode->getAttitude()*box.corner(i))*n));
             // Keep the complete shaft outside the wall before the rigid body
@@ -899,6 +908,8 @@ namespace MWWorld
             state.mBowId = projectile.mBowId;
             state.mVelocity = projectile.mVelocity;
             state.mAttackStrength = projectile.mAttackStrength;
+            state.mCombatDamage = projectile.mCombatDamage;
+            state.mAttackAge = projectile.mAttackStarted<0?-1:float(MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime()-projectile.mAttackStarted);
 
             state.save(writer);
 
@@ -937,6 +948,8 @@ namespace MWWorld
             state.mVelocity = esm.mVelocity;
             state.mIdArrow = esm.mId;
             state.mAttackStrength = esm.mAttackStrength;
+            state.mCombatDamage = esm.mCombatDamage;
+            state.mAttackStarted = esm.mAttackAge<0?-1:MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime()-esm.mAttackAge;
             state.mToDelete = false;
 
             VFS::Path::Normalized model;

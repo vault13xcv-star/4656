@@ -103,7 +103,8 @@ namespace MWLua
         void jailTimeServed(const MWWorld::Ptr& actor, int days) override;
         void onHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& weapon,
             const MWWorld::Ptr& ammo, int attackType, float attackStrength, float damage, bool isHealth,
-            const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType sourceType, std::uint64_t ragdollHit = 0) override;
+            const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType sourceType, std::uint64_t ragdollHit = 0,
+            float combatDamageScale = 1) override;
         void exteriorCreated(MWWorld::CellStore& cell) override
         {
             mEngineEvents.addToQueue(EngineEvents::OnNewExterior{ cell });

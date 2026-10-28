@@ -239,8 +239,6 @@ namespace MWClass
                 weapon = *weaponslot;
         }
 
-        MWBase::World* world = MWBase::Environment::get().getWorld();
-
         const float dist = MWMechanics::getMeleeWeaponReach(ptr, weapon);
         const std::pair<MWWorld::Ptr, osg::Vec3f> result = MWMechanics::getHitContact(ptr, dist);
         if (result.first.isEmpty()) // Didn't hit anything
@@ -253,8 +251,7 @@ namespace MWClass
         if (!victim.getClass().isActor())
             return true;
 
-        float hitchance = MWMechanics::getHitChance(ptr, victim, ptr.get<ESM::Creature>()->mBase->mData.mCombat);
-        return Misc::Rng::roll0to99(world->getPrng()) < hitchance;
+        return true;
     }
 
     void Creature::hit(const MWWorld::Ptr& ptr, float attackStrength, int type, const MWWorld::Ptr& victim,
@@ -298,7 +295,7 @@ namespace MWClass
         if (otherstats.isDead()) // Can't hit dead actors
             return;
 
-        if (!MWMechanics::isInMeleeReach(ptr, victim, MWMechanics::getMeleeWeaponReach(ptr, weapon)))
+        if (!MWBase::Environment::get().getWorld()->getLOS(ptr,victim))
             return;
 
         if (!success)
@@ -348,24 +345,26 @@ namespace MWClass
                 MWMechanics::resistNormalWeapon(victim, ptr, weapon, damage);
             }
 
-            // Apply "On hit" enchanted weapons
-            MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit);
         }
         else if (isBipedal(ptr))
         {
             MWMechanics::getHandToHandDamage(ptr, victim, damage, healthdmg, attackStrength);
         }
 
+        const float combatScale=Ragdoll::Combat::damage(MWMechanics::getCombatSkill(ptr,weapon),getCreatureStats(ptr).getFatigue().getCurrent()<=0);
+        damage*=combatScale;
+        const float beforeBlock=damage;
+        MWMechanics::blockMeleeAttack(ptr,victim,weapon,damage,attackStrength);
+        const float armorScale=combatScale*(beforeBlock>0?damage/beforeBlock:1.f);
+        if(damage>0)MWMechanics::applyOnStrikeEnchantment(ptr,victim,weapon,hitPosition,false,ragdollHit);
         MWMechanics::applyElementalShields(ptr, victim);
 
-        if (MWMechanics::blockMeleeAttack(ptr, victim, weapon, damage, attackStrength))
-            damage = 0;
 
         MWMechanics::diseaseContact(victim, ptr);
 
         MWBase::Environment::get().getLuaManager()->onHit(ptr, victim, weapon, MWWorld::Ptr(), type, attackStrength,
             damage, healthdmg, hitPosition, true, MWMechanics::DamageSourceType::Melee,
-            otherstats.queueRagdollHit(ragdollHit));
+            otherstats.queueRagdollHit(ragdollHit),armorScale);
     }
 
     void Creature::onHit(const MWWorld::Ptr& ptr, const std::map<std::string, float>& damages, ESM::RefId object,

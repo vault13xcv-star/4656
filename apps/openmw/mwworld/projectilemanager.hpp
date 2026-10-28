@@ -126,6 +126,8 @@ namespace MWWorld
             osg::Vec3f mVelocity;
             float mAttackStrength;
             float mSpin = 0;
+            float mCombatDamage = -1;
+        double mAttackStarted = -1;
         };
 
         std::vector<MagicBoltState> mMagicBolts;

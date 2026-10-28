@@ -45,6 +45,8 @@ namespace ESM
         RefId mBowId;
         Vector3 mVelocity;
         float mAttackStrength;
+        float mCombatDamage = -1;
+        float mAttackAge = -1;
 
         void load(ESMReader& esm);
         void save(ESMWriter& esm) const;

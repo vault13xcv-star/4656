@@ -25,7 +25,10 @@ namespace MWMechanics
 
     /// @return can we block the attack?
     bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
-        float damage, float attackStrength);
+        float& damage, float attackStrength, double attackStart = -1);
+    float getCombatSkill(const MWWorld::Ptr& actor,const MWWorld::Ptr& weapon);
+    void updateActiveDefense(const MWWorld::Ptr& actor,float duration,bool canAct);
+    void sampleMeleeContact(const MWWorld::Ptr& actor);
 
     /// @return does normal weapon resistance and weakness apply to the weapon?
     bool isNormalWeapon(const MWWorld::Ptr& weapon);
@@ -37,9 +40,9 @@ namespace MWMechanics
 
     /// @note for a thrown weapon, \a weapon == \a projectile, for bows/crossbows, \a projectile is the arrow/bolt
     /// @note \a victim may be empty (e.g. for a hit on terrain), a non-actor (environment objects) or an actor
-    void projectileHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, MWWorld::Ptr weapon,
+    bool projectileHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, MWWorld::Ptr weapon,
         const MWWorld::Ptr& projectile, const osg::Vec3f& hitPosition, float attackStrength,
-        const osg::Vec3f& impactDirection = {});
+        const osg::Vec3f& impactDirection = {}, float combatDamage = -1, double attackStart = -1);
 
     std::shared_ptr<RagdollHit> makeRagdollHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim,
         const MWWorld::Ptr& weapon, const MWWorld::Ptr& projectile, int attackType,

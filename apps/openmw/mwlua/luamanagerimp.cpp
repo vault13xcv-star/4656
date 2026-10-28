@@ -588,7 +588,8 @@ namespace MWLua
 
     void LuaManager::onHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, const MWWorld::Ptr& weapon,
         const MWWorld::Ptr& ammo, int attackType, float attackStrength, float damage, bool isHealth,
-        const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType sourceType, std::uint64_t ragdollHit)
+        const osg::Vec3f& hitPos, bool successful, MWMechanics::DamageSourceType sourceType, std::uint64_t ragdollHit,
+        float combatDamageScale)
     {
         if (!ragdollHit && !victim.isEmpty() && victim.getClass().isActor()
             && (sourceType == MWMechanics::DamageSourceType::Melee || sourceType == MWMechanics::DamageSourceType::Ranged))
@@ -612,6 +613,7 @@ namespace MWLua
             data["type"] = attackType;
             data["strength"] = attackStrength;
             data["damage"] = damageTable;
+            data["_combatDamageScale"] = combatDamageScale;
             data["hitPos"] = hitPos;
             data["successful"] = successful;
             switch (sourceType)

@@ -146,7 +146,11 @@ namespace MWMechanics
         if (MWMechanics::getWeaponType(weapon->mData.mType)->mWeaponClass != ESM::WeaponType::Melee)
         {
             isRanged = true;
-            return fProjectileMaxSpeed;
+            float speed=fProjectileMaxSpeed;
+            if(MWMechanics::getWeaponType(weapon->mData.mType)->mWeaponClass==ESM::WeaponType::Thrown)
+                speed=MWBase::Environment::get().getESMStore()->get<ESM::GameSetting>()
+                    .find("fThrownWeaponMaxSpeed")->mValue.getFloat();
+            return std::max(200.f,std::min(speed,.8f*(speed*.65f)*(speed*.65f)/627.2f));
         }
         else
             return weapon->mData.mReach * fCombatDistance;

@@ -18,6 +18,8 @@
  */
 
 #include "character.hpp"
+#include "combat.hpp"
+#include "../mwworld/datetimemanager.hpp"
 
 #include <array>
 #include <unordered_set>
@@ -392,7 +394,7 @@ namespace MWMechanics
         bool knockout = stats.getFatigue().getCurrent() < 0 || stats.getFatigue().getBase() == 0;
         bool recovery = stats.getHitRecovery();
         bool knockdown = stats.getKnockedDown();
-        bool block = stats.getBlock() && !knockout && !recovery && !knockdown;
+        bool block = stats.getBlock() && !stats.mCombat.mGuardHeld && !knockout && !recovery && !knockdown;
         bool isSwimming = world->isSwimming(mPtr);
 
         stats.setBlock(false);
@@ -1107,8 +1109,8 @@ namespace MWMechanics
             // and processing multiple hit keys for a single attack
             if (mReadyToHit)
             {
-                charClass.hit(mPtr, mAttackStrength, attackType, mAttackVictim, mAttackHitPos, mAttackSuccess);
-                mReadyToHit = false;
+                // Resolve after runAnimation, with this frame's blade sweep.
+                mPendingMeleeHit = attackType;
             }
         }
         else if (isRandomAttackAnimation(groupname) && action == "start")
@@ -1139,14 +1141,11 @@ namespace MWMechanics
                 prepareHit();
 
                 if (groupname == "attack1" || groupname == "swimattack1")
-                    charClass.hit(
-                        mPtr, mAttackStrength, ESM::Weapon::AT_Chop, mAttackVictim, mAttackHitPos, mAttackSuccess);
+                    mPendingMeleeHit = ESM::Weapon::AT_Chop;
                 else if (groupname == "attack2" || groupname == "swimattack2")
-                    charClass.hit(
-                        mPtr, mAttackStrength, ESM::Weapon::AT_Slash, mAttackVictim, mAttackHitPos, mAttackSuccess);
+                    mPendingMeleeHit = ESM::Weapon::AT_Slash;
                 else if (groupname == "attack3" || groupname == "swimattack3")
-                    charClass.hit(
-                        mPtr, mAttackStrength, ESM::Weapon::AT_Thrust, mAttackVictim, mAttackHitPos, mAttackSuccess);
+                    mPendingMeleeHit = ESM::Weapon::AT_Thrust;
             }
         }
         else if (action == "shoot attach")
@@ -1158,6 +1157,7 @@ namespace MWMechanics
             {
                 mAnimation->releaseArrow(mAttackStrength);
                 mReadyToHit = false;
+                charClass.getCreatureStats(mPtr).mCombat.mAttackActive=false;
             }
         }
         else if (action == "shoot follow attach")
@@ -1518,7 +1518,8 @@ namespace MWMechanics
         float complete = 0.f;
         bool animPlaying = false;
         ESM::WeaponType::Class weapclass = getWeaponType(mWeaponType)->mWeaponClass;
-        if (getAttackingOrSpell())
+        if (getAttackingOrSpell() && !stats.mCombat.mGuardHeld && stats.mCombat.mDodgeLeft<=0
+            && stats.mCombat.mRecoveryLeft<=0)
         {
             mResetIdleOnAttackEnd = true;
             if (mUpperBodyState == UpperBodyState::WeaponEquipped
@@ -1526,6 +1527,7 @@ namespace MWMechanics
             {
                 mAttackStrength = -1.f;
                 mReadyToHit = false;
+                mPendingMeleeHit = -1;
 
                 // Randomize attacks for non-bipedal creatures
                 if (!cls.isBipedal(mPtr)
@@ -1706,6 +1708,9 @@ namespace MWMechanics
                     }
 
                     mUpperBodyState = UpperBodyState::AttackWindUp;
+                    stats.mCombat.mAttackActive=true;
+                    stats.mCombat.mAttackStarted=world->getTimeManager()->getSimulationTime();
+                    stats.mMeleeContact={};stats.mCombat.mContactTime=-1;
 
                     // Reset the attack results when the attack starts.
                     // Strictly speaking this should probably be done when the attack ends,
@@ -1714,7 +1719,9 @@ namespace MWMechanics
                     mAttackVictim = MWWorld::Ptr();
                     mAttackHitPos = osg::Vec3f();
 
-                    playBlendedAnimation(mCurrentWeapon, priorityWeapon, MWRender::BlendMask_All, false, weapSpeed,
+                    playBlendedAnimation(mCurrentWeapon, priorityWeapon, MWRender::BlendMask_All, false,
+                        weapSpeed/Ragdoll::Combat::preparation(getCombatSkill(mPtr,mWeapon),
+                            stats.getAttribute(ESM::Attribute::Agility).getModified(),stats.getFatigue().getCurrent()<=0),
                         startKey, stopKey, 0.0f, 0);
                 }
             }
@@ -1839,6 +1846,9 @@ namespace MWMechanics
                 // See the weapon->weapon mid-attack skip logic above
                 if (mUpperBodyState == UpperBodyState::AttackEnd)
                 {
+                    stats.mCombat.mAttackActive=false;
+                    stats.mCombat.mRecoveryLeft=.06f*(1.f-Ragdoll::Combat::unit(getCombatSkill(mPtr,mWeapon)))
+                        *(stats.getFatigue().getCurrent()<=0?1.5f:1.f);
                     if (weapclass == ESM::WeaponType::Thrown && weaptype == ESM::Weapon::HandToHand)
                     {
                         forcestateupdate = true;
@@ -1892,6 +1902,23 @@ namespace MWMechanics
         }
 
         mAnimation->setAccurateAiming(mUpperBodyState > UpperBodyState::WeaponEquipped);
+        if(mWeaponType!=ESM::Weapon::Spell && mWeaponType!=ESM::Weapon::PickProbe)
+        {
+            const float skill=getCombatSkill(mPtr,mWeapon);
+            const float agility=stats.getAttribute(ESM::Attribute::Agility).getModified();
+            const bool empty=stats.getFatigue().getCurrent()<=0;
+            float phase=1.f;
+            if(mUpperBodyState==UpperBodyState::AttackWindUp)phase=Ragdoll::Combat::preparation(skill,agility,empty);
+            else if(mUpperBodyState==UpperBodyState::AttackEnd)phase=Ragdoll::Combat::recovery(skill,agility,empty);
+            if(isRandomAttackAnimation(mCurrentWeapon))
+            {
+                const float hit=mAnimation->getTextKeyTime(mCurrentWeapon+": hit");
+                const float time=mAnimation->getCurrentTime(mCurrentWeapon);
+                if(hit>=0)phase=time<hit*.7f?Ragdoll::Combat::preparation(skill,agility,empty)
+                    :time<=hit?1.f:Ragdoll::Combat::recovery(skill,agility,empty);
+            }
+            mAnimation->adjustSpeedMult(mCurrentWeapon,weapSpeed/phase);
+        }
 
         return forcestateupdate;
     }
@@ -1970,6 +1997,17 @@ namespace MWMechanics
         MWBase::SoundManager* sndMgr = MWBase::Environment::get().getSoundManager();
         const MWWorld::Class& cls = mPtr.getClass();
         osg::Vec3f movement(0.f, 0.f, 0.f);
+        if(cls.isActor())
+        {
+            updateActiveDefense(mPtr,duration,mUpperBodyState==UpperBodyState::WeaponEquipped
+                || mUpperBodyState==UpperBodyState::AttackWindUp);
+            auto& combat=cls.getCreatureStats(mPtr).mCombat;
+            if((combat.mDodgeLeft>0 || combat.mGuardHeld) && mUpperBodyState>UpperBodyState::WeaponEquipped)
+            {
+                mAnimation->disable(mCurrentWeapon);mUpperBodyState=UpperBodyState::WeaponEquipped;
+                mReadyToHit=false;combat.mAttackActive=false;setAttackingOrSpell(false);
+            }
+        }
         float speed = 0.f;
 
         updateMagicEffects();
@@ -2447,8 +2485,40 @@ namespace MWMechanics
             }
         }
 
+        if(cls.isActor())
+        {
+            auto& combat=cls.getCreatureStats(mPtr).mCombat;
+            combat.mContactWindow=mUpperBodyState==UpperBodyState::AttackRelease
+                || (isRandomAttackAnimation(mCurrentWeapon) && mReadyToHit);
+            const double now=world->getTimeManager()->getSimulationTime();
+            const int pose=combat.mGuardHeld?(now>=combat.mGuardReady?2:1):0;
+            if(pose!=mGuardPose && mAnimation->hasAnimation("shield"))
+            {
+                if(!pose)mAnimation->disable("shield");
+                else mAnimation->play("shield",Priority_Block,MWRender::BlendMask_LeftArm,false,
+                    pose==2?0.f:2.f,"block start","block stop",pose==2?.30f:0.f,0);
+                mGuardPose=pose;
+            }
+        }
         osg::Vec3f movementFromAnimation
             = mAnimation->runAnimation(mSkipAnim && !isScriptedAnimPlaying() ? 0.f : duration);
+        if(cls.isActor())
+        {
+            sampleMeleeContact(mPtr);
+            auto& combat = cls.getCreatureStats(mPtr).mCombat;
+            // A real blade contact during the strike can land before the KF hit key.
+            if(mReadyToHit && mPendingMeleeHit<0 && !isRandomAttackAnimation(mCurrentWeapon)
+                && combat.mContactWindow && combat.mContactTime>=combat.mAttackStarted
+                && !cls.getCreatureStats(mPtr).mMeleeContact.isEmpty() && mAttackType!="shoot")
+                mPendingMeleeHit=mAttackType=="slash"?ESM::Weapon::AT_Slash
+                    :mAttackType=="thrust"?ESM::Weapon::AT_Thrust:ESM::Weapon::AT_Chop;
+            if(mReadyToHit && mPendingMeleeHit>=0)
+            {
+                mAttackSuccess=cls.evaluateHit(mPtr,mAttackVictim,mAttackHitPos);
+                cls.hit(mPtr,mAttackStrength,mPendingMeleeHit,mAttackVictim,mAttackHitPos,mAttackSuccess);
+                mReadyToHit=false;combat.mAttackActive=false;mPendingMeleeHit=-1;
+            }
+        }
 
         if (mPtr.getClass().isActor() && !isScriptedAnimPlaying())
         {
@@ -2500,6 +2570,12 @@ namespace MWMechanics
                 }
             }
 
+            auto& combat=cls.getCreatureStats(mPtr).mCombat;
+            if(combat.mDodgeLeft>0 && duration>0)
+            {
+                const float vertical=movement.z();
+                movement=Ragdoll::Combat::dodgeVelocity(combat,duration);movement.z()=vertical;
+            }
             movement.x() *= scale;
             movement.y() *= scale;
             world->queueMovement(mPtr, movement);

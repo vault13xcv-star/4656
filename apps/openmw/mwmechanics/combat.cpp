@@ -1,5 +1,6 @@
 
 #include "combat.hpp"
+#include "weapontype.hpp"
 
 #include <components/misc/strings/algorithm.hpp>
 
@@ -8,6 +9,7 @@
 #include <components/misc/rng.hpp>
 #include <components/misc/convert.hpp>
 #include <components/settings/values.hpp>
+#include <components/ragdoll/meleecontact.hpp>
 
 #include <components/sceneutil/positionattitudetransform.hpp>
 
@@ -28,6 +30,9 @@
 #include "../mwrender/animation.hpp"
 #include "../mwrender/camera.hpp"
 #include "../mwrender/ragdoll.hpp"
+#include "../mwrender/weaponanimation.hpp"
+#include "../mwworld/datetimemanager.hpp"
+#include <osg/ComputeBoundsVisitor>
 #include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/globals.hpp"
@@ -43,11 +48,6 @@
 
 namespace
 {
-
-    float signedAngleRadians(const osg::Vec3f& v1, const osg::Vec3f& v2, const osg::Vec3f& normal)
-    {
-        return std::atan2((normal * (v1 ^ v2)), (v1 * v2));
-    }
 
     void captureWoundContact(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim,
         const MWWorld::Ptr& projectile, Ragdoll::Impact& impact)
@@ -243,113 +243,115 @@ namespace MWMechanics
         return false;
     }
 
-    bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
-        float damage, float attackStrength)
+    float getCombatSkill(const MWWorld::Ptr& actor,const MWWorld::Ptr& weapon)
     {
-        if (!blocker.getClass().hasInventoryStore(blocker))
-            return false;
+        if(actor.isEmpty())return 100;
+        const auto skill=weapon.isEmpty()?ESM::Skill::HandToHand:weapon.getClass().getEquipmentSkill(weapon);
+        return actor.getClass().getSkill(actor,skill);
+    }
 
-        MWMechanics::CreatureStats& blockerStats = blocker.getClass().getCreatureStats(blocker);
-
-        if (blockerStats.getKnockedDown() // Used for both knockout or knockdown
-            || blockerStats.getHitRecovery() || blockerStats.isParalyzed())
-            return false;
-
-        if (!MWBase::Environment::get().getMechanicsManager()->isReadyToBlock(blocker))
-            return false;
-
-        MWWorld::InventoryStore& inv = blocker.getClass().getInventoryStore(blocker);
-        MWWorld::ContainerStoreIterator shield = inv.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
-        if (shield == inv.end() || shield->getType() != ESM::Armor::sRecordId)
-            return false;
-
-        if (!blocker.getRefData().getBaseNode())
-            return false; // shouldn't happen
-
-        float angleDegrees = osg::RadiansToDegrees(signedAngleRadians(
-            (attacker.getRefData().getPosition().asVec3() - blocker.getRefData().getPosition().asVec3()),
-            blocker.getRefData().getBaseNode()->getAttitude() * osg::Vec3f(0, 1, 0), osg::Vec3f(0, 0, 1)));
-
-        const MWWorld::Store<ESM::GameSetting>& gmst
-            = MWBase::Environment::get().getESMStore()->get<ESM::GameSetting>();
-        static const float fCombatBlockLeftAngle = gmst.find("fCombatBlockLeftAngle")->mValue.getFloat();
-        if (angleDegrees < fCombatBlockLeftAngle)
-            return false;
-        static const float fCombatBlockRightAngle = gmst.find("fCombatBlockRightAngle")->mValue.getFloat();
-        if (angleDegrees > fCombatBlockRightAngle)
-            return false;
-
-        MWMechanics::CreatureStats& attackerStats = attacker.getClass().getCreatureStats(attacker);
-
-        float blockTerm = blocker.getClass().getSkill(blocker, ESM::Skill::Block)
-            + 0.2f * blockerStats.getAttribute(ESM::Attribute::Agility).getModified()
-            + 0.1f * blockerStats.getAttribute(ESM::Attribute::Luck).getModified();
-        float enemySwing = attackStrength;
-        static const float fSwingBlockMult = gmst.find("fSwingBlockMult")->mValue.getFloat();
-        static const float fSwingBlockBase = gmst.find("fSwingBlockBase")->mValue.getFloat();
-        float swingTerm = enemySwing * fSwingBlockMult + fSwingBlockBase;
-
-        float blockerTerm = blockTerm * swingTerm;
-        if (blocker.getClass().getMovementSettings(blocker).mPosition[1] <= 0)
+    void updateActiveDefense(const MWWorld::Ptr& actor,float duration,bool canAct)
+    {
+        auto& stats=actor.getClass().getCreatureStats(actor);auto& state=stats.mCombat;
+        const auto world=MWBase::Environment::get().getWorld();
+        const double now=world->getTimeManager()->getSimulationTime();
+        state.mRecoveryLeft=std::max(0.f,state.mRecoveryLeft-duration);
+        const float agility=stats.getAttribute(ESM::Attribute::Agility).getModified();
+        MWWorld::Ptr shield,weapon;
+        if(actor.getClass().hasInventoryStore(actor))
         {
-            static const float fBlockStillBonus = gmst.find("fBlockStillBonus")->mValue.getFloat();
-            blockerTerm *= fBlockStillBonus;
+            auto& inv=actor.getClass().getInventoryStore(actor);
+            const auto left=inv.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
+            const auto right=inv.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
+            if(left!=inv.end() && left->getType()==ESM::Armor::sRecordId)shield=*left;
+            if(right!=inv.end() && right->getType()==ESM::Weapon::sRecordId)weapon=*right;
         }
-        blockerTerm *= blockerStats.getFatigueTerm();
-
-        float attackerSkill = 0;
-        if (weapon.isEmpty())
-            attackerSkill = attacker.getClass().getSkill(attacker, ESM::Skill::HandToHand);
-        else
-            attackerSkill = attacker.getClass().getSkill(attacker, weapon.getClass().getEquipmentSkill(weapon));
-        float attackerTerm = attackerSkill + 0.2f * attackerStats.getAttribute(ESM::Attribute::Agility).getModified()
-            + 0.1f * attackerStats.getAttribute(ESM::Attribute::Luck).getModified();
-        attackerTerm *= attackerStats.getFatigueTerm();
-
-        static const int iBlockMaxChance = gmst.find("iBlockMaxChance")->mValue.getInteger();
-        static const int iBlockMinChance = gmst.find("iBlockMinChance")->mValue.getInteger();
-        int x = std::clamp(static_cast<int>(blockerTerm - attackerTerm), iBlockMinChance, iBlockMaxChance);
-
-        auto& prng = MWBase::Environment::get().getWorld()->getPrng();
-        if (Misc::Rng::roll0to99(prng) < x)
+        if(!weapon.isEmpty() && (getWeaponType(weapon.get<ESM::Weapon>()->mBase->mData.mType)->mFlags&ESM::WeaponType::TwoHanded))shield={};
+        const float skill=actor.getClass().getSkill(actor,ESM::Skill::Block);
+        if(actor!=getPlayer())
         {
-            MWBase::SoundManager* sndMgr = MWBase::Environment::get().getSoundManager();
-            const ESM::RefId skill = shield->getClass().getEquipmentSkill(*shield);
-            if (skill == ESM::Skill::LightArmor)
-                sndMgr->playSound3D(blocker, ESM::RefId::stringRefId("Light Armor Hit"), 1.0f, 1.0f);
-            else if (skill == ESM::Skill::MediumArmor)
-                sndMgr->playSound3D(blocker, ESM::RefId::stringRefId("Medium Armor Hit"), 1.0f, 1.0f);
-            else if (skill == ESM::Skill::HeavyArmor)
-                sndMgr->playSound3D(blocker, ESM::RefId::stringRefId("Heavy Armor Hit"), 1.0f, 1.0f);
-
-            // Reduce shield durability by incoming damage
-            int shieldhealth = shield->getClass().getItemHealth(*shield);
-
-            shieldhealth -= std::min(shieldhealth, int(damage));
-            shield->getCellRef().setCharge(shieldhealth);
-            if (shieldhealth == 0)
-                inv.unequipItem(*shield);
-            // Reduce blocker fatigue
-            static const float fFatigueBlockBase = gmst.find("fFatigueBlockBase")->mValue.getFloat();
-            static const float fFatigueBlockMult = gmst.find("fFatigueBlockMult")->mValue.getFloat();
-            static const float fWeaponFatigueBlockMult = gmst.find("fWeaponFatigueBlockMult")->mValue.getFloat();
-            MWMechanics::DynamicStat<float> fatigue = blockerStats.getFatigue();
-            float normalizedEncumbrance = blocker.getClass().getNormalizedEncumbrance(blocker);
-            normalizedEncumbrance = std::min(1.f, normalizedEncumbrance);
-            float fatigueLoss = fFatigueBlockBase + normalizedEncumbrance * fFatigueBlockMult;
-            if (!weapon.isEmpty())
-                fatigueLoss += weapon.getClass().getWeight(weapon) * attackStrength * fWeaponFatigueBlockMult;
-            fatigue.setCurrent(fatigue.getCurrent() - fatigueLoss);
-            blockerStats.setFatigue(fatigue);
-
-            blockerStats.setBlock(true);
-
-            if (blocker == getPlayer())
-                blocker.getClass().skillUsageSucceeded(blocker, ESM::Skill::Block, ESM::Skill::Block_Success);
-
-            return true;
+            state.mGuardRequested=false;
+            std::vector<MWWorld::Ptr> targets;stats.getAiSequence().getCombatTargets(targets);
+            for(const auto& target:targets)
+            {
+                const auto& attack=target.getClass().getCreatureStats(target).mCombat;
+                const double reaction=.32-.16*Ragdoll::Combat::unit(skill)-.06*Ragdoll::Combat::unit(agility);
+                if(attack.mAttackActive && now-attack.mAttackStarted>=reaction)state.mGuardRequested=true;
+            }
         }
-        return false;
+        auto fatigue=stats.getFatigue();
+        if(stats.isDead() || stats.getKnockedDown() || stats.isParalyzed() || stats.getHitRecovery())state.mAttackActive=false;
+        const bool allowed=canAct && !stats.isDead() && !stats.getKnockedDown() && !stats.isParalyzed() && !stats.getHitRecovery()
+            && stats.getDrawState()==DrawState::Weapon;
+        if(!state.mGuardRequested)state.mGuardLatched=false;
+        if(!allowed || shield.isEmpty() || fatigue.getCurrent()<=0 || !state.mGuardRequested)
+            state.mGuardHeld=false;
+        else if(!state.mGuardHeld && !state.mGuardLatched)
+        {
+            state.mGuardLatched=true;
+            const float cost=3.f*Ragdoll::Combat::resource(skill);
+            fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-cost));
+            if(fatigue.getCurrent()>0)
+            {
+                state.mGuardHeld=true;state.mGuardStarted=now;
+                state.mGuardReady=now+Ragdoll::Combat::guardRaise(agility);
+            }
+        }
+        if(state.mGuardHeld)
+        {
+            fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-duration*2.f*Ragdoll::Combat::resource(skill)));
+            if(fatigue.getCurrent()<=0)state.mGuardHeld=false;
+        }
+        if(state.mDodgeRequested)
+        {
+            state.mDodgeRequested=false;
+            const float cost=Ragdoll::Combat::dodgeCost(agility);
+            if(allowed && now>=state.mDodgeReady && fatigue.getCurrent()>=cost && world->isOnGround(actor)
+                && !world->isSwimming(actor))
+            {
+                const auto& movement=actor.getClass().getMovementSettings(actor);
+                if(movement.mPosition[2]<=0 && (movement.mPosition[1]<=0 || std::abs(movement.mPosition[0])>.01f))
+                {
+                    state.mDodgeDirection=Ragdoll::Combat::dodgeDirection({movement.mPosition[0],movement.mPosition[1],0});
+                    state.mDodgeLeft=.24f;state.mDodgeReady=now+Ragdoll::Combat::dodgeCooldown(agility);
+                    state.mGuardHeld=false;fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-cost));
+                }
+            }
+        }
+        stats.setFatigue(fatigue);
+    }
+
+    bool blockMeleeAttack(const MWWorld::Ptr& attacker,const MWWorld::Ptr& blocker,const MWWorld::Ptr& weapon,
+        float& damage,float attackStrength,double attackStart)
+    {
+        if(blocker.isEmpty() || !blocker.getClass().hasInventoryStore(blocker))return false;
+        auto& stats=blocker.getClass().getCreatureStats(blocker);auto& guard=stats.mCombat;
+        if(!guard.mGuardHeld || stats.getFatigue().getCurrent()<=0 || stats.getKnockedDown() || stats.isParalyzed())return false;
+        auto& inv=blocker.getClass().getInventoryStore(blocker);
+        auto shield=inv.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
+        if(shield==inv.end() || shield->getType()!=ESM::Armor::sRecordId)return false;
+        if(attacker.isEmpty() || !blocker.getRefData().getBaseNode())return false;
+        osg::Vec3f toward=attacker.getRefData().getPosition().asVec3()-blocker.getRefData().getPosition().asVec3();
+        toward.z()=0;toward.normalize();
+        osg::Vec3f facing=blocker.getRefData().getBaseNode()->getAttitude()*osg::Vec3f(0,1,0);
+        if(toward*facing<.25f)return false;
+        const double now=MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime();
+        if(attackStart<0)attackStart=attacker.getClass().getCreatureStats(attacker).mCombat.mAttackStarted;
+        const float fraction=Ragdoll::Combat::blockedFraction(guard,attackStart,now);
+        if(fraction<=0)return false;
+        const float skill=blocker.getClass().getSkill(blocker,ESM::Skill::Block);
+        const float blocked=damage*fraction;damage-=blocked;
+        int health=shield->getClass().getItemHealth(*shield);
+        health=std::max(0,health-Ragdoll::Combat::consumeWear(std::max(1.f,blocked)*Ragdoll::Combat::wear(skill),guard.mShieldWear));
+        shield->getCellRef().setCharge(health);
+        if(!health){inv.unequipItem(*shield);guard.mGuardHeld=false;}
+        auto fatigue=stats.getFatigue();
+        fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-(3.f+blocked*.15f)*Ragdoll::Combat::resource(skill)));
+        stats.setFatigue(fatigue);if(fatigue.getCurrent()<=0)guard.mGuardHeld=false;
+        stats.setBlock(true);
+        MWBase::Environment::get().getSoundManager()->playSound3D(blocker,ESM::RefId::stringRefId("Light Armor Hit"),1,1);
+        if(blocker==getPlayer())blocker.getClass().skillUsageSucceeded(blocker,ESM::Skill::Block,ESM::Skill::Block_Success);
+        return true;
     }
 
     bool isNormalWeapon(const MWWorld::Ptr& weapon)
@@ -396,9 +398,9 @@ namespace MWMechanics
         }
     }
 
-    void projectileHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, MWWorld::Ptr weapon,
+    bool projectileHit(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, MWWorld::Ptr weapon,
         const MWWorld::Ptr& projectile, const osg::Vec3f& hitPosition, float attackStrength,
-        const osg::Vec3f& impactDirection)
+        const osg::Vec3f& impactDirection,float combatDamage,double attackStart)
     {
         MWBase::World* world = MWBase::Environment::get().getWorld();
         const MWWorld::Store<ESM::GameSetting>& gmst = world->getStore().get<ESM::GameSetting>();
@@ -409,7 +411,7 @@ namespace MWMechanics
             osg::Vec3f direction = impactDirection;
             if (direction.normalize() > 0)
             {
-                const int type = projectile.isEmpty() ? ESM::Weapon::MarksmanThrown
+                const int type = projectile.isEmpty() ? int(ESM::Weapon::MarksmanThrown)
                                                       : projectile.get<ESM::Weapon>()->mBase->mData.mType;
                 const auto& settings = Settings::ragdoll();
                 const float scale = type == ESM::Weapon::Bolt ? settings.mCrossbowImpulseScale.get()
@@ -419,6 +421,7 @@ namespace MWMechanics
             }
         }
 
+        if(attacker.isEmpty() || !attacker.getClass().isActor())return false;
         ESM::RefId weaponSkill = ESM::Skill::Marksman;
         if (!weapon.isEmpty())
             weaponSkill = weapon.getClass().getEquipmentSkill(weapon);
@@ -445,6 +448,9 @@ namespace MWMechanics
         }
 
         reduceWeaponCondition(damage, validVictim, weapon, attacker);
+        const auto& attackStats=attacker.getClass().getCreatureStats(attacker);
+        const float combatScale=combatDamage>=0?combatDamage:Ragdoll::Combat::damage(getCombatSkill(attacker,weapon),attackStats.getFatigue().getCurrent()<=0);
+        damage*=combatScale;
 
         if (validVictim)
         {
@@ -471,9 +477,13 @@ namespace MWMechanics
         }
 
         auto ragdollHit = makeRagdollHit(attacker, victim, weapon, projectile, 0, hitPosition, impactDirection);
+        const float beforeBlock=damage;
+        if(validVictim)blockMeleeAttack(attacker,victim,weapon,damage,attackStrength,attackStart);
+        const bool fullyBlocked=beforeBlock>0 && damage<=0;
+        const float armorScale=combatScale*(beforeBlock>0?damage/beforeBlock:1.f);
         // Apply "On hit" effect of the projectile with the same contact identity.
-        applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
-        if (weapon != projectile)
+        if(damage>0)applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
+        if (damage>0 && weapon != projectile)
             applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit);
 
         if (validVictim)
@@ -483,44 +493,14 @@ namespace MWMechanics
 
             MWBase::Environment::get().getLuaManager()->onHit(attacker, victim, weapon, projectile, 0, attackStrength,
                 damage, true, hitPosition, true, MWMechanics::DamageSourceType::Ranged,
-                victim.getClass().getCreatureStats(victim).queueRagdollHit(ragdollHit));
+                victim.getClass().getCreatureStats(victim).queueRagdollHit(ragdollHit),armorScale);
         }
+        return fullyBlocked;
     }
 
-    float getHitChance(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim, int skillValue)
+    float getHitChance(const MWWorld::Ptr&,const MWWorld::Ptr&,int)
     {
-        MWMechanics::CreatureStats& stats = attacker.getClass().getCreatureStats(attacker);
-        const MWMechanics::MagicEffects& mageffects = stats.getMagicEffects();
-
-        MWBase::World* world = MWBase::Environment::get().getWorld();
-        const MWWorld::Store<ESM::GameSetting>& gmst = world->getStore().get<ESM::GameSetting>();
-
-        float defenseTerm = 0;
-        MWMechanics::CreatureStats& victimStats = victim.getClass().getCreatureStats(victim);
-        if (victimStats.getFatigue().getCurrent() >= 0)
-        {
-            // Maybe we should keep an aware state for actors updated every so often instead of testing every time
-            bool unaware = (!victimStats.getAiSequence().isInCombat()) && (attacker == getPlayer())
-                && (!MWBase::Environment::get().getMechanicsManager()->awarenessCheck(attacker, victim));
-            if (!(victimStats.getKnockedDown() || victimStats.isParalyzed() || unaware))
-            {
-                defenseTerm = victimStats.getEvasion();
-            }
-            static const float fCombatInvisoMult = gmst.find("fCombatInvisoMult")->mValue.getFloat();
-            defenseTerm += std::min(100.f,
-                fCombatInvisoMult
-                    * victimStats.getMagicEffects().getOrDefault(ESM::MagicEffect::Chameleon).getMagnitude());
-            defenseTerm += std::min(100.f,
-                fCombatInvisoMult
-                    * victimStats.getMagicEffects().getOrDefault(ESM::MagicEffect::Invisibility).getMagnitude());
-        }
-        float attackTerm = skillValue + (stats.getAttribute(ESM::Attribute::Agility).getModified() / 5.0f)
-            + (stats.getAttribute(ESM::Attribute::Luck).getModified() / 10.0f);
-        attackTerm *= stats.getFatigueTerm();
-        attackTerm += mageffects.getOrDefault(ESM::MagicEffect::FortifyAttack).getMagnitude()
-            - mageffects.getOrDefault(ESM::MagicEffect::Blind).getMagnitude();
-
-        return round(attackTerm - defenseTerm);
+        return 100.f; // Contact geometry is the sole hit/miss decision.
     }
 
     void applyElementalShields(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim)
@@ -611,7 +591,8 @@ namespace MWMechanics
                                                     ->get<ESM::GameSetting>()
                                                     .find("fWeaponDamageMult")
                                                     ->mValue.getFloat();
-                float x = std::max(1.f, fWeaponDamageMult * damage);
+                float x = float(int(std::max(1.f, fWeaponDamageMult * damage)))*Ragdoll::Combat::wear(getCombatSkill(attacker,weapon));
+                x=static_cast<float>(Ragdoll::Combat::consumeWear(x,attacker.getClass().getCreatureStats(attacker).mCombat.mWeaponWear));
 
                 weaphealth -= std::min(int(x), weaphealth);
                 weapon.getCellRef().setCharge(weaphealth);
@@ -722,7 +703,8 @@ namespace MWMechanics
             float fatigueLoss = fFatigueAttackBase + normalizedEncumbrance * fFatigueAttackMult;
             if (!weapon.isEmpty())
                 fatigueLoss += weapon.getClass().getWeight(weapon) * attackStrength * fWeaponFatigueMult;
-            fatigue.setCurrent(fatigue.getCurrent() - fatigueLoss);
+            fatigueLoss*=Ragdoll::Combat::resource(getCombatSkill(attacker,weapon));
+            fatigue.setCurrent(std::max(0.f,fatigue.getCurrent() - fatigueLoss));
             stats.setFatigue(fatigue);
         }
     }
@@ -785,126 +767,71 @@ namespace MWMechanics
         return std::abs(heightDiff) < reach && getDistanceToBounds(actor, target) < reach;
     }
 
-    std::pair<MWWorld::Ptr, osg::Vec3f> getHitContact(const MWWorld::Ptr& actor, float reach)
+    namespace
     {
-        // Lasciate ogne speranza, voi ch'entrate
-        MWWorld::Ptr result;
-        osg::Vec3f hitPos;
-        float minDist = std::numeric_limits<float>::max();
-        MWBase::World* world = MWBase::Environment::get().getWorld();
-        const MWWorld::Store<ESM::GameSetting>& store = world->getStore().get<ESM::GameSetting>();
-
-        // These GMSTs are not in degrees. They're tolerance angle sines multiplied by 90.
-        // With the default values of 60, the actual tolerance angles are roughly 41.8 degrees.
-        // Don't think too hard about it. In this place, thinking can cause permanent damage to your mental health.
-        const float fCombatAngleXY = store.find("fCombatAngleXY")->mValue.getFloat() / 90.f;
-        const float fCombatAngleZ = store.find("fCombatAngleZ")->mValue.getFloat() / 90.f;
-
-        const ESM::Position& posdata = actor.getRefData().getPosition();
-        const osg::Vec3f actorPos(posdata.asVec3());
-        const osg::Vec3f actorDirXY = osg::Quat(posdata.rot[2], osg::Vec3(0, 0, -1)) * osg::Vec3f(0, 1, 0);
-        // Only the player can look up, apparently.
-        const float actorVerticalAngle = actor == getPlayer() ? -std::sin(posdata.rot[0]) : 0.f;
-        const float actorEyeLevel = world->getHalfExtents(actor, true).z() * 2.f * 0.85f;
-        const osg::Vec3f actorEyePos{ actorPos.x(), actorPos.y(), actorPos.z() + actorEyeLevel };
-        const bool canMoveByZ = canActorMoveByZAxis(actor);
-
-        // The player can target any active actor, non-playable actors only target their targets
-        std::vector<MWWorld::Ptr> targets;
-        if (actor != getPlayer())
-            actor.getClass().getCreatureStats(actor).getAiSequence().getCombatTargets(targets);
-        else
-            MWBase::Environment::get().getMechanicsManager()->getActorsInRange(
-                actorPos, static_cast<float>(Settings::game().mActorsProcessingRange), targets);
-
-        for (MWWorld::Ptr& target : targets)
+        bool weaponSegment(const MWWorld::Ptr& actor,osg::Vec3f& base,osg::Vec3f& tip)
         {
-            if (actor == target || target.getClass().getCreatureStats(target).isDead())
-                continue;
-
-            const float dist = getDistanceToBounds(actor, target);
-            if (dist >= minDist || !isInMeleeReach(actor, target, reach))
-                continue;
-
-            const osg::Vec3f targetPos(target.getRefData().getPosition().asVec3());
-
-            // Horizontal angle checks.
-            osg::Vec2f actorToTargetXY{ targetPos.x() - actorPos.x(), targetPos.y() - actorPos.y() };
-            actorToTargetXY.normalize();
-
-            // Use dot product to check if the target is behind first...
-            if (actorToTargetXY.x() * actorDirXY.x() + actorToTargetXY.y() * actorDirXY.y() <= 0.f)
-                continue;
-
-            // And then perp dot product to calculate the hit angle sine.
-            // This gives us a horizontal hit range of [-asin(fCombatAngleXY / 90); asin(fCombatAngleXY / 90)]
-            if (std::abs(actorToTargetXY.x() * actorDirXY.y() - actorToTargetXY.y() * actorDirXY.x()) > fCombatAngleXY)
-                continue;
-
-            // Vertical angle checks. Nice cliff racer hack, Todd.
-            if (!canMoveByZ)
+            auto* animation=MWBase::Environment::get().getWorld()->getAnimation(actor);
+            auto* weapon=dynamic_cast<MWRender::WeaponAnimation*>(animation);
+            auto* node=weapon?weapon->getContactWeaponNode():nullptr;
+            if(!node)return false;
+            return Ragdoll::Combat::weaponSegment(*node,actor.getRefData().getPosition().asVec3(),base,tip);
+        }
+        std::pair<MWWorld::Ptr,osg::Vec3f> contactRay(const MWWorld::Ptr& actor,const osg::Vec3f& from,const osg::Vec3f& to)
+        {
+            const auto world=MWBase::Environment::get().getWorld();
+            MWPhysics::RayCastingResult hit{};
+            const std::array<MWWorld::Ptr,1> ignored{actor};
+            world->castRenderingRay(hit,from,to,actor==getPlayer(),false,ignored);
+            if(!hit.mHit)hit=world->getRayCasting()->castRay(from,to,{actor});
+            else if(actor!=getPlayer() && (hit.mHitObject.isEmpty() || !hit.mHitObject.getClass().isActor()))
             {
-                // The idea is that the body should always be possible to hit.
-                // fCombatAngleZ is the tolerance for hitting the target's feet or head.
-                osg::Vec3f actorToTargetFeet = targetPos - actorEyePos;
-                osg::Vec3f actorToTargetHead = actorToTargetFeet;
-                actorToTargetFeet.normalize();
-                actorToTargetHead.z() += world->getHalfExtents(target, true).z() * 2.f;
-                actorToTargetHead.normalize();
-
-                if (actorVerticalAngle - actorToTargetHead.z() > fCombatAngleZ
-                    || actorVerticalAngle - actorToTargetFeet.z() < -fCombatAngleZ)
-                    continue;
+                // The first-person player has no visible torso. A wall behind
+                // the hidden player must not make the intervening body unhittable.
+                const auto physical=world->getRayCasting()->castRay(from,to,{actor});
+                if(physical.mHit && physical.mHitObject==getPlayer()
+                    && (physical.mHitPos-from).length2()<(hit.mHitPos-from).length2())hit=physical;
             }
-
-            // Gotta use physics somehow!
-            if (!world->getLOS(actor, target))
-                continue;
-
-            minDist = dist;
-            result = target;
+            if(hit.mHit && !hit.mHitObject.isEmpty() && hit.mHitObject.getClass().isActor()
+                && !hit.mHitObject.getClass().getCreatureStats(hit.mHitObject).isDead()
+                && world->getLOS(actor,hit.mHitObject))return {hit.mHitObject,hit.mHitPos};
+            return {};
         }
-
-        // This hit position is currently used for spawning the blood effect.
-        // Morrowind does this elsewhere, but roughly at the same time
-        // and it would be hard to track the original hit results outside of this function
-        // without code duplication
-        // The idea is to use a random point on a plane in front of the target
-        // that is defined by its width and height
-        if (!result.isEmpty())
+    }
+    void sampleMeleeContact(const MWWorld::Ptr& actor)
+    {
+        auto& stats=actor.getClass().getCreatureStats(actor);auto& combat=stats.mCombat;
+        if(!combat.mAttackActive){combat.mHasWeaponSample=false;return;}
+        osg::Vec3f base,tip;
+        if(!weaponSegment(actor,base,tip)){combat.mHasWeaponSample=false;return;}
+        if(combat.mAttackActive && combat.mContactWindow)
         {
-            osg::Vec3f resultPos(result.getRefData().getPosition().asVec3());
-            osg::Vec3f dirToActor = actorPos - resultPos;
-            dirToActor.normalize();
-
-            hitPos = resultPos + dirToActor * world->getHalfExtents(result).y();
-            // -25% to 25% of width
-            float xOffset = Misc::Rng::deviate(0.f, 0.25f, world->getPrng());
-            // 20% to 100% of height
-            float zOffset = Misc::Rng::deviate(0.6f, 0.4f, world->getPrng());
-            hitPos.x() += world->getHalfExtents(result).x() * 2.f * xOffset;
-            hitPos.z() += world->getHalfExtents(result).z() * 2.f * zOffset;
-            // Preserve a real visible surface contact for limb/head attribution.
-            // The broad actor-cone fallback above has no anatomical precision.
-            osg::Vec3f eye = actorEyePos;
-            osg::Vec3f direction = MWPhysics::itemAimDirection(
-                actor.getRefData().getPosition().rot[0], actor.getRefData().getPosition().rot[2]);
-            if (actor == world->getPlayerPtr() && world->getCamera())
-                std::tie(eye, direction) = MWPhysics::itemViewRay(world->getCamera()->getViewMatrix());
-            MWPhysics::RayCastingResult surface{};
-            if (world->castRenderingRay(surface, eye, eye + direction * (reach + world->getHalfExtents(actor).z()),
-                    true, false) && surface.mHitObject == result)
-                hitPos = surface.mHitPos;
+            std::pair<MWWorld::Ptr,osg::Vec3f> hit;
+            Ragdoll::Combat::sweepWeapon(base,tip,combat.mWeaponBase,combat.mWeaponTip,combat.mHasWeaponSample,
+                [&](const osg::Vec3f& from,const osg::Vec3f& to){hit=contactRay(actor,from,to);return !hit.first.isEmpty();});
+            if(!hit.first.isEmpty())
+            {stats.mMeleeContact=hit.first;stats.mMeleeContactPoint=hit.second;
+                combat.mContactTime=MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime();}
         }
-
-        // Clutter has a small contact area, independent of actor hit-chance rolls.
-        if (Settings::ragdoll().mItemPhysics)
-        {
-            const auto contact = getItemHitContact(actor, reach);
-            if (!contact.first.isEmpty())
-                return contact;
-        }
-        return std::make_pair(result, hitPos);
+        combat.mHasWeaponSample=true;combat.mWeaponBase=base;combat.mWeaponTip=tip;
+    }
+    std::pair<MWWorld::Ptr,osg::Vec3f> getHitContact(const MWWorld::Ptr& actor,float reach)
+    {
+        auto& stats=actor.getClass().getCreatureStats(actor);const auto world=MWBase::Environment::get().getWorld();
+        const double now=world->getTimeManager()->getSimulationTime();
+        if(!stats.mMeleeContact.isEmpty() && stats.mCombat.mContactTime>=stats.mCombat.mAttackStarted
+            && now-stats.mCombat.mContactTime<=.12 && world->getLOS(actor,stats.mMeleeContact))
+            return {stats.mMeleeContact,stats.mMeleeContactPoint};
+        osg::Vec3f base,tip;
+        if(weaponSegment(actor,base,tip))return contactRay(actor,base,tip);
+        // Unarmed/unsupported models use a narrow physical contact ray rather
+        // than the old broad cone which could hit an untouched neighbour.
+        auto origin=osg::Vec3f(world->getActorHeadTransform(actor).getTrans());
+        const auto& pos=actor.getRefData().getPosition();
+        auto direction=MWPhysics::itemAimDirection(pos.rot[0],pos.rot[2]);
+        if(actor==getPlayer() && world->getCamera())
+            std::tie(origin,direction)=MWPhysics::itemViewRay(world->getCamera()->getViewMatrix());
+        return contactRay(actor,origin,origin+direction*reach);
     }
 
     std::pair<MWWorld::Ptr, osg::Vec3f> getItemHitContact(const MWWorld::Ptr& actor, float reach)

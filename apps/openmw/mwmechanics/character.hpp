@@ -174,6 +174,8 @@ namespace MWMechanics
 
         float mAttackStrength{ -1.f };
         bool mReadyToHit{ false };
+        int mPendingMeleeHit{ -1 };
+        int mGuardPose = 0;
         MWWorld::Ptr mAttackVictim;
         osg::Vec3f mAttackHitPos;
         bool mAttackSuccess{ false };

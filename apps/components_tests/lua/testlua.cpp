@@ -4,10 +4,28 @@
 #include <components/lua/luastate.hpp>
 #include <components/testing/expecterror.hpp>
 #include <components/testing/util.hpp>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace
 {
     using namespace testing;
+
+    TEST(CombatLuaTest, ArmorPreservesMasteryAndGuardDamageRatios)
+    {
+        const auto root = std::filesystem::path(OPENMW_PROJECT_SOURCE_DIR);
+        const auto read = [&](const std::filesystem::path& path) {
+            std::ifstream input(root / path);
+            if(!input)throw std::runtime_error("Missing combat Lua regression input");
+            std::ostringstream text;text << input.rdbuf();return text.str();
+        };
+        sol::state lua;
+        lua.open_libraries(sol::lib::base,sol::lib::math,sol::lib::table);
+        lua["combatSource"] = read("files/data-mw/scripts/omw/combat/local.lua");
+        const auto result=lua.safe_script(read("components/ragdoll/tests/armor.lua"),sol::script_pass_on_error);
+        ASSERT_TRUE(result.valid()) << (result.valid()?"":sol::error(result).what());
+    }
 
     constexpr VFS::Path::NormalizedView counterPath("aaa/counter.lua");
 

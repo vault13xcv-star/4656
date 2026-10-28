@@ -14,6 +14,7 @@
 #include "ragdollimpact.hpp"
 #include "spells.hpp"
 #include "stat.hpp"
+#include <components/ragdoll/combatbalance.hpp>
 
 #include <components/esm/attr.hpp>
 #include <components/esm/refid.hpp>
@@ -39,6 +40,11 @@ namespace MWMechanics
     ///
     class CreatureStats
     {
+    public:
+        Ragdoll::Combat::State mCombat;
+        MWWorld::Ptr mMeleeContact;
+        osg::Vec3f mMeleeContactPoint;
+    private:
         std::map<ESM::RefId, AttributeValue> mAttributes;
         DynamicStat<float> mDynamic[3]; // health, magicka, fatigue
         DrawState mDrawState = DrawState::Nothing;

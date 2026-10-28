@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.2-projectiles.1'
+$ragdollVersion = '1.3-combat.1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -261,24 +261,9 @@ These automated tests do not constitute an in-game playtest with Morrowind data.
     Publish {
         $tag = "brutal-$ragdollVersion"
         $notes = Join-Path $logs 'release-notes.md'
-        @"
-Brutal Morrowind $ragdollVersion for OpenMW 0.51.0 / Windows x64.
-
-Download the **Windows-x64 ZIP**, extract it fully, and read BRUTAL-MORROWIND-README.md.
-This build reuses your OpenMW user configuration; copyrighted game data is not included.
-The launcher/editor are not bundled. Keep your stable installation and separate test saves.
-
-Source commit: $($env:GITHUB_SHA)
-Compiler: MSVC 2022 x64; dependency archive verified against the checked-in SHA512 manifest.
-Experimental branch based directly on stable 1.1; the procedural-blood experiments are not included.
-Arrows, bolts and thrown weapons use gravitational flight, embed in actor bodies, or bounce into the existing loose-item solver. Impact remnants cannot be collected or recovered from corpses. Puncture wounds bleed at half the ordinary limb-wound rate for half its duration. Remnants are cleared on leaving the player cell or after ten real minutes (with a 1024-remnant safety cap); they are session effects and are not saved.
-Killing the last nearby hostile triggers two real seconds at one-third simulation speed. Eligibility uses the same nearby-enemy rules as rest, including followers and water-only creatures. Animations, physics, particles and all currently playing sounds/music share the time change.
-Native collision uses swept projectile shapes and bounded rigid-body item physics, not a full aerodynamic model. In-game visual quality, modded skeletons, FPS and audio must still be checked with Morrowind data.
-Automated checks: compiled runtime, component tests, ragdoll and item physics, synthetic skeleton and lethal-hit attribution tests, installed --version smoke checks, ZIP integrity.
-These checks do not replace testing animations and gameplay inside Morrowind.
-
-Corresponding engine sources are attached. Dependency notices are in the runtime's licenses directory.
-"@ | Set-Content $notes -Encoding utf8
+        $releaseText = Get-Content (Join-Path $source 'docs/combat-release-notes.md') -Raw
+        $releaseText += "`nSource commit: $($env:GITHUB_SHA)`nBuild: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)`n"
+        $releaseText | Set-Content $notes -Encoding utf8
         $assets = @(Get-ChildItem $dist -Filter '*.zip' -File | ForEach-Object FullName)
         $assets += Join-Path $dist 'SHA256SUMS'
         Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--prerelease', '--title', "Brutal Morrowind $ragdollVersion - Windows x64 ($($env:GITHUB_SHA.Substring(0, 12)))", '--notes-file', $notes) + $assets) 'publish.log'

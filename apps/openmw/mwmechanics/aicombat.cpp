@@ -1,4 +1,5 @@
 #include "aicombat.hpp"
+#include <components/ragdoll/combatbalance.hpp>
 
 #include <components/detournavigator/navigatorutils.hpp>
 #include <components/esm3/aisequence.hpp>
@@ -812,7 +813,9 @@ namespace
         else
             tCollision = 0; // speed of projectile is not enough to reach moving target
 
-        return vDirToTarget + vTargetMoveDir * tCollision;
+        tCollision=std::isfinite(tCollision)?std::clamp(tCollision,0.f,3.f):0.f;
+        const auto targetPosition=vDirToTarget+vTargetMoveDir*tCollision;
+        return weapType!=0?Ragdoll::Combat::ballisticAim(targetPosition,projSpeed):targetPosition;
     }
 
 }

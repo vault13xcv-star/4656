@@ -38,6 +38,14 @@ namespace MWInput
 
     void ActionManager::update(float dt)
     {
+        if(MWBase::Environment::get().getStateManager()->getState()==MWBase::StateManager::State_Running)
+        {
+            auto player=MWMechanics::getPlayer();
+            auto& combat=player.getClass().getCreatureStats(player).mCombat;
+            combat.mGuardRequested=!MWBase::Environment::get().getWindowManager()->isGuiMode()
+                && !MWBase::Environment::get().getInputManager()->controlsDisabled()
+                && mBindingsManager->actionIsActive(A_Block);
+        }
         if (mBindingsManager->actionIsActive(A_MoveForward) || mBindingsManager->actionIsActive(A_MoveBackward)
             || mBindingsManager->actionIsActive(A_MoveLeft) || mBindingsManager->actionIsActive(A_MoveRight)
             || mBindingsManager->actionIsActive(A_Jump) || mBindingsManager->actionIsActive(A_Sneak)
@@ -63,6 +71,12 @@ namespace MWInput
         // trigger action activated
         switch (action)
         {
+            case A_Dodge:
+                if(MWBase::Environment::get().getStateManager()->getState()==MWBase::StateManager::State_Running
+                    && !windowManager->isGuiMode() && !inputManager->controlsDisabled())
+                    MWMechanics::getPlayer().getClass().getCreatureStats(MWMechanics::getPlayer()).mCombat.mDodgeRequested=true;
+                break;
+            case A_Block: break; // Held state is sampled every input update.
             case A_GameMenu:
                 toggleMainMenu();
                 break;

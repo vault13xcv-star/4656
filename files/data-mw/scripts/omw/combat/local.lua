@@ -178,9 +178,12 @@ end
 local function applyArmor(attack)
     local healthDamage = getDamage(attack, 'health')
     if healthDamage > 0 then
-        local healthDamageAdjusted = I.Combat.adjustDamageForArmor(healthDamage)
+        -- Apply mastery after armour penetration, preserving the original
+        -- armour matchup rather than penalizing a low skill a second time.
+        local scale = math.max(0.01, attack._combatDamageScale or 1)
+        local healthDamageAdjusted = I.Combat.adjustDamageForArmor(healthDamage / scale) * scale
         local diff = math.floor(healthDamageAdjusted - healthDamage)
-        setDamage(attack, 'health', math.max(healthDamageAdjusted, 1))
+        setDamage(attack, 'health', math.max(healthDamageAdjusted, scale))
         local item = I.Combat.pickRandomArmor()
         local skillid = I.Combat.getArmorSkill(item)
         if I.SkillProgression then

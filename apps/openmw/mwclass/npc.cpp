@@ -581,8 +581,6 @@ namespace MWClass
         if (weaponslot != inv.end() && weaponslot->getType() == ESM::Weapon::sRecordId)
             weapon = *weaponslot;
 
-        MWBase::World* world = MWBase::Environment::get().getWorld();
-
         const float dist = MWMechanics::getMeleeWeaponReach(ptr, weapon);
         const std::pair<MWWorld::Ptr, osg::Vec3f> result = MWMechanics::getHitContact(ptr, dist);
         if (result.first.isEmpty()) // Didn't hit anything
@@ -595,13 +593,7 @@ namespace MWClass
         if (!victim.getClass().isActor())
             return true;
 
-        ESM::RefId weapskill = ESM::Skill::HandToHand;
-        if (!weapon.isEmpty())
-            weapskill = weapon.getClass().getEquipmentSkill(weapon);
-
-        float hitchance = MWMechanics::getHitChance(ptr, victim, static_cast<int>(getSkill(ptr, weapskill)));
-
-        return Misc::Rng::roll0to99(world->getPrng()) < hitchance;
+        return true;
     }
 
     void Npc::hit(const MWWorld::Ptr& ptr, float attackStrength, int type, const MWWorld::Ptr& victim,
@@ -643,7 +635,7 @@ namespace MWClass
         if (otherstats.isDead()) // Can't hit dead actors
             return;
 
-        if (!MWMechanics::isInMeleeReach(ptr, victim, MWMechanics::getMeleeWeaponReach(ptr, weapon)))
+        if (!MWBase::Environment::get().getWorld()->getLOS(ptr,victim))
             return;
 
         if (ptr == MWMechanics::getPlayer())
@@ -714,13 +706,16 @@ namespace MWClass
             damage *= store.find("fCombatKODamageMult")->mValue.getFloat();
 
         auto ragdollHit = MWMechanics::makeRagdollHit(ptr, victim, weapon, {}, type, hitPosition);
+        const float combatScale=Ragdoll::Combat::damage(MWMechanics::getCombatSkill(ptr,weapon),getCreatureStats(ptr).getFatigue().getCurrent()<=0);
+        damage*=combatScale;
+        const float beforeBlock=damage;
+        MWMechanics::blockMeleeAttack(ptr,victim,weapon,damage,attackStrength);
+        const float armorScale=combatScale*(beforeBlock>0?damage/beforeBlock:1.f);
         // Bind enchantments and the asynchronous physical hit to this contact.
-        MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit);
+        if(damage>0)MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition, false, ragdollHit);
 
         MWMechanics::applyElementalShields(ptr, victim);
 
-        if (MWMechanics::blockMeleeAttack(ptr, victim, weapon, damage, attackStrength))
-            damage = 0;
 
         if (victim == MWMechanics::getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState())
             damage = 0;
@@ -729,7 +724,7 @@ namespace MWClass
 
         MWBase::Environment::get().getLuaManager()->onHit(ptr, victim, weapon, MWWorld::Ptr(), type, attackStrength,
             damage, healthdmg, hitPosition, true, MWMechanics::DamageSourceType::Melee,
-            otherstats.queueRagdollHit(ragdollHit));
+            otherstats.queueRagdollHit(ragdollHit),armorScale);
     }
 
     void Npc::onHit(const MWWorld::Ptr& ptr, const std::map<std::string, float>& damages, ESM::RefId object,

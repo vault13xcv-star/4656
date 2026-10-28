@@ -296,6 +296,7 @@ namespace MWMechanics
 
     void CreatureStats::resurrect()
     {
+        mCombat={};mMeleeContact={};mMeleeContactPoint={};
         mRagdollDeathHit.reset();
         mRagdollPendingHits.clear();
         if (mDead)
@@ -595,6 +596,7 @@ namespace MWMechanics
 
     void CreatureStats::readState(const ESM::CreatureStats& state)
     {
+        mCombat={};mMeleeContact={};mMeleeContactPoint={};
         mRagdollDeathHit.reset();
         mRagdollPendingHits.clear();
         if (!state.mMissingACDT)
