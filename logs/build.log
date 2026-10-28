@@ -1,113 +1,3 @@
-[317/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadcell.cpp.obj
-[318/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadclfm.cpp.obj
-[319/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadclot.cpp.obj
-[320/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadcont.cpp.obj
-[321/896] Building CXX object components\CMakeFiles\components.dir\esm4\loaddial.cpp.obj
-[322/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadcrea.cpp.obj
-[323/896] Building CXX object components\CMakeFiles\components.dir\esm4\loaddoor.cpp.obj
-[324/896] Building CXX object components\CMakeFiles\components.dir\esm4\loaddobj.cpp.obj
-[325/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadeyes.cpp.obj
-[326/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadflor.cpp.obj
-[327/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadflst.cpp.obj
-[328/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadfurn.cpp.obj
-[329/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadglob.cpp.obj
-[330/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadgras.cpp.obj
-[331/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadgmst.cpp.obj
-[332/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadhair.cpp.obj
-[333/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadhdpt.cpp.obj
-[334/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadidle.cpp.obj
-[335/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadidlm.cpp.obj
-[336/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadimod.cpp.obj
-[337/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadinfo.cpp.obj
-[338/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadingr.cpp.obj
-[339/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadkeym.cpp.obj
-[340/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadlgtm.cpp.obj
-[341/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadligh.cpp.obj
-[342/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadland.cpp.obj
-[343/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadltex.cpp.obj
-[344/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadlvlc.cpp.obj
-[345/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadlvli.cpp.obj
-[346/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadlvln.cpp.obj
-[347/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadmisc.cpp.obj
-[348/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadmato.cpp.obj
-[349/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadmset.cpp.obj
-[350/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadmusc.cpp.obj
-[351/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadmstt.cpp.obj
-[352/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadnavi.cpp.obj
-[353/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadnote.cpp.obj
-[354/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadnavm.cpp.obj
-[355/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadnpc.cpp.obj
-[356/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadotft.cpp.obj
-[357/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadpack.cpp.obj
-[358/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadpgre.cpp.obj
-[359/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadpwat.cpp.obj
-[360/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadpgrd.cpp.obj
-[361/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadqust.cpp.obj
-[362/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadregn.cpp.obj
-[363/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadrefr.cpp.obj
-[364/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadsbsp.cpp.obj
-[365/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadroad.cpp.obj
-[366/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadrace.cpp.obj
-[367/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadscol.cpp.obj
-[368/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadscpt.cpp.obj
-[369/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadscrl.cpp.obj
-[370/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadsgst.cpp.obj
-[371/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadslgm.cpp.obj
-[372/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadsndr.cpp.obj
-[373/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadsoun.cpp.obj
-[374/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadtact.cpp.obj
-[375/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadstat.cpp.obj
-[376/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadterm.cpp.obj
-[377/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadtree.cpp.obj
-[378/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadtes4.cpp.obj
-[379/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadtxst.cpp.obj
-[380/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadwrld.cpp.obj
-[381/896] Building CXX object components\CMakeFiles\components.dir\esm4\loadweap.cpp.obj
-[382/896] Building CXX object components\CMakeFiles\components.dir\misc\compression.cpp.obj
-[383/896] Building CXX object components\CMakeFiles\components.dir\misc\color.cpp.obj
-[384/896] Building CXX object components\CMakeFiles\components.dir\misc\messageformatparser.cpp.obj
-[385/896] Building CXX object components\CMakeFiles\components.dir\misc\osguservalues.cpp.obj
-[386/896] Building CXX object components\CMakeFiles\components.dir\esm4\reader.cpp.obj
-[387/896] Building CXX object components\CMakeFiles\components.dir\misc\display.cpp.obj
-[388/896] Building CXX object components\CMakeFiles\components.dir\misc\rng.cpp.obj
-[389/896] Building CXX object components\CMakeFiles\components.dir\misc\thread.cpp.obj
-[390/896] Building CXX object components\CMakeFiles\components.dir\misc\resourcehelpers.cpp.obj
-[391/896] Building CXX object components\CMakeFiles\components.dir\stereo\frustum.cpp.obj
-[392/896] Building CXX object components\CMakeFiles\components.dir\stereo\types.cpp.obj
-[393/896] Building CXX object components\CMakeFiles\components.dir\stereo\multiview.cpp.obj
-[394/896] Building CXX object components\CMakeFiles\components.dir\stereo\stereomanager.cpp.obj
-[395/896] Building CXX object components\CMakeFiles\components.dir\debug\debuglog.cpp.obj
-[396/896] Building CXX object components\CMakeFiles\components.dir\debug\gldebug.cpp.obj
-[397/896] Building CXX object components\CMakeFiles\components.dir\files\linuxpath.cpp.obj
-[398/896] Building CXX object components\CMakeFiles\components.dir\debug\debugdraw.cpp.obj
-[399/896] Building CXX object components\CMakeFiles\components.dir\files\androidpath.cpp.obj
-[400/896] Building CXX object components\CMakeFiles\components.dir\files\macospath.cpp.obj
-[401/896] Building CXX object components\CMakeFiles\components.dir\files\multidircollection.cpp.obj
-[402/896] Building CXX object components\CMakeFiles\components.dir\debug\debugging.cpp.obj
-[403/896] Building CXX object components\CMakeFiles\components.dir\files\windowspath.cpp.obj
-[404/896] Building CXX object components\CMakeFiles\components.dir\files\hash.cpp.obj
-[405/896] Building CXX object components\CMakeFiles\components.dir\files\collections.cpp.obj
-[406/896] Building CXX object components\CMakeFiles\components.dir\files\openfile.cpp.obj
-[407/896] Building CXX object components\CMakeFiles\components.dir\files\configfileparser.cpp.obj
-[408/896] Building CXX object components\CMakeFiles\components.dir\files\constrainedfilestreambuf.cpp.obj
-[409/896] Building CXX object components\CMakeFiles\components.dir\files\conversion.cpp.obj
-[410/896] Building CXX object components\CMakeFiles\components.dir\compiler\errorhandler.cpp.obj
-[411/896] Building CXX object components\CMakeFiles\components.dir\files\configurationmanager.cpp.obj
-[412/896] Building CXX object components\CMakeFiles\components.dir\compiler\controlparser.cpp.obj
-[413/896] Building CXX object components\CMakeFiles\components.dir\compiler\extensions.cpp.obj
-[414/896] Building CXX object components\CMakeFiles\components.dir\compiler\fileparser.cpp.obj
-[415/896] Building CXX object components\CMakeFiles\components.dir\compiler\generator.cpp.obj
-[416/896] Building CXX object components\CMakeFiles\components.dir\compiler\exprparser.cpp.obj
-[417/896] Building CXX object components\CMakeFiles\components.dir\compiler\literals.cpp.obj
-[418/896] Building CXX object components\CMakeFiles\components.dir\compiler\locals.cpp.obj
-[419/896] Building CXX object components\CMakeFiles\components.dir\compiler\parser.cpp.obj
-[420/896] Building CXX object components\CMakeFiles\components.dir\compiler\output.cpp.obj
-[421/896] Building CXX object components\CMakeFiles\components.dir\compiler\lineparser.cpp.obj
-[422/896] Building CXX object components\CMakeFiles\components.dir\compiler\scriptparser.cpp.obj
-[423/896] Building CXX object components\CMakeFiles\components.dir\compiler\skipparser.cpp.obj
-[424/896] Building CXX object components\CMakeFiles\components.dir\compiler\streamerrorhandler.cpp.obj
-[425/896] Building CXX object components\CMakeFiles\components.dir\compiler\stringparser.cpp.obj
-[426/896] Building CXX object components\CMakeFiles\components.dir\compiler\scanner.cpp.obj
 [427/896] Building CXX object components\CMakeFiles\components.dir\compiler\declarationparser.cpp.obj
 [428/896] Building CXX object components\CMakeFiles\components.dir\compiler\quickfileparser.cpp.obj
 [429/896] Building CXX object components\CMakeFiles\components.dir\compiler\discardparser.cpp.obj
@@ -178,3 +68,113 @@
 [494/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\generatenavmeshtile.cpp.obj
 [495/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\gettilespositions.cpp.obj
 [496/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\makenavmesh.cpp.obj
+[497/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navigator.cpp.obj
+[498/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navigatorimpl.cpp.obj
+[499/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navigatorutils.cpp.obj
+[500/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\asyncnavmeshupdater.cpp.obj
+[501/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navmeshdbutils.cpp.obj
+[502/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navmeshcacheitem.cpp.obj
+[503/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navmeshdb.cpp.obj
+[504/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navmeshtileview.cpp.obj
+[505/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navmeshtilescache.cpp.obj
+[506/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\offmeshconnectionsmanager.cpp.obj
+[507/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\raycast.cpp.obj
+[508/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\recast.cpp.obj
+[509/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\preparednavmeshdata.cpp.obj
+[510/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\recastcontext.cpp.obj
+[511/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\recastmesh.cpp.obj
+[512/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\recastmeshobject.cpp.obj
+[513/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\serialization.cpp.obj
+[514/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\recastmeshbuilder.cpp.obj
+[515/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navmeshmanager.cpp.obj
+[516/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\stats.cpp.obj
+[517/896] Building CXX object components\CMakeFiles\components.dir\loadinglistener\reporter.cpp.obj
+[518/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\settings.cpp.obj
+[519/896] Building CXX object components\CMakeFiles\components.dir\sqlite3\db.cpp.obj
+[520/896] Building CXX object components\CMakeFiles\components.dir\sqlite3\statement.cpp.obj
+[521/896] Building CXX object components\CMakeFiles\components.dir\sqlite3\transaction.cpp.obj
+[522/896] Building CXX object components\CMakeFiles\components.dir\esmloader\esmdata.cpp.obj
+[523/896] Building CXX object components\CMakeFiles\components.dir\navmeshtool\protocol.cpp.obj
+[524/896] Building CXX object components\CMakeFiles\components.dir\platform\platform.cpp.obj
+[525/896] Building CXX object components\CMakeFiles\components.dir\platform\filewin32.cpp.obj
+[526/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\rotatecontroller.cpp.obj
+[527/896] Building CXX object components\CMakeFiles\components.dir\esmloader\load.cpp.obj
+[528/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\skyutil.cpp.obj
+[529/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\sky.cpp.obj
+[530/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\esm4npcanimation.cpp.obj
+[531/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\npcanimation.cpp.obj
+[532/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\creatureanimation.cpp.obj
+[533/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\util.cpp.obj
+[534/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\effectmanager.cpp.obj
+[535/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\pathgrid.cpp.obj
+[536/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\tilecachedrecastmeshmanager.cpp.obj
+[537/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\weaponanimation.cpp.obj
+[538/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\bulletdebugdraw.cpp.obj
+[539/896] Linking CXX static library components\components.lib
+[540/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\screenshotmanager.cpp.obj
+[541/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\camera.cpp.obj
+[542/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\characterpreview.cpp.obj
+[543/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\globalmap.cpp.obj
+[544/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\localmap.cpp.obj
+[545/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\terrainstorage.cpp.obj
+[546/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\water.cpp.obj
+[547/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ripplesimulation.cpp.obj
+[548/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\actoranimation.cpp.obj
+[549/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\navmesh.cpp.obj
+[550/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\landmanager.cpp.obj
+[551/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\actorspaths.cpp.obj
+[552/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\fogmanager.cpp.obj
+[553/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\recastmesh.cpp.obj
+[554/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\groundcover.cpp.obj
+[555/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\postprocessor.cpp.obj
+[556/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\pingpongcull.cpp.obj
+[557/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\objectpaging.cpp.obj
+[558/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\transparentpass.cpp.obj
+[559/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\luminancecalculator.cpp.obj
+[560/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\precipitationocclusion.cpp.obj
+[561/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\pingpongcanvas.cpp.obj
+[562/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\actorutil.cpp.obj
+[563/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ripples.cpp.obj
+[564/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\animblendcontroller.cpp.obj
+[565/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\distortion.cpp.obj
+[566/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ragdollappearance.cpp.obj
+D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(361): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(362): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp(713): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+[567/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\brutalgore.cpp.obj
+D:\a\4656\4656\apps\openmw\mwrender\brutalgore.cpp(74): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+[568/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\ragdoll.cpp.obj
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(281): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(621): warning C4244: 'initializing': conversion from 'btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(620): warning C4244: 'initializing': conversion from 'btScalar' to 'const float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(631): warning C4244: 'argument': conversion from 'btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(882): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(882): warning C4267: 'initializing': conversion from 'size_t' to 'const unsigned int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1090): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=GLsizei
+        ]
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1117): warning C4244: '+=': conversion from 'btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1118): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1158): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1159): warning C4244: '=': conversion from 'btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1388): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1389): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1395): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=float
+        ]
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1396): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=float
+        ]
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1427): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1428): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1429): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1435): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=float
