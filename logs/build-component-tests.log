@@ -80,3 +80,25 @@
 [78/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\tooltips.cpp.obj
 [79/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwdialogue\testkeywordsearch.cpp.obj
 [80/92] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\vfs\testpathutil.cpp.obj
+[81/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwgui\weightedsearch.cpp.obj
+[82/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testduration.cpp.obj
+[83/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwscript\testscripts.cpp.obj
+[84/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
+[85/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testtimestamp.cpp.obj
+[86/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
+[87/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwphysics\testitems.cpp.obj
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(547): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(548): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(591): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
+[88/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[89/92] Linking CXX executable components-tests.exe
+[90/92] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[91/92] Linking CXX executable openmw-tests.exe
