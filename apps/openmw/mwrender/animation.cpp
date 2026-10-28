@@ -723,8 +723,14 @@ namespace MWRender
         if (!mResourceSystem->getVFS()->exists(kfname))
             return nullptr;
 
+        return addKeyframeSource(mResourceSystem->getKeyframeManager()->get(VFS::Path::toNormalized(kfname)),kfname,baseModel);
+    }
+
+    std::shared_ptr<Animation::AnimSource> Animation::addKeyframeSource(
+        osg::ref_ptr<const SceneUtil::KeyframeHolder> keyframes,const std::string& kfname,const std::string& baseModel)
+    {
         auto animsrc = std::make_shared<AnimSource>();
-        animsrc->mKeyframes = mResourceSystem->getKeyframeManager()->get(VFS::Path::toNormalized(kfname));
+        animsrc->mKeyframes = std::move(keyframes);
 
         if (!animsrc->mKeyframes || animsrc->mKeyframes->mTextKeys.empty()
             || animsrc->mKeyframes->mKeyframeControllers.empty())
@@ -1257,6 +1263,32 @@ namespace MWRender
         AnimStateMap::iterator state(mStates.find(groupname));
         if (state != mStates.end())
             state->second.mSpeedMult = speedmult;
+    }
+
+    bool Animation::hasShieldGuard() const
+    {
+        const auto state=mStates.find("shield");
+        return state!=mStates.end() && state->second.mStartKey=="block start";
+    }
+
+    void Animation::clearShieldGuard()
+    {
+        if(hasShieldGuard())disable("shield");
+    }
+
+    void Animation::playShieldGuard(bool ready,float raiseSeconds)
+    {
+        const float start=getTextKeyTime("shield: block start");
+        const float stop=getTextKeyTime("shield: block stop");
+        if(start<0 || stop<=start)return;
+        const float hit=getTextKeyTime("shield: block hit");
+        const float peak=hit>start && hit<stop?hit:(start+stop)*.5f;
+        // play() updates only priority when a group already exists. Recreate
+        // it so the held state really changes its time and speed to zero.
+        disable("shield");
+        play("shield",MWMechanics::Priority_Block,BlendMask_LeftArm,false,
+            ready?0.f:(peak-start)/std::max(.01f,raiseSeconds),"block start","block stop",
+            ready?(peak-start)/(stop-start):0.f,0);
     }
 
     bool Animation::isPlaying(std::string_view groupname) const

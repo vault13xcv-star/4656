@@ -35,12 +35,15 @@
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/shadow.hpp>
+#include <components/sceneutil/keyframe.hpp>
+#include <components/sceneutil/nodecallback.hpp>
 #include <components/settings/values.hpp>
 #include <components/testing/util.hpp>
 #include <components/toutf8/toutf8.hpp>
 
 #include <osg/Geode>
 #include <osg/ShapeDrawable>
+#include <osgUtil/UpdateVisitor>
 #include <osgDB/Registry>
 
 #include <gtest/gtest.h>
@@ -48,6 +51,23 @@
 
 namespace
 {
+    class ShieldTestTrack : public SceneUtil::KeyframeController,
+                            public SceneUtil::NodeCallback<ShieldTestTrack>
+    {
+    public:
+        ShieldTestTrack()=default;
+        ShieldTestTrack(const ShieldTestTrack& copy,const osg::CopyOp& op)
+            : osg::Object(copy,op),SceneUtil::KeyframeController(copy,op),SceneUtil::NodeCallback<ShieldTestTrack>(copy,op) {}
+        META_Object(BrutalTest,ShieldTestTrack)
+        osg::Callback* getAsCallback() override { return this; }
+        osg::Vec3f getTranslation(float time) const override
+        { return {0,0,std::max(0.f,1.f-std::abs(time-4.4f)*2.5f)}; }
+        void operator()(osg::Node* node,osg::NodeVisitor* visitor)
+        {
+            static_cast<osg::MatrixTransform*>(node)->setMatrix(osg::Matrixf::translate(getTranslation(getInputValue(visitor))));
+            traverse(node,visitor);
+        }
+    };
     // Real record classes, native scene insertion, mesh loading, contact rays,
     // collision snapshots and pose updates. No Morrowind assets are needed.
     std::string boxMesh(float x, float y, float z)
@@ -192,6 +212,48 @@ namespace
         mPhysics->removeProjectileDebris(id);
         mPhysics->remove(floor.ptr());
         Settings::ragdoll().mItemSimulationTime.set(old);
+    }
+
+    TEST_F(ItemPhysicsIntegration, HeldShieldFreezesTheActualRaisedTrackAndReleasesToIdle)
+    {
+        Reference<ESM::Static> actor(0,0,0);
+        struct ShieldAnimation : MWRender::Animation
+        {
+            osg::ref_ptr<osg::MatrixTransform> arm=new osg::MatrixTransform;
+            ShieldAnimation(const MWWorld::Ptr& actor,Resource::ResourceSystem* resources)
+                : MWRender::Animation(actor,new osg::Group,resources)
+            {
+                mObjectRoot=new osg::Group;mInsert->addChild(mObjectRoot);
+                arm->setName("Bip01 L Clavicle");mObjectRoot->addChild(arm);
+                osg::ref_ptr<SceneUtil::KeyframeHolder> frames=new SceneUtil::KeyframeHolder;
+                frames->mTextKeys.emplace(0,"idle: start");frames->mTextKeys.emplace(1,"idle: stop");
+                frames->mTextKeys.emplace(2,"shield: equip start");frames->mTextKeys.emplace(3,"shield: equip stop");
+                frames->mTextKeys.emplace(4,"shield: block start");frames->mTextKeys.emplace(4.4f,"shield: block hit");
+                frames->mTextKeys.emplace(5,"shield: block stop");
+                frames->mKeyframeControllers.emplace("Bip01 L Clavicle",new ShieldTestTrack);
+                addKeyframeSource(frames,"shield-test.kf","shield-test");
+            }
+            void frame(float dt)
+            {
+                runAnimation(dt);osgUtil::UpdateVisitor visitor;mObjectRoot->accept(visitor);
+            }
+        } animation(actor.ptr(),mResources.get());
+        animation.play("idle",0,MWRender::BlendMask_All,false,1,"start","stop",0,0);
+        animation.playShieldGuard(false,.2f);
+        animation.frame(.1f);
+        EXPECT_NEAR(animation.arm->getMatrix().getTrans().z(),.5,.001);
+        animation.playShieldGuard(true,.2f);
+        for(int frame=0;frame<600;++frame)animation.frame(1.f/60);
+        EXPECT_NEAR(animation.getCurrentTime("shield"),4.4,.001);
+        EXPECT_NEAR(animation.arm->getMatrix().getTrans().z(),1,.001);
+        EXPECT_EQ(animation.getActiveGroup(MWRender::BoneGroup_LeftArm),"shield");
+        float speed=1;ASSERT_TRUE(animation.getInfo("shield",nullptr,&speed));EXPECT_EQ(speed,0);
+        animation.clearShieldGuard();animation.frame(.1f);
+        EXPECT_FALSE(animation.hasShieldGuard());
+        EXPECT_NEAR(animation.arm->getMatrix().getTrans().z(),0,.001);
+        animation.play("shield",8,MWRender::BlendMask_LeftArm,true,1,"equip start","equip stop",0,0);
+        animation.clearShieldGuard();
+        EXPECT_TRUE(animation.getInfo("shield")); // Guard release must not erase equipment animation.
     }
 
     TEST_F(ItemPhysicsIntegration, ProjectileAnchorFollowsPoseAndBoneRebuild)
@@ -651,6 +713,12 @@ namespace
         stats.mCombat.mGuardHeld=true;stats.mCombat.mDodgeLeft=.2f;
         stats.resurrect();
         EXPECT_FALSE(stats.mCombat.mGuardHeld);EXPECT_EQ(stats.mCombat.mDodgeLeft,0);
+        MWMechanics::DynamicStat<float> fatigue(100);
+        fatigue.setCurrent(0);stats.setFatigue(fatigue);
+        Ragdoll::Combat::observeFatigue(stats.mCombat,0,1,0);
+        EXPECT_TRUE(stats.mCombat.mFatigueDepleted);
+        fatigue.setCurrent(5);stats.setFatigue(fatigue);
+        EXPECT_FALSE(stats.mCombat.mFatigueDepleted);EXPECT_EQ(stats.mCombat.mFatigueRestoreAt,0);
     }
 
     TEST_F(ItemPhysicsIntegration, PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders)

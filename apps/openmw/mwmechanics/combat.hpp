@@ -29,6 +29,7 @@ namespace MWMechanics
     float getCombatSkill(const MWWorld::Ptr& actor,const MWWorld::Ptr& weapon);
     void updateActiveDefense(const MWWorld::Ptr& actor,float duration,bool canAct);
     void sampleMeleeContact(const MWWorld::Ptr& actor);
+    bool allowHitStagger(const MWWorld::Ptr& actor,float healthDamage,float fatigueDamage);
 
     /// @return does normal weapon resistance and weakness apply to the weapon?
     bool isNormalWeapon(const MWWorld::Ptr& weapon);

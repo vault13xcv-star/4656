@@ -792,6 +792,7 @@ namespace MWClass
         bool hasDamage = false;
         bool hasHealthDamage = false;
         float healthDamage = 0.f;
+        float fatigueDamage = 0.f;
         for (auto& [stat, damage] : damages)
         {
             if (damage < 0.001f)
@@ -808,6 +809,7 @@ namespace MWClass
             }
             else if (stat == "fatigue")
             {
+                fatigueDamage=damage;
                 MWMechanics::DynamicStat<float> fatigue(getCreatureStats(ptr).getFatigue());
                 fatigue.setCurrent(fatigue.getCurrent() - damage, true);
                 stats.setFatigue(fatigue);
@@ -841,8 +843,8 @@ namespace MWClass
                 + gmst.iKnockDownOddsBase->mValue.getInteger();
             if (hasHealthDamage && agilityTerm <= healthDamage && knockdownTerm <= Misc::Rng::roll0to99(prng))
                 stats.setKnockedDown(true);
-            else
-                stats.setHitRecovery(true); // Is this supposed to always occur?
+            else if(MWMechanics::allowHitStagger(ptr,healthDamage,fatigueDamage))
+                stats.setHitRecovery(true);
         }
 
         if (hasHealthDamage && healthDamage > 0.0f)

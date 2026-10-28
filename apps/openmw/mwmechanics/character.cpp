@@ -1710,6 +1710,8 @@ namespace MWMechanics
                     mUpperBodyState = UpperBodyState::AttackWindUp;
                     stats.mCombat.mAttackActive=true;
                     stats.mCombat.mAttackStarted=world->getTimeManager()->getSimulationTime();
+                    Ragdoll::Combat::observeFatigue(stats.mCombat,stats.getFatigue().getCurrent(),
+                        stats.getAttribute(ESM::Attribute::Agility).getModified(),stats.mCombat.mAttackStarted,true);
                     stats.mMeleeContact={};stats.mCombat.mContactTime=-1;
 
                     // Reset the attack results when the attack starts.
@@ -2000,6 +2002,11 @@ namespace MWMechanics
         osg::Vec3f movement(0.f, 0.f, 0.f);
         if(cls.isActor())
         {
+            auto& state=cls.getCreatureStats(mPtr).mCombat;
+            if(isScriptedAnimPlaying() || (mUpperBodyState!=UpperBodyState::AttackWindUp
+                && mUpperBodyState!=UpperBodyState::AttackRelease
+                && !(isRandomAttackAnimation(mCurrentWeapon) && mReadyToHit)))
+                state.mAttackActive=false;
             updateActiveDefense(mPtr,duration,mUpperBodyState==UpperBodyState::None || mUpperBodyState==UpperBodyState::WeaponEquipped
                 || mUpperBodyState==UpperBodyState::AttackWindUp);
             auto& combat=cls.getCreatureStats(mPtr).mCombat;
@@ -2493,11 +2500,10 @@ namespace MWMechanics
                 || (isRandomAttackAnimation(mCurrentWeapon) && mReadyToHit);
             const double now=world->getTimeManager()->getSimulationTime();
             const int pose=combat.mGuardHeld?(now>=combat.mGuardReady?2:1):0;
-            if(pose!=mGuardPose && mAnimation->hasAnimation("shield"))
+            if((pose!=mGuardPose || (pose && !mAnimation->hasShieldGuard())) && mAnimation->hasAnimation("shield"))
             {
-                if(!pose)mAnimation->disable("shield");
-                else mAnimation->play("shield",Priority_Block,MWRender::BlendMask_LeftArm,false,
-                    pose==2?0.f:2.f,"block start","block stop",pose==2?.30f:0.f,0);
+                if(!pose)mAnimation->clearShieldGuard();
+                else mAnimation->playShieldGuard(pose==2,std::max(.01f,float(combat.mGuardReady-combat.mGuardStarted)));
                 mGuardPose=pose;
             }
         }

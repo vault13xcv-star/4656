@@ -253,6 +253,7 @@ namespace MWMechanics
     void updateActiveDefense(const MWWorld::Ptr& actor,float duration,bool canAct)
     {
         auto& stats=actor.getClass().getCreatureStats(actor);auto& state=stats.mCombat;
+        const bool wasGuardHeld=state.mGuardHeld;
         const auto world=MWBase::Environment::get().getWorld();
         const double now=world->getTimeManager()->getSimulationTime();
         state.mRecoveryLeft=std::max(0.f,state.mRecoveryLeft-duration);
@@ -283,17 +284,23 @@ namespace MWMechanics
         if(stats.isDead() || stats.getKnockedDown() || stats.isParalyzed() || stats.getHitRecovery())state.mAttackActive=false;
         const bool allowed=canAct && !stats.isDead() && !stats.getKnockedDown() && !stats.isParalyzed() && !stats.getHitRecovery();
         if(!state.mGuardRequested)state.mGuardLatched=false;
-        if(!allowed || stats.getDrawState()!=DrawState::Weapon || shield.isEmpty() || fatigue.getCurrent()<=0 || !state.mGuardRequested)
+        const bool canGuard=allowed && stats.getDrawState()==DrawState::Weapon && !shield.isEmpty();
+        if(!canGuard || !state.mGuardRequested)
             state.mGuardHeld=false;
         else if(!state.mGuardHeld && !state.mGuardLatched)
         {
             state.mGuardLatched=true;
-            const float cost=3.f*Ragdoll::Combat::resource(skill);
-            fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-cost));
-            if(fatigue.getCurrent()>0)
+            Ragdoll::Combat::observeFatigue(state,fatigue.getCurrent(),agility,now,true);
+            if(fatigue.getCurrent()>0 && now>=state.mGuardNextRaise)
             {
-                state.mGuardHeld=true;state.mGuardStarted=now;
-                state.mGuardReady=now+Ragdoll::Combat::guardRaise(agility);
+                const float cost=3.f*Ragdoll::Combat::resource(skill);
+                fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-cost));
+                if(fatigue.getCurrent()>0)
+                {
+                    state.mGuardHeld=true;state.mGuardStarted=now;
+                    state.mGuardReady=now+Ragdoll::Combat::guardRaise(skill,agility);
+                    state.mGuardNextRaise=state.mGuardReady+Ragdoll::Combat::guardRecovery(skill,agility);
+                }
             }
         }
         if(state.mGuardHeld)
@@ -317,7 +324,19 @@ namespace MWMechanics
                 }
             }
         }
+        if(wasGuardHeld && !state.mGuardHeld)
+            state.mGuardNextRaise=std::max(state.mGuardNextRaise,now+Ragdoll::Combat::guardRecovery(skill,agility));
+        Ragdoll::Combat::observeFatigue(state,fatigue.getCurrent(),agility,now,state.mAttackActive);
         stats.setFatigue(fatigue);
+    }
+
+    bool allowHitStagger(const MWWorld::Ptr& actor,float healthDamage,float fatigueDamage)
+    {
+        auto& stats=actor.getClass().getCreatureStats(actor);
+        return Ragdoll::Combat::allowStagger(stats.mCombat,healthDamage,fatigueDamage,
+            stats.getHealth().getModified(),stats.getFatigue().getModified(),
+            stats.getAttribute(ESM::Attribute::Agility).getModified(),
+            MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime());
     }
 
     float blockMeleeAttack(const MWWorld::Ptr& attacker,const MWWorld::Ptr& blocker,const MWWorld::Ptr& weapon,
@@ -346,6 +365,8 @@ namespace MWMechanics
         if(!health){inv.unequipItem(*shield);guard.mGuardHeld=false;}
         auto fatigue=stats.getFatigue();
         fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-(3.f+blocked*.15f)*Ragdoll::Combat::resource(skill)));
+        Ragdoll::Combat::observeFatigue(guard,fatigue.getCurrent(),
+            stats.getAttribute(ESM::Attribute::Agility).getModified(),now,true);
         stats.setFatigue(fatigue);if(fatigue.getCurrent()<=0)guard.mGuardHeld=false;
         stats.setBlock(true);
         MWBase::Environment::get().getSoundManager()->playSound3D(blocker,ESM::RefId::stringRefId("Light Armor Hit"),1,1);
@@ -703,6 +724,9 @@ namespace MWMechanics
                 fatigueLoss += weapon.getClass().getWeight(weapon) * attackStrength * fWeaponFatigueMult;
             fatigueLoss*=Ragdoll::Combat::resource(getCombatSkill(attacker,weapon));
             fatigue.setCurrent(std::max(0.f,fatigue.getCurrent() - fatigueLoss));
+            Ragdoll::Combat::observeFatigue(stats.mCombat,fatigue.getCurrent(),
+                stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime(),true);
             stats.setFatigue(fatigue);
         }
     }

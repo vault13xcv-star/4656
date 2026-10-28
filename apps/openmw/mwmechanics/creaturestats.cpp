@@ -174,6 +174,11 @@ namespace MWMechanics
         if (index < 0 || index > 2)
             throw std::runtime_error("dynamic stat index is out of range");
 
+        if(index==2 && value.getCurrent()>0)
+        {
+            mCombat.mFatigueDepleted=false;
+            mCombat.mFatigueRestoreAt=0;
+        }
         mDynamic[index] = value;
 
         if (index == 0 && mDynamic[index].getCurrent() < 1)

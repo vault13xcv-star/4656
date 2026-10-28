@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.3-combat.1'
+$ragdollVersion = '1.3-combat.2'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -156,6 +156,17 @@ switch ($Phase) {
         Copy-Runtime $tests
         Run 'ctest' @('--test-dir', $tests, '--output-on-failure') 'ragdoll-tests.log'
         Run "$tests/ragdoll-render-tests.exe" @('--benchmark') 'synthetic-load.log'
+        # Compile the changed native paths before the full engine. This catches
+        # MSVC-only errors in a small early pass; Ninja reuses these objects later.
+        Run 'cmake' @('--build', $build, '--parallel', '3', '--target',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/combat.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/character.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/actors.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/creaturestats.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/npc.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/creature.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwrender/animation.cpp.obj',
+            'apps/openmw_tests/CMakeFiles/openmw-tests.dir/mwphysics/testitems.cpp.obj') 'preflight-regressions.log'
     }
     Build {
         Invoke-WithBuildReports {

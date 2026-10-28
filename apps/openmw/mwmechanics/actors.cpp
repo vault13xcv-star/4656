@@ -906,7 +906,10 @@ namespace MWMechanics
         const float x
             = (fFatigueReturnBase + fFatigueReturnMult * (1 - normalizedEncumbrance)) * (fEndFatigueMult * endurance);
 
-        fatigue.setCurrent(static_cast<float>(fatigue.getCurrent() + 3600 * x * hours));
+        const double seconds=Ragdoll::Combat::restedFatigueSeconds(stats.mCombat,fatigue.getCurrent(),
+            stats.getAttribute(ESM::Attribute::Agility).getModified(),
+            MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime(),3600*hours);
+        fatigue.setCurrent(static_cast<float>(fatigue.getCurrent() + x * seconds));
         stats.setFatigue(fatigue);
     }
 
@@ -920,6 +923,10 @@ namespace MWMechanics
         // Current fatigue can be above base value due to a fortify effect.
         // In that case stop here and don't try to restore.
         DynamicStat<float> fatigue = stats.getFatigue();
+        if(!Ragdoll::Combat::allowFatigueRecovery(stats.mCombat,fatigue.getCurrent(),
+                stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime()))
+            return;
         if (fatigue.getCurrent() >= fatigue.getBase())
             return;
 

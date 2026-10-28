@@ -309,6 +309,8 @@ namespace MWRender
          */
         void addAnimSource(std::string_view model, const std::string& baseModel);
         std::shared_ptr<AnimSource> addSingleAnimSource(const std::string& model, const std::string& baseModel);
+        std::shared_ptr<AnimSource> addKeyframeSource(osg::ref_ptr<const SceneUtil::KeyframeHolder> keyframes,
+            const std::string& model,const std::string& baseModel);
 
         /** Adds an additional light to the given node using the specified ESM record. */
         void addExtraLight(osg::ref_ptr<osg::Group> parent, const SceneUtil::LightCommon& light);
@@ -411,6 +413,9 @@ namespace MWRender
         void play(std::string_view groupname, const AnimPriority& priority, int blendMask, bool autodisable,
             float speedmult, std::string_view start, std::string_view stop, float startpoint, uint32_t loops,
             bool loopfallback = false);
+        void playShieldGuard(bool ready,float raiseSeconds);
+        bool hasShieldGuard() const;
+        void clearShieldGuard();
 
         /** Adjust the speed multiplier of an already playing animation.
          */
