@@ -87,3 +87,5 @@
 [85/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
 [86/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
 [87/90] Linking CXX executable components-tests.exe
+[88/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[89/90] Linking CXX executable openmw-tests.exe
