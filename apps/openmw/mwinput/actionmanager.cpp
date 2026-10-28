@@ -45,6 +45,10 @@ namespace MWInput
             combat.mGuardRequested=!MWBase::Environment::get().getWindowManager()->isGuiMode()
                 && !MWBase::Environment::get().getInputManager()->controlsDisabled()
                 && mBindingsManager->actionIsActive(A_Block);
+            combat.mSprintRequested=!MWBase::Environment::get().getWindowManager()->isGuiMode()
+                && !MWBase::Environment::get().getInputManager()->controlsDisabled()
+                && MWBase::Environment::get().getInputManager()->getControlSwitch("playercontrols")
+                && mBindingsManager->actionIsActive(A_Sprint);
         }
         if (mBindingsManager->actionIsActive(A_MoveForward) || mBindingsManager->actionIsActive(A_MoveBackward)
             || mBindingsManager->actionIsActive(A_MoveLeft) || mBindingsManager->actionIsActive(A_MoveRight)
@@ -72,10 +76,7 @@ namespace MWInput
         switch (action)
         {
             case A_Dodge:
-                if(MWBase::Environment::get().getStateManager()->getState()==MWBase::StateManager::State_Running
-                    && !windowManager->isGuiMode() && !inputManager->controlsDisabled())
-                    MWMechanics::getPlayer().getClass().getCreatureStats(MWMechanics::getPlayer()).mCombat.mDodgeRequested=true;
-                break;
+                break; // Old configurations cannot bypass context-sensitive RMB.
             case A_Block: break; // Held state is sampled every input update.
             case A_GameMenu:
                 toggleMainMenu();

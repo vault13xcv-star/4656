@@ -65,6 +65,17 @@ namespace
         require(blockedFraction(guard,10,10.3)==0,"Lowered shield blocks damage");
         require(guardRaise(100,100)<guardRaise(1,1) && dodgeCost(100)<dodgeCost(0)
             && dodgeCooldown(100)<dodgeCooldown(0),"Agility does not improve active defenses");
+        State input;
+        input.mGuardRequested=true;selectDefense(input,false);
+        require(input.mDodgeRequested,"RMB without a shield does not request a dodge");
+        for(int frame=0;frame<600;++frame)
+        {selectDefense(input,false);require(!input.mDodgeRequested,"Holding RMB repeats dodges");}
+        input.mGuardRequested=false;selectDefense(input,true);
+        input.mGuardRequested=true;selectDefense(input,true);
+        require(!input.mDodgeRequested,"RMB with a shield also requests a dodge");
+        selectDefense(input,false);
+        require(!input.mDodgeRequested,"Unequipping a held shield triggers a free dodge");
+        require(dodgeDirection({})==osg::Vec3f(0,-1,0),"RMB standing still does not dodge backwards");
         for(auto input:{osg::Vec3f(0,-1,0),osg::Vec3f(1,0,0),osg::Vec3f(-1,-1,0),osg::Vec3f(1,1,1),osg::Vec3f()})
         for(int fps:{15,30,60,144})
         {
@@ -122,6 +133,51 @@ namespace
         require(!allowStagger(victim,20,0,200,200,50,20.5),"Repeated substantial hits extend a flinch without a counterattack window");
         require(allowStagger(victim,20,0,200,200,50,21),"Flinch resistance never expires");
         std::cout<<"PASS exhausted-spam lock, attack/raise resets, agility deadlines, rest, explicit restoration and anti-stunlock\n";
+    }
+    void recoveryAndSprint()
+    {
+        using namespace Ragdoll::Combat;
+        for(int endurance:{1,30,50,100})
+        for(float maximum:{50.f,200.f,400.f})
+        {
+            const float outside=fatigueRecoveryRate(maximum,endurance,5,false);
+            require(near(maximum/outside,fatigueRecoverySeconds(endurance)),"Outside recovery depends on fatigue pool size");
+            for(float nativeRate:{0.f,1.f,5.f,500.f})
+            {
+                const float fighting=fatigueRecoveryRate(maximum,endurance,nativeRate,true);
+                require(fighting<=outside && near(fighting,std::min(4*nativeRate,outside)),
+                    "Combat recovery does not preserve native modifiers or exceeds outside recovery");
+            }
+            for(int fps:{15,60,144})
+            {
+                State state;
+                float fatigue=0;
+                observeFatigue(state,0,100,0);
+                for(int frame=0;frame<int((3+fatigueRecoverySeconds(endurance))*fps)+2;++frame)
+                {
+                    const double now=double(frame)/fps;
+                    if(allowFatigueRecovery(state,fatigue,100,now))fatigue=std::min(maximum,fatigue+outside/fps);
+                    if(now<3)require(fatigue==0,"Faster recovery bypasses depletion delay");
+                }
+                require(near(fatigue,maximum,.01f),"Full out-of-combat recovery misses the 5-10 second interval");
+            }
+        }
+        require(near(fatigueRecoverySeconds(1),10) && near(fatigueRecoverySeconds(100),5),"Recovery endpoints are wrong");
+        // Sprint runs continuously for a bounded interval, then must stop to
+        // recover. Walking/running spend no movement fatigue; no infinite sprint.
+        for(int fps:{15,60,144})
+        {
+            float fatigue=200;State state;
+            const float cost=sprintCost(200,.5f);
+            for(int frame=0;frame<fps*10 && fatigue>0;++frame)
+            {
+                fatigue=std::max(0.f,fatigue-cost/fps);
+                observeFatigue(state,fatigue,100,double(frame)/fps);
+            }
+            require(fatigue==0 && state.mFatigueDepleted,"Continuous sprint never exhausts fatigue");
+            require(!allowFatigueRecovery(state,0,100,state.mFatigueRestoreAt-.01),"Sprint bypasses the exhaustion delay");
+        }
+        std::cout<<"PASS capped fourfold combat recovery, 5-10 second outside recovery, exhaustion and sprint fatigue at multiple frame rates\n";
     }
     void ranged()
     {
@@ -186,6 +242,6 @@ namespace
 }
 int main()
 {
-    try{balance();defense();exhaustionAndStagger();ranged();blade();}
+    try{balance();defense();exhaustionAndStagger();recoveryAndSprint();ranged();blade();}
     catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
 }

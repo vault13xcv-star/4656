@@ -40,6 +40,8 @@ Use_description: "Attack with a weapon or cast a spell depending on the current 
 
 Run_name: "Run"
 Run_description: "Hold to run/walk depending on the Always Run setting."
+Sprint_name: "Sprint"
+Sprint_description: "Hold to move at twice running speed while spending stamina."
 
 AlwaysRun_name: "Always Run"
 AlwaysRun_description: "Toggle the Always Run setting."

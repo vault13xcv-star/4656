@@ -268,6 +268,12 @@ namespace MWMechanics
             if(right!=inv.end() && right->getType()==ESM::Weapon::sRecordId)weapon=*right;
         }
         if(!weapon.isEmpty() && (getWeaponType(weapon.get<ESM::Weapon>()->mBase->mData.mType)->mFlags&ESM::WeaponType::TwoHanded))shield={};
+        if(actor==getPlayer())
+        {
+            // One press selects one action. Holding RMB never repeats dodges;
+            // changing equipment while holding it cannot initiate another dodge.
+            Ragdoll::Combat::selectDefense(state,!shield.isEmpty());
+        }
         const float skill=actor.getClass().getSkill(actor,ESM::Skill::Block);
         if(actor!=getPlayer())
         {
@@ -312,7 +318,8 @@ namespace MWMechanics
         {
             state.mDodgeRequested=false;
             const float cost=Ragdoll::Combat::dodgeCost(agility);
-            if(allowed && now>=state.mDodgeReady && fatigue.getCurrent()>=cost && world->isOnGround(actor)
+            if(allowed && shield.isEmpty() && now>=state.mDodgeReady && fatigue.getCurrent()>0
+                && fatigue.getCurrent()>=cost && world->isOnGround(actor)
                 && !world->isSwimming(actor))
             {
                 const auto& movement=actor.getClass().getMovementSettings(actor);
@@ -337,6 +344,17 @@ namespace MWMechanics
             stats.getHealth().getModified(),stats.getFatigue().getModified(),
             stats.getAttribute(ESM::Attribute::Agility).getModified(),
             MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime());
+    }
+
+    bool isNonHostilePhysicalHit(const MWWorld::Ptr& attacker,const MWWorld::Ptr& target,const MWWorld::Ptr& player)
+    {
+        if(attacker.isEmpty() || target.isEmpty() || attacker==player || target==player
+            || !attacker.getClass().isActor() || !target.getClass().isActor())return false;
+        // Fight/disposition are aggression toward the player, not a faction
+        // relationship between two bandits. Use actual combat targets in either
+        // direction so guard/bandit fights and scripted hostility retain damage.
+        return !attacker.getClass().getCreatureStats(attacker).getAiSequence().isInCombat(target)
+            && !target.getClass().getCreatureStats(target).getAiSequence().isInCombat(attacker);
     }
 
     float blockMeleeAttack(const MWWorld::Ptr& attacker,const MWWorld::Ptr& blocker,const MWWorld::Ptr& weapon,
@@ -442,6 +460,9 @@ namespace MWMechanics
         }
 
         if(attacker.isEmpty() || !attacker.getClass().isActor())return false;
+        // Return a stopped/deflected contact, never search through this actor.
+        // This also prevents puncture bleeding and on-strike enchantments.
+        if(isNonHostilePhysicalHit(attacker,victim,getPlayer()))return true;
         ESM::RefId weaponSkill = ESM::Skill::Marksman;
         if (!weapon.isEmpty())
             weaponSkill = weapon.getClass().getEquipmentSkill(weapon);

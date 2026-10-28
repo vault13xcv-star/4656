@@ -43,6 +43,14 @@ namespace Ragdoll::Combat
     inline float dodgeCost(float agility) { return 11.5f+(41.85f-11.5f)*(1.f-rank(agility)); }
     inline float dodgeCooldown(float agility) { return .5f*(3.f-2.f*rank(agility)); }
     inline float fatigueDelay(float agility) { return 10.f-7.f*rank(agility); }
+    inline float fatigueRecoverySeconds(float endurance) { return 10.f-5.f*rank(endurance); }
+    inline float fatigueRecoveryRate(float maximum,float endurance,float nativeRate,bool inCombat)
+    {
+        const float outside=std::max(0.f,maximum)/fatigueRecoverySeconds(endurance);
+        return inCombat?std::min(outside,4.f*std::max(0.f,nativeRate)):outside;
+    }
+    inline float sprintCost(float maximum,float encumbrance)
+    { return std::max(10.f,.12f*maximum)*(1.f+.5f*std::clamp(encumbrance,0.f,1.f)); }
     inline osg::Vec3f dodgeDirection(osg::Vec3f input)
     {
         input.z()=0;input.y()=std::min(0.f,input.y());
@@ -52,6 +60,7 @@ namespace Ragdoll::Combat
     struct State
     {
         bool mGuardRequested=false,mGuardHeld=false,mGuardLatched=false,mDodgeRequested=false;
+        bool mDefensePressed=false,mSprintRequested=false,mSprinting=false,mSprintExhausted=false;
         bool mAttackActive=false,mHasWeaponSample=false,mContactWindow=false;
         double mGuardStarted=-1,mGuardReady=-1,mAttackStarted=-1,mLastAttack=-1,mDodgeReady=0;
         float mDodgeLeft=0,mWeaponWear=0,mShieldWear=0,mRecoveryLeft=0;
@@ -60,6 +69,11 @@ namespace Ragdoll::Combat
         osg::Vec3f mDodgeDirection,mWeaponBase,mWeaponTip;
         double mContactTime=-1;
     };
+    inline void selectDefense(State& state,bool hasShield)
+    {
+        state.mDodgeRequested=state.mGuardRequested && !state.mDefensePressed && !hasShield;
+        state.mDefensePressed=state.mGuardRequested;
+    }
     inline void observeFatigue(State& state,float current,float agility,double now,bool effort=false)
     {
         if(current>0){state.mFatigueDepleted=false;state.mFatigueRestoreAt=0;return;}

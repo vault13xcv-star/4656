@@ -30,6 +30,8 @@ namespace MWMechanics
     void updateActiveDefense(const MWWorld::Ptr& actor,float duration,bool canAct);
     void sampleMeleeContact(const MWWorld::Ptr& actor);
     bool allowHitStagger(const MWWorld::Ptr& actor,float healthDamage,float fatigueDamage);
+    /// Physical contact still stops on this actor, but causes no allied NPC damage/effects.
+    bool isNonHostilePhysicalHit(const MWWorld::Ptr& attacker,const MWWorld::Ptr& target,const MWWorld::Ptr& player);
 
     /// @return does normal weapon resistance and weakness apply to the weapon?
     bool isNormalWeapon(const MWWorld::Ptr& weapon);

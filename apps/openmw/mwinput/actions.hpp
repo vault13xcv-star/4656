@@ -68,7 +68,8 @@ namespace MWInput
 
         A_TogglePostProcessorHUD = 50,
         A_Block = 51,
-        A_Dodge = 52,
+        A_Dodge = 52, // Reserved legacy Q action; defense now uses A_Block.
+        A_Sprint = 53,
 
         A_Last // Marker for the last item
     };

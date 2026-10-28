@@ -222,7 +222,7 @@ namespace MWInput
     {
         int playerChannels[] = { A_AutoMove, A_AlwaysRun, A_ToggleWeapon, A_ToggleSpell, A_Rest, A_QuickKey1,
             A_QuickKey2, A_QuickKey3, A_QuickKey4, A_QuickKey5, A_QuickKey6, A_QuickKey7, A_QuickKey8, A_QuickKey9,
-            A_QuickKey10, A_Use, A_Journal, A_Block, A_Dodge };
+            A_QuickKey10, A_Use, A_Journal, A_Block, A_Sprint };
 
         for (int pc : playerChannels)
         {
@@ -247,6 +247,18 @@ namespace MWInput
 
     void BindingsManager::loadKeyDefaults(bool force)
     {
+        // Move the old Shift run modifier to sprint, and retire the default Q
+        // dodge. Custom run bindings remain available.
+        for(const auto& [action,key]:{std::pair{A_Run,SDL_SCANCODE_LSHIFT},std::pair{A_Dodge,SDL_SCANCODE_Q}})
+        {
+            auto* channel=mInputBinder->getChannel(action);
+            if(channel->getControlsCount())
+            {
+                auto* control=channel->getAttachedControls().front().control;
+                if(mInputBinder->getKeyBinding(control,ICS::Control::INCREASE)==key)
+                    mInputBinder->removeKeyBinding(key);
+            }
+        }
         // Migrate only the old default conflicts; retain custom bindings.
         if(!force && mInputBinder->getChannel(A_Block)->getControlsCount()==0)
         {
@@ -284,11 +296,10 @@ namespace MWInput
 
         defaultKeyBindings[A_QuickKeysMenu] = SDL_SCANCODE_F1;
         defaultKeyBindings[A_Console] = SDL_SCANCODE_GRAVE;
-        defaultKeyBindings[A_Run] = SDL_SCANCODE_LSHIFT;
+        defaultKeyBindings[A_Sprint] = SDL_SCANCODE_LSHIFT;
         defaultKeyBindings[A_Sneak] = SDL_SCANCODE_LCTRL;
         defaultKeyBindings[A_AutoMove] = SDL_SCANCODE_G;
         defaultKeyBindings[A_Inventory] = SDL_SCANCODE_I;
-        defaultKeyBindings[A_Dodge] = SDL_SCANCODE_Q;
         defaultKeyBindings[A_Jump] = SDL_SCANCODE_E;
         defaultKeyBindings[A_Journal] = SDL_SCANCODE_J;
         defaultKeyBindings[A_Rest] = SDL_SCANCODE_T;
@@ -456,8 +467,9 @@ namespace MWInput
     {
         switch (action)
         {
-            case A_Block: return "Active shield block";
+            case A_Block: return "Shield block / Dodge";
             case A_Dodge: return "Dodge";
+            case A_Sprint: return "Sprint";
             case A_Screenshot:
                 return "#{OMWEngine:Screenshot}";
             case A_ZoomIn:
@@ -597,8 +609,8 @@ namespace MWInput
     const std::initializer_list<int>& BindingsManager::getActionKeySorting()
     {
         static const std::initializer_list<int> actions{ A_MoveForward, A_MoveBackward, A_MoveLeft, A_MoveRight,
-            A_TogglePOV, A_ZoomIn, A_ZoomOut, A_Run, A_AlwaysRun, A_Sneak, A_Activate, A_Use, A_ToggleWeapon,
-            A_ToggleSpell, A_Block, A_Dodge, A_CycleSpellLeft, A_CycleSpellRight, A_CycleWeaponLeft, A_CycleWeaponRight, A_AutoMove,
+            A_TogglePOV, A_ZoomIn, A_ZoomOut, A_Sprint, A_Run, A_AlwaysRun, A_Sneak, A_Activate, A_Use, A_ToggleWeapon,
+            A_ToggleSpell, A_Block, A_CycleSpellLeft, A_CycleSpellRight, A_CycleWeaponLeft, A_CycleWeaponRight, A_AutoMove,
             A_Jump, A_Inventory, A_Journal, A_Rest, A_Console, A_QuickSave, A_QuickLoad, A_ToggleHUD, A_Screenshot,
             A_QuickKeysMenu, A_QuickKey1, A_QuickKey2, A_QuickKey3, A_QuickKey4, A_QuickKey5, A_QuickKey6, A_QuickKey7,
             A_QuickKey8, A_QuickKey9, A_QuickKey10, A_TogglePostProcessorHUD };

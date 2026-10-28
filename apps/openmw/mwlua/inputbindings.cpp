@@ -280,6 +280,7 @@ namespace MWLua
                 { "Rest", MWInput::A_Rest },
                 { "Journal", MWInput::A_Journal },
                 { "Run", MWInput::A_Run },
+                { "Sprint", MWInput::A_Sprint },
                 { "CycleSpellLeft", MWInput::A_CycleSpellLeft },
                 { "CycleSpellRight", MWInput::A_CycleSpellRight },
                 { "CycleWeaponLeft", MWInput::A_CycleWeaponLeft },

@@ -639,6 +639,9 @@ namespace MWClass
         if (otherstats.isDead()) // Can't hit dead actors
             return;
 
+        if(MWMechanics::isNonHostilePhysicalHit(ptr,victim,MWMechanics::getPlayer()))
+            return;
+
         if (!MWBase::Environment::get().getWorld()->getLOS(ptr,victim))
             return;
 

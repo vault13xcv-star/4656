@@ -2003,6 +2003,8 @@ namespace MWMechanics
         if(cls.isActor())
         {
             auto& state=cls.getCreatureStats(mPtr).mCombat;
+            state.mSprinting=false;
+            if(!state.mSprintRequested)state.mSprintExhausted=false;
             if(isScriptedAnimPlaying() || (mUpperBodyState!=UpperBodyState::AttackWindUp
                 && mUpperBodyState!=UpperBodyState::AttackRelease
                 && !(isRandomAttackAnimation(mCurrentWeapon) && mReadyToHit)))
@@ -2168,6 +2170,34 @@ namespace MWMechanics
             if (isKnockedOut() || isKnockedDown() || isRecovery() || isScriptedAnimPlaying())
                 vec = osg::Vec3f();
 
+            auto& sprint=stats.mCombat;
+            if(sprint.mSprintRequested && !sprint.mSprintExhausted && isPlayer && onground
+                && !inwater && !flying && !sneak && !isKnockedOut() && !isKnockedDown()
+                && !isRecovery() && !isScriptedAnimPlaying() && !stats.isParalyzed()
+                && !sprint.mGuardHeld && sprint.mDodgeLeft<=0 && !sprint.mAttackActive
+                && (vec.x()!=0 || vec.y()!=0))
+            {
+                auto fatigue=stats.getFatigue();
+                if(fatigue.getCurrent()>0)
+                {
+                    sprint.mSprinting=true;
+                    speed*=2.f;vec.x()*=2.f;vec.y()*=2.f;
+                    if(!godmode)
+                    {
+                        fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-duration
+                            *Ragdoll::Combat::sprintCost(fatigue.getBase(),cls.getNormalizedEncumbrance(mPtr))));
+                        stats.setFatigue(fatigue);
+                    }
+                }
+                if(fatigue.getCurrent()<=0)
+                {
+                    sprint.mSprintExhausted=true;
+                    Ragdoll::Combat::observeFatigue(sprint,fatigue.getCurrent(),
+                        stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                        world->getTimeManager()->getSimulationTime());
+                }
+            }
+
             CharacterState movestate = CharState_None;
             CharacterState idlestate = CharState_None;
             JumpingState jumpstate = JumpState_None;
@@ -2202,8 +2232,6 @@ namespace MWMechanics
                 {
                     // reduce fatigue
                     float fatigueLoss = 0.f;
-                    static const float fFatigueRunBase = gmst.find("fFatigueRunBase")->mValue.getFloat();
-                    static const float fFatigueRunMult = gmst.find("fFatigueRunMult")->mValue.getFloat();
                     static const float fFatigueSwimWalkBase = gmst.find("fFatigueSwimWalkBase")->mValue.getFloat();
                     static const float fFatigueSwimRunBase = gmst.find("fFatigueSwimRunBase")->mValue.getFloat();
                     static const float fFatigueSwimWalkMult = gmst.find("fFatigueSwimWalkMult")->mValue.getFloat();
@@ -2225,8 +2253,8 @@ namespace MWMechanics
                                 else
                                     fatigueLoss = fFatigueSwimRunBase + encumbrance * fFatigueSwimRunMult;
                             }
-                            else if (isrunning)
-                                fatigueLoss = fFatigueRunBase + encumbrance * fFatigueRunMult;
+                            // Ordinary walking/running on land is free. Sprint
+                            // is charged above; swimming and sneaking keep their rules.
                         }
                     }
                     fatigueLoss *= duration;

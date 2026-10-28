@@ -75,6 +75,7 @@ bindHold('TogglePOV', input.ACTION.TogglePOV)
 bindHold('Sneak', input.ACTION.Sneak)
 
 bindHold('Run', input.ACTION.Run)
+bindHold('Sprint', input.ACTION.Sprint)
 input.bindAction('Run', async:callback(function(_, value)
     local controllerInput = util.vector2(
         input.getAxisValue(input.CONTROLLER_AXIS.MoveForwardBackward),

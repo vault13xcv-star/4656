@@ -32,6 +32,7 @@ do
     local booleanActions = {
         'Use',
         'Run',
+        'Sprint',
         'Sneak',
     }
     for _, key in ipairs(booleanActions) do
@@ -88,6 +89,8 @@ local function processMovement()
     local movement = input.getRangeActionValue('MoveForward') - input.getRangeActionValue('MoveBackward')
     local sideMovement = input.getRangeActionValue('MoveRight') - input.getRangeActionValue('MoveLeft')
     local run = input.getBooleanActionValue('Run') ~= settings:get('alwaysRun')
+    -- Shift always selects running for sprint, even with Always Run disabled.
+    run = run or input.getBooleanActionValue('Sprint')
 
     if movement ~= 0 then
         autoMove = false

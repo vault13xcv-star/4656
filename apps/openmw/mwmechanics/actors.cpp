@@ -920,14 +920,16 @@ namespace MWMechanics
 
         MWMechanics::CreatureStats& stats = ptr.getClass().getCreatureStats(ptr);
 
-        // Current fatigue can be above base value due to a fortify effect.
-        // In that case stop here and don't try to restore.
+        // A fortified/drained maximum is still one full fatigue pool. Never
+        // lower a current value above that limit while naturally restoring.
         DynamicStat<float> fatigue = stats.getFatigue();
+        if(stats.mCombat.mSprinting)
+            return;
         if(!Ragdoll::Combat::allowFatigueRecovery(stats.mCombat,fatigue.getCurrent(),
                 stats.getAttribute(ESM::Attribute::Agility).getModified(),
                 MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime()))
             return;
-        if (fatigue.getCurrent() >= fatigue.getBase())
+        if (fatigue.getCurrent() >= fatigue.getModified())
             return;
 
         // Restore fatigue
@@ -937,7 +939,9 @@ namespace MWMechanics
         static const float fFatigueReturnBase = settings.find("fFatigueReturnBase")->mValue.getFloat();
         static const float fFatigueReturnMult = settings.find("fFatigueReturnMult")->mValue.getFloat();
 
-        const float x = fFatigueReturnBase + fFatigueReturnMult * endurance;
+        const bool inCombat=ptr==getPlayer()?isPlayerInCombat():stats.getAiSequence().isInCombat();
+        const float x=Ragdoll::Combat::fatigueRecoveryRate(fatigue.getModified(),endurance,
+            fFatigueReturnBase+fFatigueReturnMult*endurance,inCombat);
 
         fatigue.setCurrent(fatigue.getCurrent() + duration * x);
         stats.setFatigue(fatigue);

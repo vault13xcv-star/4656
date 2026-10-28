@@ -1,25 +1,13 @@
-Brutal Morrowind **1.3-combat.2 — experimental Windows x 64**.
+Brutal Morrowind **1.3-combat.3 — experimental Windows x64**.
 
-**Validation notice: retained engine, one test-fixture failure**
+Walking and ordinary running no longer spend stamina. Short combat breaks restore stamina faster, Shift sprints, and RMB chooses shield block or dodge based on the carried equipment.
 
-The executable is from commit `184490246889220d99ed94a77ed59e656edc8a89` and Windows run [40658338776](https://github.com/vault13xcv-star/4656/actions/runs/40658338776). Five physics/render/combat groups, 1405 component tests and 44 of 45 native integration tests passed. The new held-shield test raised an access violation because its synthetic environment did not create the LuaManager used by animation-ended events. The running game initializes that manager. The source branch adds the missing LuaManager initialization; that revised fixture was not rerun in this compiled engine.
+- Combat natural stamina recovery uses four times the previous native rate, including modified Endurance and GMST factors, capped at the outside-combat rate.
+- Outside combat a full stamina pool recovers in 10 seconds at Endurance 1, decreasing to 5 seconds at Endurance 100. The existing 3–10 second exhaustion delay still applies first. Potions and Restore Fatigue retain their effect.
+- Shift sprints on land at twice normal running speed, spends stamina and suppresses natural regeneration during the sprint. Sprint stops at zero; release Shift before starting again. Ordinary walking/running remain free; swimming, sneaking and jumping retain their costs.
+- RMB with a shield raises/holds the shield; RMB without a shield starts one dodge per press. Standing still dodges backwards. Dodge remains lateral/backwards, requires sufficient positive stamina, and cannot start with a shield. The old Q dodge is retired. Caps Lock toggles ordinary run/walk; I opens inventory and G toggles auto-move.
+- Accidental melee/projectile hits between non-player NPCs/creatures cause no physical damage, on-strike enchantments or puncture bleeding unless either actor is actively fighting the other. They still intercept the attack: melee is consumed and a physical projectile rebounds. Player damage and spell rules remain unchanged.
 
-The already compiled EXE is retained unchanged. The Windows and corresponding source ZIPs include KNOWN-ISSUES.txt; VALIDATION.txt preserves the failed test result. Publication is not an all-tests-pass claim. The actual in-game shield pose and guard duel remain untested.
+The prior skill/resource/tempo rebalance, exhaustion delay, anti-stunlock thresholds, held shield pose, physical projectiles, gore and blood are retained. The previous held-shield test fixture now supplies its missing LuaManager. Automated physics/render/combat, component and native integration results are preserved in the ZIP validation directory. These checks do not replace a Morrowind-data playtest. No measured FPS, in-game shield quality or guard duel is claimed.
 
-
-Weak dagger hits could continuously interrupt a stronger opponent, while cheap stamina costs and immediate regeneration made sustained attacks and low-skill blocking too effective. This build increases the resource commitment and removes automatic flinches from tiny hits.
-
-- Weapon and Block costs now decrease from three times the previous skill 1 cost to the previous skill 50 cost at mastery. Raise, hold and block-impact costs use Block skill.
-- Preparation and recovery durations decrease from 3x at skill 1 to 1x at skill 100. Agility improves intermediate speed and shield raising. Actual strike/release speed remains original. Shield re-raises have a short recovery interval.
-- Zero fatigue pauses natural regeneration for 10 seconds at agility 1, decreasing to 3 seconds at agility 100. Attacks, exhausted wind-ups and shield-raise attempts restart the wait. Potions/magic can restore fatigue. Continuing to attack empty retains half damage and 1.5x additional preparation/recovery durations.
-- Weak hits no longer automatically trigger flinches. Meaningful hits use health/fatigue and agility thresholds, with a 1-second repeat-flinch grace period. Strong-hit knockdown retains native rules.
-- Held shields now freeze the actual block track at its raised pose instead of continuing through the lowering animation. Release leaves unrelated equipment tracks intact.
-- Dodge costs and cooldowns follow agility progression; distance and ordinary collisions are retained.
-
-RMB holds the shield, Q dodges backwards/sideways, I opens inventory and G toggles auto-move. Rebinding remains available. No random hit roll is restored. Blood, dismemberment, physical projectiles and last-hostile slow motion remain from the previous build; stable Latest remains 1.1.
-
-Native animation and combat regressions are compiled early on Windows before the full engine. The compiled engine is retained before test-program compilation, and packaging preserves the candidate if a later test fails. Validation status is recorded inside the ZIP.
-
-Contacts use bounded blade-axis sweeps and native ray/capsule fallbacks and remain approximate. No dedicated controller defaults are supplied. Projectile remnants are session effects and disappear on load, cell changes or after ten real minutes. New in-flight projectile fields may not load in older versions.
-
-Fully extract the Windows-x 64 ZIP separately and use copied saves. Game data and launcher/editor are not bundled. Automated checks do not replace a Morrowind-data playtest; no measured gameplay FPS or verified in-game guard duel is claimed. Corresponding sources and dependency notices accompany the release.
+Fully extract the Windows x64 ZIP separately and use copied saves. Game data and launcher/editor are not bundled. Contacts remain approximate; no dedicated controller defaults are added. Corresponding source archive and dependency notices accompany the prerelease. Stable Latest remains 1.1.

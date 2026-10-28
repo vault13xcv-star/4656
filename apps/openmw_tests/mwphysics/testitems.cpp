@@ -16,13 +16,18 @@
 #include "apps/openmw/mwworld/class.hpp"
 #include "apps/openmw/mwworld/esmstore.hpp"
 #include "apps/openmw/mwworld/livecellref.hpp"
+#include "apps/openmw/mwworld/worldmodel.hpp"
 
 #include <components/esm3/loadalch.hpp>
 #include <components/esm3/loadappa.hpp>
 #include <components/esm3/loadarmo.hpp>
 #include <components/esm3/loadbook.hpp>
 #include <components/esm3/loadclot.hpp>
+#include <components/esm3/loadcrea.hpp>
 #include <components/esm3/creaturestats.hpp>
+#include <components/esm3/creaturestate.hpp>
+#include <components/esm3/npcstate.hpp>
+#include <components/esm3/readerscache.hpp>
 #include <components/esm3/loadingr.hpp>
 #include <components/esm3/loadligh.hpp>
 #include <components/esm3/loadlock.hpp>
@@ -713,9 +718,12 @@ namespace
         ESM::CreatureStats saved{};saved.blank();
         stats.mCombat.mGuardHeld=true;stats.mCombat.mAttackActive=true;
         stats.mCombat.mDodgeLeft=.2f;stats.mCombat.mRecoveryLeft=2;
+        stats.mCombat.mSprinting=true;stats.mCombat.mSprintRequested=true;stats.mCombat.mDefensePressed=true;
         stats.readState(saved);
         EXPECT_FALSE(stats.mCombat.mGuardHeld);EXPECT_FALSE(stats.mCombat.mAttackActive);
         EXPECT_EQ(stats.mCombat.mDodgeLeft,0);EXPECT_EQ(stats.mCombat.mRecoveryLeft,0);
+        EXPECT_FALSE(stats.mCombat.mSprinting);EXPECT_FALSE(stats.mCombat.mSprintRequested);
+        EXPECT_FALSE(stats.mCombat.mDefensePressed);
         stats.mCombat.mGuardHeld=true;stats.mCombat.mDodgeLeft=.2f;
         stats.resurrect();
         EXPECT_FALSE(stats.mCombat.mGuardHeld);EXPECT_EQ(stats.mCombat.mDodgeLeft,0);
@@ -725,6 +733,53 @@ namespace
         EXPECT_TRUE(stats.mCombat.mFatigueDepleted);
         fatigue.setCurrent(5);stats.setFatigue(fatigue);
         EXPECT_FALSE(stats.mCombat.mFatigueDepleted);EXPECT_EQ(stats.mCombat.mFatigueRestoreAt,0);
+    }
+
+    TEST_F(ItemPhysicsIntegration, PhysicalFriendlyFirePolicyUsesBothActorsCombatTargets)
+    {
+        MWBase::Environment environment;
+        MWWorld::ESMStore store;environment.setESMStore(store);
+        ESM::ReadersCache readers;
+        MWWorld::WorldModel model(store,readers);environment.setWorldModel(model);
+        ESM::NPC npc;npc.blank();npc.mId=ESM::RefId::stringRefId("combat-test-npc");
+        ESM::Creature creature;creature.blank();creature.mId=ESM::RefId::stringRefId("combat-test-creature");
+        const auto* npcBase=store.insert(npc);const auto* creatureBase=store.insert(creature);
+        ESM::CellRef firstRef;firstRef.blank();firstRef.mRefID=npcBase->mId;firstRef.mRefNum={1,-1};
+        ESM::CellRef secondRef=firstRef;secondRef.mRefNum={2,-1};
+        ESM::CellRef thirdRef=firstRef;thirdRef.mRefID=creatureBase->mId;thirdRef.mRefNum={3,-1};
+        MWWorld::LiveCellRef<ESM::NPC> first(firstRef,npcBase),second(secondRef,npcBase);
+        MWWorld::LiveCellRef<ESM::Creature> third(thirdRef,creatureBase);
+        MWWorld::Ptr a(&first),b(&second),c(&third);
+        ESM::NpcState npcState;npcState.blank();npcState.mHasCustomState=true;
+        npcState.mCreatureStats.mMissingACDT=false;npcState.mCreatureStats.mRecalcDynamicStats=false;
+        a.getClass().readAdditionalState(a,npcState);b.getClass().readAdditionalState(b,npcState);
+        ESM::CreatureState creatureState;creatureState.blank();creatureState.mHasCustomState=true;
+        creatureState.mCreatureStats.mMissingACDT=false;creatureState.mCreatureStats.mRecalcDynamicStats=false;
+        c.getClass().readAdditionalState(c,creatureState);
+        Reference<ESM::Static> player(0,0,0);
+        player.ptr().getCellRef().setRefNum({4,-1});
+        const auto engage=[](const MWWorld::Ptr& actor,const MWWorld::Ptr& target)
+        {
+            ESM::AiSequence::AiSequence sequence;
+            auto package=std::make_unique<ESM::AiSequence::AiCombat>();
+            package->mTargetActor=target.getCellRef().getRefNum();
+            sequence.mPackages.push_back({ESM::AiSequence::Ai_Combat,std::move(package)});
+            actor.getClass().getCreatureStats(actor).getAiSequence().readState(sequence);
+        };
+        engage(a,player.ptr());engage(b,player.ptr());engage(c,player.ptr());
+        for(const auto& pair:{std::pair{a,b},std::pair{a,c},std::pair{c,b}})
+        {
+            EXPECT_TRUE(MWMechanics::isNonHostilePhysicalHit(pair.first,pair.second,player.ptr()));
+            EXPECT_TRUE(MWMechanics::isNonHostilePhysicalHit(pair.second,pair.first,player.ptr()));
+            EXPECT_FALSE(MWMechanics::isNonHostilePhysicalHit(pair.first,pair.second,pair.first));
+        }
+        engage(a,b);
+        EXPECT_FALSE(MWMechanics::isNonHostilePhysicalHit(a,b,player.ptr()));
+        EXPECT_FALSE(MWMechanics::isNonHostilePhysicalHit(b,a,player.ptr()));
+        EXPECT_TRUE(MWMechanics::isNonHostilePhysicalHit(a,c,player.ptr()));
+        engage(c,a);
+        EXPECT_FALSE(MWMechanics::isNonHostilePhysicalHit(a,c,player.ptr()));
+        EXPECT_FALSE(MWMechanics::isNonHostilePhysicalHit(c,a,player.ptr()));
     }
 
     TEST_F(ItemPhysicsIntegration, PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders)
