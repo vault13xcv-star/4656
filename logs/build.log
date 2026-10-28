@@ -1,59 +1,3 @@
-[595/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\mapwindow.cpp.obj
-[596/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\scrollwindow.cpp.obj
-[597/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\resourceskin.cpp.obj
-[598/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\tooltips.cpp.obj
-[599/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\bookwindow.cpp.obj
-[600/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\formatting.cpp.obj
-[601/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\container.cpp.obj
-[602/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\inventorywindow.cpp.obj
-[603/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\hud.cpp.obj
-[604/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\countdialog.cpp.obj
-[605/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\confirmationdialog.cpp.obj
-[606/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\tradewindow.cpp.obj
-[607/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\referenceinterface.cpp.obj
-[608/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\alchemywindow.cpp.obj
-[609/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\settingswindow.cpp.obj
-[610/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellwindow.cpp.obj
-[611/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\mainmenu.cpp.obj
-[612/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\itemselection.cpp.obj
-[613/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\loadingscreen.cpp.obj
-[614/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\quickkeysmenu.cpp.obj
-[615/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellbuyingwindow.cpp.obj
-[616/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\levelupdialog.cpp.obj
-[617/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\waitdialog.cpp.obj
-[618/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellcreationdialog.cpp.obj
-[619/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\enchantingdialog.cpp.obj
-[620/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\exposedwindow.cpp.obj
-[621/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\trainingwindow.cpp.obj
-[622/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\cursor.cpp.obj
-[623/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\travelwindow.cpp.obj
-[624/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellicons.cpp.obj
-[625/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\merchantrepair.cpp.obj
-[626/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\repair.cpp.obj
-[627/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\soulgemdialog.cpp.obj
-[628/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\bookpage.cpp.obj
-[629/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\companionwindow.cpp.obj
-[630/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\journalbooks.cpp.obj
-[631/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\journalviewmodel.cpp.obj
-[632/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\itemmodel.cpp.obj
-[633/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\containeritemmodel.cpp.obj
-[634/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\inventoryitemmodel.cpp.obj
-[635/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\tradeitemmodel.cpp.obj
-[636/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\sortfilteritemmodel.cpp.obj
-[637/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\itemview.cpp.obj
-[638/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\controllers.cpp.obj
-[639/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\companionitemmodel.cpp.obj
-[640/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\pickpocketitemmodel.cpp.obj
-[641/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\videowidget.cpp.obj
-[642/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\backgroundimage.cpp.obj
-[643/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\recharge.cpp.obj
-[644/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\itemwidget.cpp.obj
-[645/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\screenfader.cpp.obj
-[646/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\savegamedialog.cpp.obj
-[647/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\debugwindow.cpp.obj
-[648/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\draganddrop.cpp.obj
-[649/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellview.cpp.obj
-[650/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\timeadvancer.cpp.obj
 [651/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellmodel.cpp.obj
 [652/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\keyboardnavigation.cpp.obj
 [653/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\textcolours.cpp.obj
@@ -178,3 +122,59 @@
 [772/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\localscripts.cpp.obj
 [773/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\customdata.cpp.obj
 [774/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\magictypebindings.cpp.obj
+[775/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\ptr.cpp.obj
+[776/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\inventorystore.cpp.obj
+[777/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionopen.cpp.obj
+[778/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionread.cpp.obj
+[779/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\timestamp.cpp.obj
+[780/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionequip.cpp.obj
+[781/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionalchemy.cpp.obj
+[782/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionharvest.cpp.obj
+[783/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionapply.cpp.obj
+[784/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actioneat.cpp.obj
+[785/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellstore.cpp.obj
+[786/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionrepair.cpp.obj
+[787/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionsoulgem.cpp.obj
+[788/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\livecellref.cpp.obj
+[789/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiondoor.cpp.obj
+[790/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\esmloader.cpp.obj
+[791/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\esmstore.cpp.obj
+[792/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontrap.cpp.obj
+[793/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\store.cpp.obj
+[794/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellref.cpp.obj
+[795/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\weather.cpp.obj
+[796/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cellpreloader.cpp.obj
+[797/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\projectilemanager.cpp.obj
+[798/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\datetimemanager.cpp.obj
+[799/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\groundcoverstore.cpp.obj
+[800/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\cell.cpp.obj
+[801/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\trace.cpp.obj
+[802/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\itemphysics.cpp.obj
+D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(72): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=float
+        ]
+D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(73): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=float
+        ]
+[803/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\magiceffects.cpp.obj
+[804/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\heightfield.cpp.obj
+[805/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actor.cpp.obj
+[806/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\closestnotmerayresultcallback.cpp.obj
+[807/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\stepper.cpp.obj
+[808/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\object.cpp.obj
+[809/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestresultcallback.cpp.obj
+[810/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\actorconvexcallback.cpp.obj
+[811/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectile.cpp.obj
+[812/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\movementsolver.cpp.obj
+[813/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\contacttestwrapper.cpp.obj
+[814/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\projectileconvexcallback.cpp.obj
+[815/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwphysics\mtphysics.cpp.obj
+[816/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\classes.cpp.obj
+[817/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\activator.cpp.obj
+[818/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\weapon.cpp.obj
+[819/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\potion.cpp.obj
+[820/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\apparatus.cpp.obj
