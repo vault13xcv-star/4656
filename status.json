@@ -6,9 +6,17 @@
   "runAttempt": "1",
   "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40645214871",
   "resultsBranch": "build-results/ragdoll-4745f42bac02a64492ceb980466aaca6e5bca156-40645214871-1",
-  "stage": "package",
+  "stage": "publish",
   "result": "running",
-  "updatedUtc": "2026-10-28T07:06:25.3414830Z",
+  "updatedUtc": "2026-10-28T07:06:49.2885551Z",
   "releaseUrl": null,
-  "package": null
+  "package": {
+    "file": "Brutal-Morrowind-1.3-combat.1-OpenMW-0.51-Windows-x64-4745f42bac02.zip",
+    "sha256": "3644a3f20829c5de1aa770839d822a00137475e56f0a0dbdb7eb6a523643760f",
+    "bytes": 49684777,
+    "sourceCommit": "4745f42bac02a64492ceb980466aaca6e5bca156",
+    "ragdollVersion": "1.3-combat.1",
+    "modName": "Brutal Morrowind",
+    "testResult": "success"
+  }
 }
