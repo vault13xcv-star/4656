@@ -1,50 +1,3 @@
-[742/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\npc.cpp.obj
-[743/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\activator.cpp.obj
-[744/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\player.cpp.obj
-[745/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\book.cpp.obj
-[746/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockpick.cpp.obj
-[747/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\apparatus.cpp.obj
-[748/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\potion.cpp.obj
-[749/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\probe.cpp.obj
-[750/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\repair.cpp.obj
-[751/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\misc.cpp.obj
-[752/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\ingredient.cpp.obj
-[753/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\armor.cpp.obj
-[754/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\static.cpp.obj
-[755/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\light.cpp.obj
-[756/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\clothing.cpp.obj
-[757/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\levelledlist.cpp.obj
-[758/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\terminal.cpp.obj
-[759/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundmanagerimp.cpp.obj
-[760/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\ffmpegdecoder.cpp.obj
-[761/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\openaloutput.cpp.obj
-[762/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\loudness.cpp.obj
-[763/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\soundbuffer.cpp.obj
-[764/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\movieaudiofactory.cpp.obj
-[765/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\watersoundupdater.cpp.obj
-[766/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwsound\regionsoundselector.cpp.obj
-[767/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\refdata.cpp.obj
-[768/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\scene.cpp.obj
-[769/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\worldimp.cpp.obj
-[770/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\globals.cpp.obj
-[771/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\class.cpp.obj
-[772/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\action.cpp.obj
-[773/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionteleport.cpp.obj
-[774/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontalk.cpp.obj
-[775/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\containerstore.cpp.obj
-[776/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actiontake.cpp.obj
-[777/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\manualref.cpp.obj
-[778/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\failedaction.cpp.obj
-[779/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\magictypebindings.cpp.obj
-[780/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\player.cpp.obj
-[781/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\customdata.cpp.obj
-[782/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\localscripts.cpp.obj
-[783/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\ptr.cpp.obj
-[784/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\worldmodel.cpp.obj
-[785/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\inventorystore.cpp.obj
-[786/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionread.cpp.obj
-[787/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionopen.cpp.obj
-[788/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\timestamp.cpp.obj
 [789/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionharvest.cpp.obj
 [790/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionalchemy.cpp.obj
 [791/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwworld\actionequip.cpp.obj
@@ -178,3 +131,50 @@ D:\a\4656\4656\apps\openmw\mwphysics\itemphysics.cpp(73): warning C4244: '=': co
 [909/999] Linking CXX static library lib\gtest.lib
 [910/999] Linking CXX static library lib\gmock.lib
 [911/999] Building RC object apps\openmw\CMakeFiles\openmw.dir\__\__\files\windows\openmw.rc.res
+[912/999] Building CXX object apps\openmw\CMakeFiles\openmw.dir\main.cpp.obj
+[913/999] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\cmake_pch.cxx.obj
+[914/999] Linking CXX static library apps\openmw\openmw-lib.lib
+[915/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\bsa\testbsafile.cpp.obj
+[916/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\bsa\testcompressedbsafile.cpp.obj
+[917/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\gettilespositions.cpp.obj
+[918/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\navmeshdb.cpp.obj
+[919/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\navmeshtilescache.cpp.obj
+[920/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\asyncnavmeshupdater.cpp.obj
+[921/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\recastmeshobject.cpp.obj
+[922/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\settingsutils.cpp.obj
+[923/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\recastmeshbuilder.cpp.obj
+[924/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm\testfixedstring.cpp.obj
+[925/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\navigator.cpp.obj
+[926/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm\testrefid.cpp.obj
+[927/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\tilecachedrecastmeshmanager.cpp.obj
+[928/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm\variant.cpp.obj
+[929/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\readerscache.cpp.obj
+[930/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testcstringids.cpp.obj
+[931/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testinfoorder.cpp.obj
+[932/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testesmwriter.cpp.obj
+[933/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm4\includes.cpp.obj
+[934/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmloader\load.cpp.obj
+[935/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmloader\esmdata.cpp.obj
+[936/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmloader\record.cpp.obj
+[937/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testsaveload.cpp.obj
+[938/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\files\conversiontests.cpp.obj
+[939/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmterrain\testgridsampling.cpp.obj
+[940/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\fx\lexer.cpp.obj
+[941/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\files\hash.cpp.obj
+[942/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\fx\technique.cpp.obj
+[943/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testasync.cpp.obj
+[944/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testconfiguration.cpp.obj
+[945/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testinputactions.cpp.obj
+[946/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testlua.cpp.obj
+FAILED: [code=2] apps/components_tests/CMakeFiles/components-tests.dir/lua/testlua.cpp.obj 
+C:\PROGRA~1\MICROS~2\2022\ENTERP~1\VC\Tools\MSVC\1444~1.352\bin\Hostx64\x64\cl.exe  /nologo /TP -DBOOST_CONTAINER_DYN_LINK -DBOOST_CONTAINER_NO_LIB -DBOOST_IOSTREAMS_DYN_LINK -DBOOST_IOSTREAMS_NO_LIB -DBOOST_PROGRAM_OPTIONS_DYN_LINK -DBOOST_PROGRAM_OPTIONS_NO_LIB -DBOOST_RANDOM_DYN_LINK -DBOOST_RANDOM_NO_LIB -DBT_USE_DOUBLE_PRECISION -DMYGUI_DONT_USE_OBSOLETE=ON -DNOGDI -DNOMB -DNOMINMAX -DOPENMW_DATA_DIR=u8\"D:/a/4656/4656/build/apps/components_tests/data\" -DOPENMW_PROJECT_SOURCE_DIR=u8\"D:/a/4656/4656\" -DRC_DISABLE_ASSERTS -DSDL_MAIN_HANDLED -DUNICODE -DWIN32_LEAN_AND_MEAN -DYAML_CPP_STATIC_DEFINE -D_UNICODE -D__STDC_CONSTANT_MACROS -ID:\a\4656\4656\. -ID:\a\4656\4656\build\extern\fetched\recastnavigation\DebugUtils\Include -ID:\a\4656\4656\build\extern\fetched\recastnavigation\Recast\Include -ID:\a\4656\4656\build\extern\fetched\recastnavigation\Detour\Include -ID:\a\4656\4656\build\extern\fetched\recastnavigation\DetourTileCache\Include -ID:\a\4656\4656\extern\Base64\. -ID:\a\4656\4656\build\extern\fetched\sqlite3 -ID:\a\4656\4656\build\extern\fetched\yaml-cpp\include -external:ID:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include -external:ID:\a\4656\4656\extern\sol_config -external:ID:\a\4656\4656\extern\sol3 -external:ID:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\luajit -external:ID:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\bullet -external:ID:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\AL -external:ID:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\MYGUI -external:ID:\a\4656\4656\build\extern\fetched\googletest\googletest\include -external:ID:\a\4656\4656\build\extern\fetched\googletest\googletest -external:ID:\a\4656\4656\build\extern\fetched\googletest\googlemock\include -external:ID:\a\4656\4656\build\extern\fetched\googletest\googlemock -external:ID:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\SDL2 -external:ID:\a\4656\4656\extern\smhasher\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /O2 /Ob2 /DNDEBUG -std:c++20 -MD /bigobj /Zc:__cplusplus /utf-8 /W4 /wd4100 /wd4127 /wd4996 /wd5054 /w14855 /YuD:/a/4656/4656/build/apps/components_tests/CMakeFiles/components-tests.dir/cmake_pch.hxx /FpD:/a/4656/4656/build/apps/components_tests/CMakeFiles/components-tests.dir/./cmake_pch.cxx.pch /FID:/a/4656/4656/build/apps/components_tests/CMakeFiles/components-tests.dir/cmake_pch.hxx /showIncludes /Foapps\components_tests\CMakeFiles\components-tests.dir\lua\testlua.cpp.obj /Fdapps\components_tests\CMakeFiles\components-tests.dir\ /FS -c D:\a\4656\4656\apps\components_tests\lua\testlua.cpp
+D:\a\4656\4656\apps\components_tests\lua\testlua.cpp(27): error C2440: '<function-style-cast>': cannot convert from 'const sol::protected_function_result' to 'sol::error'
+D:\a\4656\4656\apps\components_tests\lua\testlua.cpp(27): note: 'sol::error::error': ambiguous call to overloaded function
+D:\a\4656\4656\extern\sol3\sol/error.hpp(95): note: could be 'sol::error::error(sol::error &&)'
+D:\a\4656\4656\extern\sol3\sol/error.hpp(94): note: or       'sol::error::error(const sol::error &)'
+D:\a\4656\4656\extern\sol3\sol/error.hpp(87): note: or       'sol::error::error(std::string &&)'
+D:\a\4656\4656\extern\sol3\sol/error.hpp(85): note: or       'sol::error::error(const std::string &)'
+D:\a\4656\4656\apps\components_tests\lua\testlua.cpp(27): note: while trying to match the argument list '(const sol::protected_function_result)'
+[947/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testl10n.cpp.obj
+[948/999] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testscriptscontainer.cpp.obj
+ninja: build stopped: subcommand failed.
