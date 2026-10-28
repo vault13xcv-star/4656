@@ -1,5 +1,6 @@
 #include "apps/openmw/mwclass/classes.hpp"
 #include "apps/openmw/mwbase/environment.hpp"
+#include "apps/openmw/mwlua/luamanagerimp.hpp"
 #include "apps/openmw/mwmechanics/combat.hpp"
 #include "apps/openmw/mwmechanics/creaturestats.hpp"
 #include "apps/openmw/mwmechanics/ragdollimpact.hpp"
@@ -216,6 +217,11 @@ namespace
 
     TEST_F(ItemPhysicsIntegration, HeldShieldFreezesTheActualRaisedTrackAndReleasesToIdle)
     {
+        // disable()/play() send animation-ended events even with no scripts.
+        // Supply the same event receiver that the running game always has.
+        MWBase::Environment environment;
+        MWLua::LuaManager lua(mVfs.get(),{});
+        environment.setLuaManager(lua);
         Reference<ESM::Static> actor(0,0,0);
         struct ShieldAnimation : MWRender::Animation
         {

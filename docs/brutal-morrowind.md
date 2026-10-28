@@ -54,3 +54,11 @@ The last nearby hostile death triggers two unpaused real seconds at one-third si
 Automated checks cover exact rebalance boundaries, exhausted-spam lockout and deadline resets, natural-rest recovery, weak-hit interruption resistance, the native raised shield track, timed/held guard, dodge distance across framerates, bounded spread, gravitational aim, actual OSG transforms/sweeps, the shipped Lua armor module, save compatibility, and retained blood/ragdoll/item regressions. Windows component/native tests and installed executable/ZIP checks run before release. Logs are in the package's validation directory.
 
 These checks are not a Morrowind-data playtest. Shield pose quality, first/third-person contacts, ordinary creatures, controller bindings, actual difficulty, FPS and modded skeletons require in-game testing. Use copied saves and retain the stable installation.
+
+## Retained build validation
+
+**Validation notice: retained engine, one test-fixture failure**
+
+The executable is from commit `184490246889220d99ed94a77ed59e656edc8a89` and Windows run [40658338776](https://github.com/vault13xcv-star/4656/actions/runs/40658338776). Five physics/render/combat groups, 1405 component tests and 44 of 45 native integration tests passed. The new held-shield test raised an access violation because its synthetic environment did not create the LuaManager used by animation-ended events. The running game initializes that manager. The source branch adds the missing LuaManager initialization; that revised fixture was not rerun in this compiled engine.
+
+The already compiled EXE is retained unchanged. The Windows and corresponding source ZIPs include KNOWN-ISSUES.txt; VALIDATION.txt preserves the failed test result. Publication is not an all-tests-pass claim. The actual in-game shield pose and guard duel remain untested.

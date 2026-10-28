@@ -1,5 +1,12 @@
 Brutal Morrowind **1.3-combat.2 — experimental Windows x 64**.
 
+**Validation notice: retained engine, one test-fixture failure**
+
+The executable is from commit `184490246889220d99ed94a77ed59e656edc8a89` and Windows run [40658338776](https://github.com/vault13xcv-star/4656/actions/runs/40658338776). Five physics/render/combat groups, 1405 component tests and 44 of 45 native integration tests passed. The new held-shield test raised an access violation because its synthetic environment did not create the LuaManager used by animation-ended events. The running game initializes that manager. The source branch adds the missing LuaManager initialization; that revised fixture was not rerun in this compiled engine.
+
+The already compiled EXE is retained unchanged. The Windows and corresponding source ZIPs include KNOWN-ISSUES.txt; VALIDATION.txt preserves the failed test result. Publication is not an all-tests-pass claim. The actual in-game shield pose and guard duel remain untested.
+
+
 Weak dagger hits could continuously interrupt a stronger opponent, while cheap stamina costs and immediate regeneration made sustained attacks and low-skill blocking too effective. This build increases the resource commitment and removes automatic flinches from tiny hits.
 
 - Weapon and Block costs now decrease from three times the previous skill 1 cost to the previous skill 50 cost at mastery. Raise, hold and block-impact costs use Block skill.
