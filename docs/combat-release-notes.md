@@ -1,5 +1,12 @@
 Brutal Morrowind **1.3-combat.3 — experimental Windows x64**.
 
+**Validation notice: retained engine, one test-fixture failure**
+
+The executable is from commit `af9a8c9b15aa8a7cf4f8f71445c43717e35d118d`, Windows run [40698202596](https://github.com/vault13xcv-star/4656/actions/runs/40698202596). All 5 physics/render/combat groups, 1405 component tests and 45 of 46 native tests passed. The held-shield animation test passed. The new allied-contact test raised an access violation while constructing AI packages: its synthetic environment omitted World, whose PRNG initializes AI reaction timers. The source branch adds a PRNG-only World fixture; the corrected full test was compiled locally but not rerun on Windows. The full allied-contact integration check therefore remains unverified.
+
+The compiled EXE and all original runtime files are retained unchanged; KNOWN-ISSUES.txt discloses the failure, and VALIDATION.txt retains the original failed result. This publication does not claim all native tests passed or that an in-game playtest was performed.
+
+
 Walking and ordinary running no longer spend stamina. Short combat breaks restore stamina faster, Shift sprints, and RMB chooses shield block or dodge based on the carried equipment.
 
 - Combat natural stamina recovery uses four times the previous native rate, including modified Endurance and GMST factors, capped at the outside-combat rate.

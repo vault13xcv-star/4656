@@ -1,3 +1,4 @@
+#include "prngworld.hpp"
 #include "apps/openmw/mwclass/classes.hpp"
 #include "apps/openmw/mwbase/environment.hpp"
 #include "apps/openmw/mwlua/luamanagerimp.hpp"
@@ -738,6 +739,8 @@ namespace
     TEST_F(ItemPhysicsIntegration, PhysicalFriendlyFirePolicyUsesBothActorsCombatTargets)
     {
         MWBase::Environment environment;
+        // AiPackage owns an AiReactionTimer seeded from World::getPrng().
+        TestingOpenMW::PrngWorld world;environment.setWorld(world);
         MWWorld::ESMStore store;environment.setESMStore(store);
         ESM::ReadersCache readers;
         MWWorld::WorldModel model(store,readers);environment.setWorldModel(model);

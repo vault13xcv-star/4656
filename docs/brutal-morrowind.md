@@ -63,3 +63,11 @@ The last nearby hostile death triggers two unpaused real seconds at one-third si
 Automated checks cover 5-10 second recovery at multiple frame rates, the combat regeneration cap, exhausted sprint costs, context-sensitive held RMB, native AI friendly-fire policy, exact rebalance boundaries, exhausted-spam lockout and deadline resets, natural-rest recovery, weak-hit interruption resistance, the native raised shield track, timed/held guard, dodge distance across framerates, bounded spread, gravitational aim, actual OSG transforms/sweeps, the shipped Lua armor module, save compatibility, and retained blood/ragdoll/item regressions. Windows component/native tests and installed executable/ZIP checks run before release. Logs are in the package's validation directory.
 
 These checks are not a Morrowind-data playtest. Shield pose quality, first/third-person contacts, ordinary creatures, controller bindings, actual difficulty, FPS and modded skeletons require in-game testing. Use copied saves and retain the stable installation.
+
+## Retained build validation
+
+**Validation notice: retained engine, one test-fixture failure**
+
+The executable is from commit `af9a8c9b15aa8a7cf4f8f71445c43717e35d118d`, Windows run [40698202596](https://github.com/vault13xcv-star/4656/actions/runs/40698202596). All 5 physics/render/combat groups, 1405 component tests and 45 of 46 native tests passed. The held-shield animation test passed. The new allied-contact test raised an access violation while constructing AI packages: its synthetic environment omitted World, whose PRNG initializes AI reaction timers. The source branch adds a PRNG-only World fixture; the corrected full test was compiled locally but not rerun on Windows. The full allied-contact integration check therefore remains unverified.
+
+The compiled EXE and all original runtime files are retained unchanged; KNOWN-ISSUES.txt discloses the failure, and VALIDATION.txt retains the original failed result. This publication does not claim all native tests passed or that an in-game playtest was performed.
