@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "sourceCommit": "95514ddd0a8374900cddada50585aa16382690f3",
+  "sourceBranch": "experimental/ragdoll-active-combat",
+  "runId": "40727820126",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/vault13xcv-star/4656/actions/runs/40727820126",
+  "resultsBranch": "build-results/ragdoll-95514ddd0a8374900cddada50585aa16382690f3-40727820126-1",
+  "stage": "dependencies",
+  "result": "running",
+  "updatedUtc": "2026-10-28T16:37:54.8685185Z",
+  "releaseUrl": null,
+  "package": null
+}
