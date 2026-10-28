@@ -609,7 +609,11 @@ namespace MWClass
 
         // PrepareHit runs during wind-up; clutter must be sampled again at the
         // actual animation contact key, with the current aim and reach.
-        const auto contact = MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon));
+        // A confirmed blade/body contact takes priority over the wider clutter
+        // probe; a nearby bottle must not steal damage from the touched actor.
+        const auto contact = victim.isEmpty()
+            ? MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon))
+            : std::pair<MWWorld::Ptr,osg::Vec3f>{};
         if (!contact.first.isEmpty())
         {
             osg::Vec3f direction = contact.second - ptr.getRefData().getPosition().asVec3();

@@ -1913,8 +1913,9 @@ namespace MWMechanics
             if(isRandomAttackAnimation(mCurrentWeapon))
             {
                 const float hit=mAnimation->getTextKeyTime(mCurrentWeapon+": hit");
+                const float start=mAnimation->getTextKeyTime(mCurrentWeapon+": start");
                 const float time=mAnimation->getCurrentTime(mCurrentWeapon);
-                if(hit>=0)phase=time<hit*.7f?Ragdoll::Combat::preparation(skill,agility,empty)
+                if(hit>=0 && start>=0)phase=time<start+(hit-start)*.7f?Ragdoll::Combat::preparation(skill,agility,empty)
                     :time<=hit?1.f:Ragdoll::Combat::recovery(skill,agility,empty);
             }
             mAnimation->adjustSpeedMult(mCurrentWeapon,weapSpeed/phase);

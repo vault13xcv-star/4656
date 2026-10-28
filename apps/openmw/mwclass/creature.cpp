@@ -273,7 +273,9 @@ namespace MWClass
 
         MWMechanics::applyFatigueLoss(ptr, weapon, attackStrength);
 
-        const auto contact = MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon));
+        const auto contact = victim.isEmpty()
+            ? MWMechanics::getItemHitContact(ptr, MWMechanics::getMeleeWeaponReach(ptr, weapon))
+            : std::pair<MWWorld::Ptr,osg::Vec3f>{};
         if (!contact.first.isEmpty())
         {
             osg::Vec3f direction = contact.second - ptr.getRefData().getPosition().asVec3();
