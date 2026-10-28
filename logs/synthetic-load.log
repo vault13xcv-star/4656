@@ -1,0 +1,9 @@
+PASS severed head, dynamic gibs, saved gore, bleeding deadline and cleanup
+LOAD corpses=0 items=0 mean_ms=0.001765 max_ms=0.0169
+LOAD corpses=10 items=0 mean_ms=2.98452 max_ms=3.8799
+LOAD corpses=50 items=0 mean_ms=15.4219 max_ms=18.6723
+LOAD corpses=100 items=0 mean_ms=31.6082 max_ms=38.2279
+LOAD corpses=0 items=10 mean_ms=0.0556167 max_ms=0.1002
+LOAD corpses=0 items=50 mean_ms=0.275747 max_ms=0.4772
+LOAD corpses=0 items=100 mean_ms=0.565877 max_ms=0.9148
+LOAD corpses=100 items=100 mean_ms=31.8433 max_ms=39.9398
