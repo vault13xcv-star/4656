@@ -1,72 +1,3 @@
-[427/896] Building CXX object components\CMakeFiles\components.dir\compiler\declarationparser.cpp.obj
-[428/896] Building CXX object components\CMakeFiles\components.dir\compiler\quickfileparser.cpp.obj
-[429/896] Building CXX object components\CMakeFiles\components.dir\compiler\discardparser.cpp.obj
-[430/896] Building CXX object components\CMakeFiles\components.dir\compiler\junkparser.cpp.obj
-[431/896] Building CXX object components\CMakeFiles\components.dir\compiler\extensions0.cpp.obj
-[432/896] Building CXX object components\CMakeFiles\components.dir\interpreter\runtime.cpp.obj
-[433/896] Building CXX object components\CMakeFiles\components.dir\interpreter\interpreter.cpp.obj
-[434/896] Building CXX object components\CMakeFiles\components.dir\interpreter\defines.cpp.obj
-[435/896] Building CXX object components\CMakeFiles\components.dir\translation\translation.cpp.obj
-[436/896] Building CXX object components\CMakeFiles\components.dir\interpreter\installopcodes.cpp.obj
-[437/896] Building CXX object components\CMakeFiles\components.dir\terrain\buffercache.cpp.obj
-[438/896] Building CXX object components\CMakeFiles\components.dir\terrain\terraingrid.cpp.obj
-[439/896] Building CXX object components\CMakeFiles\components.dir\terrain\world.cpp.obj
-[440/896] Building CXX object components\CMakeFiles\components.dir\terrain\terraindrawable.cpp.obj
-[441/896] Building CXX object components\CMakeFiles\components.dir\terrain\material.cpp.obj
-[442/896] Building CXX object components\CMakeFiles\components.dir\terrain\texturemanager.cpp.obj
-[443/896] Building CXX object components\CMakeFiles\components.dir\terrain\compositemaprenderer.cpp.obj
-[444/896] Building CXX object components\CMakeFiles\components.dir\terrain\quadtreenode.cpp.obj
-[445/896] Building CXX object components\CMakeFiles\components.dir\terrain\chunkmanager.cpp.obj
-[446/896] Building CXX object components\CMakeFiles\components.dir\terrain\quadtreeworld.cpp.obj
-[447/896] Building CXX object components\CMakeFiles\components.dir\terrain\viewdata.cpp.obj
-[448/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\myguirendermanager.cpp.obj
-[449/896] Building CXX object components\CMakeFiles\components.dir\terrain\cellborder.cpp.obj
-[450/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\myguidatamanager.cpp.obj
-[451/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\myguiplatform.cpp.obj
-[452/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\myguitexture.cpp.obj
-[453/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\additivelayer.cpp.obj
-[454/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\myguiloglistener.cpp.obj
-[455/896] Building CXX object components\CMakeFiles\components.dir\myguiplatform\scalinglayer.cpp.obj
-[456/896] Building CXX object components\CMakeFiles\components.dir\widgets\tags.cpp.obj
-[457/896] Building CXX object components\CMakeFiles\components.dir\widgets\imagebutton.cpp.obj
-[458/896] Building CXX object components\CMakeFiles\components.dir\widgets\box.cpp.obj
-[459/896] Building CXX object components\CMakeFiles\components.dir\widgets\numericeditbox.cpp.obj
-[460/896] Building CXX object components\CMakeFiles\components.dir\widgets\list.cpp.obj
-[461/896] Building CXX object components\CMakeFiles\components.dir\widgets\windowcaption.cpp.obj
-[462/896] Building CXX object components\CMakeFiles\components.dir\widgets\sharedstatebutton.cpp.obj
-[463/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\gl4esinit.cpp.obj
-[464/896] Building CXX object components\CMakeFiles\components.dir\widgets\widgets.cpp.obj
-[465/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\imagetosurface.cpp.obj
-[466/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\sdlgraphicswindow.cpp.obj
-[467/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\sdlcursormanager.cpp.obj
-[468/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\sdlinputwrapper.cpp.obj
-[469/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\sdlmappings.cpp.obj
-[470/896] Building CXX object components\CMakeFiles\components.dir\sdlutil\sdlvideowrapper.cpp.obj
-[471/896] Building CXX object components\CMakeFiles\components.dir\fallback\fallback.cpp.obj
-[472/896] Building CXX object components\CMakeFiles\components.dir\fontloader\fontloader.cpp.obj
-[473/896] Building CXX object components\CMakeFiles\components.dir\fallback\validate.cpp.obj
-[474/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\scriptsettings.cpp.obj
-[475/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\util.cpp.obj
-[476/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\widget.cpp.obj
-[477/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\layers.cpp.obj
-[478/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\element.cpp.obj
-[479/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\adapter.cpp.obj
-[480/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\content.cpp.obj
-[481/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\text.cpp.obj
-[482/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\textedit.cpp.obj
-[483/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\window.cpp.obj
-[484/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\container.cpp.obj
-[485/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\image.cpp.obj
-[486/896] Building CXX object components\CMakeFiles\components.dir\crashcatcher\windowscrashcatcher.cpp.obj
-[487/896] Building CXX object components\CMakeFiles\components.dir\crashcatcher\windowscrashdumppathhelpers.cpp.obj
-[488/896] Building CXX object components\CMakeFiles\components.dir\crashcatcher\windowscrashmonitor.cpp.obj
-[489/896] Building CXX object components\CMakeFiles\components.dir\lua_ui\flex.cpp.obj
-[490/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\collisionshapetype.cpp.obj
-[491/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\commulativeaabb.cpp.obj
-[492/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\findrandompointaroundcircle.cpp.obj
-[493/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\debug.cpp.obj
-[494/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\generatenavmeshtile.cpp.obj
-[495/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\gettilespositions.cpp.obj
 [496/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\makenavmesh.cpp.obj
 [497/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navigator.cpp.obj
 [498/896] Building CXX object components\CMakeFiles\components.dir\detournavigator\navigatorimpl.cpp.obj
@@ -178,3 +109,72 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1435): warning C4244: '=': conve
         with
         [
             _Ty=float
+        ]
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1436): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
+        with
+        [
+            _Ty=float
+        ]
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1447): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1448): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
+D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1449): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
+[569/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\bloodsurface.cpp.obj
+[570/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\brutalblood.cpp.obj
+D:\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp(74): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+[571/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\bloodsurfacevisitor.cpp.obj
+[572/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controllermanager.cpp.obj
+[573/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\controlswitch.cpp.obj
+[574/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\keyboardmanager.cpp.obj
+[575/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\sensormanager.cpp.obj
+[576/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\mousemanager.cpp.obj
+[577/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\inputmanagerimp.cpp.obj
+[578/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\layout.cpp.obj
+[579/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwinput\gyromanager.cpp.obj
+[580/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\textinput.cpp.obj
+[581/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\widgets.cpp.obj
+[582/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\race.cpp.obj
+[583/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\class.cpp.obj
+[584/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\birth.cpp.obj
+[585/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\review.cpp.obj
+[586/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\console.cpp.obj
+[587/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\windowbase.cpp.obj
+[588/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\windowmanagerimp.cpp.obj
+[589/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\dialogue.cpp.obj
+[590/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\statswindow.cpp.obj
+[591/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\messagebox.cpp.obj
+[592/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\journalwindow.cpp.obj
+[593/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\windowpinnablebase.cpp.obj
+[594/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\charactercreation.cpp.obj
+[595/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\mapwindow.cpp.obj
+[596/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\scrollwindow.cpp.obj
+[597/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\resourceskin.cpp.obj
+[598/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\tooltips.cpp.obj
+[599/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\bookwindow.cpp.obj
+[600/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\formatting.cpp.obj
+[601/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\container.cpp.obj
+[602/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\inventorywindow.cpp.obj
+[603/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\hud.cpp.obj
+[604/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\countdialog.cpp.obj
+[605/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\confirmationdialog.cpp.obj
+[606/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\tradewindow.cpp.obj
+[607/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\referenceinterface.cpp.obj
+[608/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\alchemywindow.cpp.obj
+[609/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\settingswindow.cpp.obj
+[610/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellwindow.cpp.obj
+[611/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\mainmenu.cpp.obj
+[612/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\itemselection.cpp.obj
+[613/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\loadingscreen.cpp.obj
+[614/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\quickkeysmenu.cpp.obj
+[615/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellbuyingwindow.cpp.obj
+[616/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\levelupdialog.cpp.obj
+[617/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\waitdialog.cpp.obj
+[618/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellcreationdialog.cpp.obj
+[619/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\enchantingdialog.cpp.obj
+[620/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\exposedwindow.cpp.obj
+[621/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\trainingwindow.cpp.obj
+[622/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\cursor.cpp.obj
+[623/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\travelwindow.cpp.obj
+[624/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\spellicons.cpp.obj
+[625/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\merchantrepair.cpp.obj
+[626/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\repair.cpp.obj
+[627/896] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwgui\soulgemdialog.cpp.obj
