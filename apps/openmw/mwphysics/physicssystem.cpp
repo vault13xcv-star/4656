@@ -49,6 +49,7 @@
 #include "../mwrender/animation.hpp"
 
 #include "../mwworld/class.hpp"
+#include "../mwworld/datetimemanager.hpp"
 
 #include "actor.hpp"
 #include "collisiontype.hpp"
@@ -109,6 +110,10 @@ namespace
             const float fatigueDecrease = fFatigueJumpBase + normalizedEncumbrance * fFatigueJumpMult;
             MWMechanics::DynamicStat<float> fatigue = ptr.getClass().getCreatureStats(ptr).getFatigue();
             fatigue.setCurrent(fatigue.getCurrent() - fatigueDecrease);
+            auto& stats=ptr.getClass().getCreatureStats(ptr);
+            Ragdoll::Combat::observeFatigue(stats.mCombat,fatigue.getCurrent(),
+                stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime(),true);
             ptr.getClass().getCreatureStats(ptr).setFatigue(fatigue);
         }
         ptr.getClass().getMovementSettings(ptr).mPosition[2] = 0;

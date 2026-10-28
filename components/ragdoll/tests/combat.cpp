@@ -179,6 +179,84 @@ namespace
         }
         std::cout<<"PASS capped fourfold combat recovery, 5-10 second outside recovery, exhaustion and sprint fatigue at multiple frame rates\n";
     }
+    void retreatAndCombatBreaks()
+    {
+        using namespace Ragdoll::Combat;
+        for(int fps:{15,30,60,144})
+        for(const auto input:{osg::Vec3f(0,-1,0),osg::Vec3f(1,-1,0),osg::Vec3f(-1,-1,0)})
+        {
+            auto direction=input;direction.normalize();
+            const float rate=backwardSpeed(direction.y(),true);
+            require(near(rate,.5f) && !sprintDirection(input.y(),direction.y()),"Backward/diagonal retreat bypasses speed or sprint restrictions");
+            float separation=100;
+            for(int frame=0;frame<fps;++frame)separation+=(200*rate-200)/fps;
+            require(near(separation,0,.01f),"Equally fast pursuer cannot catch a retreating ranged actor");
+        }
+        require(near(backwardSpeed(1,true),1) && near(backwardSpeed(0,true),1)
+            && near(backwardSpeed(-1,false),1),"Forward/sideways running or ordinary walking was slowed");
+        require(!sprintDirection(-1,1) && !sprintDirection(1,-1),"Turning/smoothing allows a frame of backward sprint");
+        require(sprintDirection(1,1) && sprintDirection(0,0),"Forward/sideways sprint was disabled");
+        for(float skill:{1,20,50,100})
+        {
+            require(near(guardRaiseCost(skill),2*3*resource(skill)) && near(guardHoldCost(skill),2*2*resource(skill)),
+                "Shield raising/holding does not cost exactly twice the previous rate");
+            for(float blocked:{0,10,100})require(near(guardImpactCost(skill,blocked),2*(3+.15f*blocked)*resource(skill)),
+                "Blocked damage does not incur twice the previous cost");
+        }
+        require(near(dodgeCost(1),83.7f) && near(dodgeCost(100),23),"Dodge cost is not doubled");
+        State state;
+        observeFatigue(state,50,50,10,true);
+        require(!allowFatigueRecovery(state,50,50,11.999,true) && allowFatigueRecovery(state,50,50,12,true),
+            "Positive fatigue does not wait exactly two combat seconds after effort");
+        require(allowFatigueRecovery(state,50,50,10.1,false),"Positive-fatigue combat wait leaks outside combat");
+        observeFatigue(state,50,50,11,true);
+        require(!allowFatigueRecovery(state,50,50,12,true) && allowFatigueRecovery(state,50,50,13,true),
+            "Successive combat actions fail to restart the two-second pause");
+        for(float agility:{1,100})
+        {
+            State empty;observeFatigue(empty,0,agility,20,true);
+            require(!allowFatigueRecovery(empty,0,agility,22,true),"The two-second rule shortens the stricter zero-fatigue wait");
+            require(allowFatigueRecovery(empty,0,agility,20+fatigueDelay(agility),true),"Exhaustion and action waits were added instead of overlapped");
+        }
+        for(int fps:{15,60,144})
+        {
+            State guard;float fatigue=200;
+            const float regen=fatigueRecoveryRate(200,50,6,true);
+            require(regen>guardHoldCost(20),"Scenario no longer reproduces the previous infinite-block exploit");
+            fatigue-=guardRaiseCost(20);
+            double now=0;
+            for(int frame=0;frame<20*fps && fatigue>0;++frame)
+            {
+                now=double(frame)/fps;
+                fatigue=std::max(0.f,fatigue-guardHoldCost(20)/fps);
+                observeFatigue(guard,fatigue,50,now,true);
+                require(!allowFatigueRecovery(guard,fatigue,50,now,true),"Held guard regenerates through its continuous effort");
+            }
+            require(fatigue==0,"Low-skill shield can still be held forever");
+            State attack;fatigue=200;int hits=0;int lastSwing=-1;
+            // Both player/NPC obey the same policy: repeated dagger contacts
+            // cannot earn more fatigue from the fourfold rate than they cost.
+            for(int frame=0;frame<40*fps && fatigue>0;++frame)
+            {
+                now=double(frame)/fps;
+                const int swing=int(now);
+                if(swing!=lastSwing){fatigue=std::max(0.f,fatigue-8*resource(50));++hits;lastSwing=swing;}
+                if(now-swing<.65)observeFatigue(attack,fatigue,50,now,true);
+                if(allowFatigueRecovery(attack,fatigue,50,now,true))fatigue=std::min(200.f,fatigue+regen/fps);
+            }
+            require(fatigue==0 && hits>5 && hits<20,"Sustained combat is infinite or exhausts in only a few hits");
+            require(allowFatigueRecovery(attack,0,50,attack.mFatigueRestoreAt,true),"Ceasing exhausted attacks cannot unlock recovery");
+            State breath;observeFatigue(breath,100,50,50,true);
+            fatigue=100;
+            for(int frame=0;frame<4*fps;++frame)
+            {
+                now=50.+double(frame)/fps;
+                if(allowFatigueRecovery(breath,fatigue,50,now,true))fatigue=std::min(200.f,fatigue+regen/fps);
+            }
+            require(fatigue>140 && fatigue<155,"A short quiet break restores too little or the entire fatigue pool");
+        }
+        std::cout<<"PASS backward kiting prevention, doubled defenses, exact combat/exhaustion pauses and finite sustained fights with useful breaks\n";
+    }
     void ranged()
     {
         using namespace Ragdoll::Combat;
@@ -242,6 +320,6 @@ namespace
 }
 int main()
 {
-    try{balance();defense();exhaustionAndStagger();recoveryAndSprint();ranged();blade();}
+    try{balance();defense();exhaustionAndStagger();recoveryAndSprint();retreatAndCombatBreaks();ranged();blade();}
     catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
 }

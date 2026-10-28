@@ -925,9 +925,10 @@ namespace MWMechanics
         DynamicStat<float> fatigue = stats.getFatigue();
         if(stats.mCombat.mSprinting)
             return;
+        const bool inCombat=ptr==getPlayer()?isPlayerInCombat():stats.getAiSequence().isInCombat();
         if(!Ragdoll::Combat::allowFatigueRecovery(stats.mCombat,fatigue.getCurrent(),
                 stats.getAttribute(ESM::Attribute::Agility).getModified(),
-                MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime()))
+                MWBase::Environment::get().getWorld()->getTimeManager()->getSimulationTime(),inCombat))
             return;
         if (fatigue.getCurrent() >= fatigue.getModified())
             return;
@@ -939,7 +940,6 @@ namespace MWMechanics
         static const float fFatigueReturnBase = settings.find("fFatigueReturnBase")->mValue.getFloat();
         static const float fFatigueReturnMult = settings.find("fFatigueReturnMult")->mValue.getFloat();
 
-        const bool inCombat=ptr==getPlayer()?isPlayerInCombat():stats.getAiSequence().isInCombat();
         const float x=Ragdoll::Combat::fatigueRecoveryRate(fatigue.getModified(),endurance,
             fFatigueReturnBase+fFatigueReturnMult*endurance,inCombat);
 

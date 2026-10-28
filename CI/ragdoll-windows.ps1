@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.3-combat.3'
+$ragdollVersion = '1.3-combat.4'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -162,6 +162,8 @@ switch ($Phase) {
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/combat.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/character.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/actors.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/physicssystem.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/worldimp.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/creaturestats.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/npc.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/creature.cpp.obj',

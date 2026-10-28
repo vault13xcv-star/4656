@@ -299,7 +299,7 @@ namespace MWMechanics
             Ragdoll::Combat::observeFatigue(state,fatigue.getCurrent(),agility,now,true);
             if(fatigue.getCurrent()>0 && now>=state.mGuardNextRaise)
             {
-                const float cost=3.f*Ragdoll::Combat::resource(skill);
+                const float cost=Ragdoll::Combat::guardRaiseCost(skill);
                 fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-cost));
                 if(fatigue.getCurrent()>0)
                 {
@@ -311,7 +311,7 @@ namespace MWMechanics
         }
         if(state.mGuardHeld)
         {
-            fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-duration*2.f*Ragdoll::Combat::resource(skill)));
+            fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-duration*Ragdoll::Combat::guardHoldCost(skill)));
             if(fatigue.getCurrent()<=0)state.mGuardHeld=false;
         }
         if(state.mDodgeRequested)
@@ -333,7 +333,8 @@ namespace MWMechanics
         }
         if(wasGuardHeld && !state.mGuardHeld)
             state.mGuardNextRaise=std::max(state.mGuardNextRaise,now+Ragdoll::Combat::guardRecovery(skill,agility));
-        Ragdoll::Combat::observeFatigue(state,fatigue.getCurrent(),agility,now,state.mAttackActive);
+        Ragdoll::Combat::observeFatigue(state,fatigue.getCurrent(),agility,now,
+            state.mAttackActive || state.mGuardHeld || state.mDodgeLeft>0);
         stats.setFatigue(fatigue);
     }
 
@@ -382,7 +383,7 @@ namespace MWMechanics
         shield->getCellRef().setCharge(health);
         if(!health){inv.unequipItem(*shield);guard.mGuardHeld=false;}
         auto fatigue=stats.getFatigue();
-        fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-(3.f+blocked*.15f)*Ragdoll::Combat::resource(skill)));
+        fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-Ragdoll::Combat::guardImpactCost(skill,blocked)));
         Ragdoll::Combat::observeFatigue(guard,fatigue.getCurrent(),
             stats.getAttribute(ESM::Attribute::Agility).getModified(),now,true);
         stats.setFatigue(fatigue);if(fatigue.getCurrent()<=0)guard.mGuardHeld=false;

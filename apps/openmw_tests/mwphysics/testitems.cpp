@@ -734,6 +734,11 @@ namespace
         EXPECT_TRUE(stats.mCombat.mFatigueDepleted);
         fatigue.setCurrent(5);stats.setFatigue(fatigue);
         EXPECT_FALSE(stats.mCombat.mFatigueDepleted);EXPECT_EQ(stats.mCombat.mFatigueRestoreAt,0);
+        Ragdoll::Combat::observeFatigue(stats.mCombat,5,50,20,true);
+        fatigue.setCurrent(10);stats.setFatigue(fatigue); // Explicit restoration bypasses depletion, not the action wait.
+        EXPECT_FALSE(Ragdoll::Combat::allowFatigueRecovery(stats.mCombat,10,50,21.99,true));
+        EXPECT_TRUE(Ragdoll::Combat::allowFatigueRecovery(stats.mCombat,10,50,22,true));
+        EXPECT_TRUE(Ragdoll::Combat::allowFatigueRecovery(stats.mCombat,10,50,20.1,false));
     }
 
     TEST_F(ItemPhysicsIntegration, PhysicalFriendlyFirePolicyUsesBothActorsCombatTargets)

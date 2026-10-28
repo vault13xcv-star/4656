@@ -1,4 +1,4 @@
-# Brutal Morrowind 1.3-combat.3 — experimental active combat
+# Brutal Morrowind 1.3-combat.4 — experimental active combat
 
 This branch extends the physical-projectile build descended from stable 1.1. Stable blood DDS, corpse coatings, dismemberment rules and blood rendering are retained. Extract the full Windows ZIP separately and use copied saves. It reuses your OpenMW configuration and requires Morrowind data. Launcher/editor are not bundled.
 
@@ -6,7 +6,7 @@ This branch extends the physical-projectile build descended from stable 1.1. Sta
 
 - Hold **right mouse button** to raise/hold a carried shield with a compatible one-handed weapon or unarmed stance.
 - Press **right mouse button without a carried shield** while moving sideways/backwards to dodge. RMB with a shield raises the shield instead; a shield prevents dodging. It is also available with a readied spell or sheathed hands. Standing still dodges backwards; forward-only input, jumping and swimming cannot start a dodge.
-- Hold **Shift** to sprint at twice ordinary running speed on land. Shift selects running even with Always Run off. **Caps Lock** toggles ordinary walking/running. Sprint spends stamina, suppresses natural regeneration and stops at zero; release Shift before restarting after exhaustion. It cannot begin while sneaking, swimming, airborne, guarding, dodging or attacking.
+- Hold **Shift** to sprint at twice ordinary running speed on land. Shift selects running even with Always Run off. **Caps Lock** toggles ordinary walking/running. Sprint spends stamina, suppresses natural regeneration and stops at zero; release Shift before restarting after exhaustion. It cannot begin backwards, including backwards diagonals, while sneaking, swimming, airborne, guarding, dodging or attacking. Requested and smoothed movement must both have a nonnegative forward component.
 - **I** opens inventory; **G** toggles auto-move. Old default Shift/Q conflicts are migrated on first run; unrelated custom bindings are retained. Actions can be rebound in keyboard settings. Dedicated controller defaults are not added.
 
 ## Contact and balance
@@ -20,11 +20,11 @@ Damage and wear retain their previous curves, with `u = clamp(skill / 100, 0, 1)
 | Factor | Formula | Skill 1 | Skill 50 | Skill 100 |
 | --- | --- | --- | --- | --- |
 | Physical damage | `0.30 + 0.70u` | 30.7% | 65% | 100% |
-| Attack/block stamina, relative to native base | `0.875 + 2.8525(1-s)` | 372.75% | 231.57% | 87.5% |
+| Attack stamina, relative to native base | `0.875 + 2.8525(1-s)` | 372.75% | 231.57% | 87.5% |
 | Weapon wear | `0.50 + 0.80(1-u)` | 129.2% | 90% | 50% |
 | Preparation/recovery duration, agility 50 | `T = 3 - 2[s + 0.3(2a-1)s(1-s)]` | 3x | about 2.01x | 1x |
 
-The stamina endpoints mean three times the old skill 1 multiplier (1.2425), tapering to the old skill 50 multiplier (0.875). Intermediate costs decrease smoothly. Weapon attacks use their weapon skill and shield actions use Block. Dodge has no independent native skill and uses agility as its progression stat.
+Weapon stamina endpoints mean three times the old skill 1 multiplier (1.2425), tapering to the old skill 50 multiplier (0.875). Intermediate costs decrease smoothly. Weapon attacks use their weapon skill. Shield actions use twice this multiplier with Block skill. Dodge has no independent native skill and uses agility as its progression stat.
 
 Preparation includes bow draw and thrown preparation; recovery includes crossbow reload and follow-through. The actual release/strike retains original speed. Zero stamina halves physical damage and multiplies preparation/recovery durations by another 1.5. Fractional wear, armor processing at the original damage scale, partial blocks and OnStrike enchantments retain the previous implementation.
 
@@ -32,9 +32,13 @@ Preparation includes bow draw and thrown preparation; recovery includes crossbow
 
 Reaching zero or negative fatigue starts a natural-regeneration lock of `10 - 7a` simulation seconds: exactly 10 at agility 1 and 3 at agility 100. Starting/releasing another attack, maintaining an exhausted wind-up or attempting a shield raise restarts that deadline. Holding an already collapsed shield does not automatically raise it after regeneration; release and press the button again. Natural regeneration resumes only after the quiet interval. Waiting/sleeping consumes the corresponding delay before restoring fatigue; explicit magical/potion restoration is retained. Regaining positive fatigue clears the depletion state. The delay is transient and reinitializes if a save is loaded at zero fatigue.
 
-Ordinary land walking and running cost no stamina. Swimming, sneaking, jumping, attacks, dodges and shield use retain their costs. Sprint costs `max(10, 0.12 * base maximum fatigue) * (1 + 0.5 * clamped normalized encumbrance)` per simulation second, has no natural regeneration while active, and cannot start at zero stamina. A held Shift cannot cause repeated one-frame sprints as fatigue returns.
+Ordinary land walking and running cost no stamina. Swimming, sneaking, jumping and attacks retain their costs. Dodge and all shield costs are doubled. Sprint costs `max(10, 0.12 * base maximum fatigue) * (1 + 0.5 * clamped normalized encumbrance)` per simulation second, has no natural regeneration while active, and cannot start at zero stamina. A held Shift cannot cause repeated one-frame sprints as fatigue returns.
 
 With `e = clamp((Endurance - 1) / 99, 0, 1)`, outside-combat recovery takes `10 - 5e` seconds for a full fatigue pool, after any exhaustion delay. Fatigue pool size therefore does not make recovery take longer. Combat recovery is `min(outside rate, 4 * max(0, fFatigueReturnBase + fFatigueReturnMult * modified Endurance))`. Existing Endurance/GMST changes modify the fourfold native rate, and combat never naturally restores faster than outside. Player combat uses native actors-fighting-player checks; NPCs/creatures use their live AI combat state. Explicit Restore Fatigue effects are unchanged.
+
+In combat, positive fatigue naturally recovers only after two quiet simulation seconds following effort. Attack preparation, release, follow-through/reload, spell casting, shield raising/holding/block impacts, dodge movement, sprint, jumping and movement that actually spends fatigue restart that clock. The clock is recorded even before combat starts, so entering combat cannot bypass a recent action. Ordinary land walking/running do not restart it, allowing a moving retreat to recover fatigue. At zero fatigue the existing Agility-dependent 3–10 second deadline is also required; the two deadlines overlap rather than being added. Leaving combat removes the positive-fatigue two-second restriction. Explicit potion/magic restoration remains available.
+
+Ordinary land running with a negative local forward component uses half speed for the player, NPCs and creatures. Backwards diagonals are also halved. This changes the shared target speed used by movement and animation; ordinary walking and the 160-unit dodge retain their distance/speed rules. Sprint cannot boost any backwards movement, including transitions caused by movement smoothing. No additional damage reduction is introduced: these changes give short breaks value without increasing health or lowering normal weapon damage.
 
 Every damaging hit previously requested hit recovery, allowing weak dagger attacks to interrupt a much stronger opponent continuously. A health hit now needs at least `max(2, 0.03 * maximum health + 0.025 * agility)` damage to request a flinch. A fatigue hit uses `max(3, 0.05 * maximum fatigue + 0.025 * agility)`. An accepted flinch grants 1 simulation second of protection against another flinch; small follow-up hits do not extend that timer. This applies symmetrically to NPCs, the player and creatures. Native strong-hit knockdown checks remain separate.
 
@@ -44,9 +48,9 @@ Ranged spread rotates velocity about world Z only, preserving vertical aim and s
 
 Raising takes `(0.18 - 0.09 * clamp(agility / 100, 0, 1)) * T(Block, agility)` seconds. Re-raising has a `0.2 * T` recovery interval. The actual block animation advances to its raised key (or midpoint when no hit key exists), then stays frozen there until the guard ends. Guard release preserves unrelated shield equip/unequip animations. Once ready, a shield raised between the incoming attack's wind-up and impact blocks 100% physical damage. A shield raised before that attack, including one held through successive attacks, blocks 30%. It covers the frontal arc; side/rear attacks bypass it. Projectiles keep their own attack-start timestamp, so later shots cannot alter an earlier arrow's block window. A perfect projectile block rebounds into loose-item physics without opening a body puncture.
 
-Using Block skill in the resource/wear formulas: raise cost is `3 × resource`, hold cost is `2 × resource` per simulation second, impact cost is `(3 + 0.15 × blocked damage) × resource`. Shield wear scales with blocked damage and Block skill. Zero stamina prevents raising and lowers a held shield; release RMB before raising again. NPCs respond to active enemy wind-ups with a skill/agility-dependent reaction delay and the same costs.
+Using Block skill in the resource/wear formulas: raise cost is `6 × resource`, hold cost is `4 × resource` per simulation second, impact cost is `(6 + 0.30 × blocked damage) × resource`. These are exactly twice the previous costs. Shield wear scales with blocked damage and Block skill. Zero stamina prevents raising and lowers a held shield; release RMB before raising again. NPCs respond to active enemy wind-ups with a skill/agility-dependent reaction delay and the same costs.
 
-Dodge costs `11.5 + 30.35(1-a)` stamina: 41.85 at agility 1, 11.5 at agility 100. It travels 160 engine units over 0.24 simulation seconds and has a `1.5 - a` second cooldown from activation. It uses ordinary collision-aware movement, adds no vertical motion and grants no invulnerability. Walls can shorten it and badly timed dodges can still be hit. Preparation may be cancelled to defend; beginning a shield raise/dodge cannot skip strike/recovery.
+Dodge costs `23 + 60.70(1-a)` stamina: 83.7 at agility 1, 23 at agility 100, exactly twice the previous values. It travels 160 engine units over 0.24 simulation seconds and has a `1.5 - a` second cooldown from activation. It uses ordinary collision-aware movement, adds no vertical motion and grants no invulnerability. Walls can shorten it and badly timed dodges can still be hit. Preparation may be cancelled to defend; beginning a shield raise/dodge cannot skip strike/recovery.
 
 ## Physical friendly fire
 
@@ -60,14 +64,6 @@ The last nearby hostile death triggers two unpaused real seconds at one-third si
 
 ## Validation
 
-Automated checks cover 5-10 second recovery at multiple frame rates, the combat regeneration cap, exhausted sprint costs, context-sensitive held RMB, native AI friendly-fire policy, exact rebalance boundaries, exhausted-spam lockout and deadline resets, natural-rest recovery, weak-hit interruption resistance, the native raised shield track, timed/held guard, dodge distance across framerates, bounded spread, gravitational aim, actual OSG transforms/sweeps, the shipped Lua armor module, save compatibility, and retained blood/ragdoll/item regressions. Windows component/native tests and installed executable/ZIP checks run before release. Logs are in the package's validation directory.
+Automated checks cover backwards/diagonal kiting and sprint rejection, exactly doubled dodge/shield costs, continuous combat/held-guard exhaustion, useful short recovery breaks, two-second and zero-fatigue deadlines, 5-10 second recovery at multiple frame rates, the combat regeneration cap, exhausted sprint costs, context-sensitive held RMB, native AI friendly-fire policy, exact rebalance boundaries, exhausted-spam lockout and deadline resets, natural-rest recovery, weak-hit interruption resistance, the native raised shield track, timed/held guard, dodge distance across framerates, bounded spread, gravitational aim, actual OSG transforms/sweeps, the shipped Lua armor module, save compatibility, and retained blood/ragdoll/item regressions. Windows component/native tests and installed executable/ZIP checks run before release. Logs are in the package's validation directory.
 
 These checks are not a Morrowind-data playtest. Shield pose quality, first/third-person contacts, ordinary creatures, controller bindings, actual difficulty, FPS and modded skeletons require in-game testing. Use copied saves and retain the stable installation.
-
-## Retained build validation
-
-**Validation notice: retained engine, one test-fixture failure**
-
-The executable is from commit `af9a8c9b15aa8a7cf4f8f71445c43717e35d118d`, Windows run [40698202596](https://github.com/vault13xcv-star/4656/actions/runs/40698202596). All 5 physics/render/combat groups, 1405 component tests and 45 of 46 native tests passed. The held-shield animation test passed. The new allied-contact test raised an access violation while constructing AI packages: its synthetic environment omitted World, whose PRNG initializes AI reaction timers. The source branch adds a PRNG-only World fixture; the corrected full test was compiled locally but not rerun on Windows. The full allied-contact integration check therefore remains unverified.
-
-The compiled EXE and all original runtime files are retained unchanged; KNOWN-ISSUES.txt discloses the failure, and VALIDATION.txt retains the original failed result. This publication does not claim all native tests passed or that an in-game playtest was performed.

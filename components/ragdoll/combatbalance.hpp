@@ -40,7 +40,13 @@ namespace Ragdoll::Combat
     }
     inline float guardRaise(float skill,float agility) { return (.18f-.09f*unit(agility))*tempo(skill,agility); }
     inline float guardRecovery(float skill,float agility) { return .2f*tempo(skill,agility); }
-    inline float dodgeCost(float agility) { return 11.5f+(41.85f-11.5f)*(1.f-rank(agility)); }
+    inline float dodgeCost(float agility) { return 2.f*(11.5f+(41.85f-11.5f)*(1.f-rank(agility))); }
+    inline float guardRaiseCost(float skill) { return 6.f*resource(skill); }
+    inline float guardHoldCost(float skill) { return 4.f*resource(skill); }
+    inline float guardImpactCost(float skill,float blocked) { return (6.f+.30f*blocked)*resource(skill); }
+    inline float backwardSpeed(float forward,bool running) { return running && forward<0.f?.5f:1.f; }
+    inline bool sprintDirection(float requestedForward,float actualForward)
+    { return requestedForward>=0.f && actualForward>=0.f; }
     inline float dodgeCooldown(float agility) { return .5f*(3.f-2.f*rank(agility)); }
     inline float fatigueDelay(float agility) { return 10.f-7.f*rank(agility); }
     inline float fatigueRecoverySeconds(float endurance) { return 10.f-5.f*rank(endurance); }
@@ -65,7 +71,7 @@ namespace Ragdoll::Combat
         double mGuardStarted=-1,mGuardReady=-1,mAttackStarted=-1,mLastAttack=-1,mDodgeReady=0;
         float mDodgeLeft=0,mWeaponWear=0,mShieldWear=0,mRecoveryLeft=0;
         bool mFatigueDepleted=false;
-        double mFatigueRestoreAt=0,mGuardNextRaise=0,mNextStagger=0;
+        double mFatigueRestoreAt=0,mActionRestoreAt=0,mGuardNextRaise=0,mNextStagger=0;
         osg::Vec3f mDodgeDirection,mWeaponBase,mWeaponTip;
         double mContactTime=-1;
     };
@@ -76,6 +82,7 @@ namespace Ragdoll::Combat
     }
     inline void observeFatigue(State& state,float current,float agility,double now,bool effort=false)
     {
+        if(effort)state.mActionRestoreAt=now+2.;
         if(current>0){state.mFatigueDepleted=false;state.mFatigueRestoreAt=0;return;}
         if(!state.mFatigueDepleted || effort)
         {
@@ -83,10 +90,11 @@ namespace Ragdoll::Combat
             state.mFatigueRestoreAt=now+fatigueDelay(agility);
         }
     }
-    inline bool allowFatigueRecovery(State& state,float current,float agility,double now)
+    inline bool allowFatigueRecovery(State& state,float current,float agility,double now,bool inCombat=false)
     {
         observeFatigue(state,current,agility,now);
-        return !state.mFatigueDepleted || now>=state.mFatigueRestoreAt;
+        return (!state.mFatigueDepleted || now>=state.mFatigueRestoreAt)
+            && (!inCombat || now>=state.mActionRestoreAt);
     }
     inline double restedFatigueSeconds(State& state,float current,float agility,double now,double seconds)
     {

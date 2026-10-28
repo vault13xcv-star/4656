@@ -1538,6 +1538,9 @@ namespace MWMechanics
 
                 if (mWeaponType == ESM::Weapon::Spell)
                 {
+                    Ragdoll::Combat::observeFatigue(stats.mCombat,stats.getFatigue().getCurrent(),
+                        stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                        world->getTimeManager()->getSimulationTime(),true);
                     // Unset casting flag, otherwise pressing the mouse button down would
                     // continue casting every frame if there is no animation
                     setAttackingOrSpell(false);
@@ -2164,6 +2167,10 @@ namespace MWMechanics
                 mAnimation->setUpperBodyYawRadians(mAnimation->getUpperBodyYawRadians() + mAnimation->getHeadYaw() / 2);
 
             speed = cls.getCurrentSpeed(mPtr);
+            // Shared controller path for player, NPCs and creatures, including
+            // animation-derived movement. Diagonal retreat gets the same limit.
+            if(!inwater && !flying && !sneak)
+                speed*=Ragdoll::Combat::backwardSpeed(vec.y(),isrunning);
             vec.x() *= speed;
             vec.y() *= speed;
 
@@ -2175,6 +2182,7 @@ namespace MWMechanics
                 && !inwater && !flying && !sneak && !isKnockedOut() && !isKnockedDown()
                 && !isRecovery() && !isScriptedAnimPlaying() && !stats.isParalyzed()
                 && !sprint.mGuardHeld && sprint.mDodgeLeft<=0 && !sprint.mAttackActive
+                && Ragdoll::Combat::sprintDirection(movementSettings.mPosition[1],vec.y())
                 && (vec.x()!=0 || vec.y()!=0))
             {
                 auto fatigue=stats.getFatigue();
@@ -2186,6 +2194,9 @@ namespace MWMechanics
                     {
                         fatigue.setCurrent(std::max(0.f,fatigue.getCurrent()-duration
                             *Ragdoll::Combat::sprintCost(fatigue.getBase(),cls.getNormalizedEncumbrance(mPtr))));
+                        Ragdoll::Combat::observeFatigue(sprint,fatigue.getCurrent(),
+                            stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                            world->getTimeManager()->getSimulationTime(),true);
                         stats.setFatigue(fatigue);
                     }
                 }
@@ -2261,6 +2272,10 @@ namespace MWMechanics
                     fatigueLoss *= movementSettings.mSpeedFactor;
                     DynamicStat<float> fatigue = cls.getCreatureStats(mPtr).getFatigue();
                     fatigue.setCurrent(fatigue.getCurrent() - fatigueLoss, fatigue.getCurrent() < 0);
+                    if(fatigueLoss>0)
+                        Ragdoll::Combat::observeFatigue(stats.mCombat,fatigue.getCurrent(),
+                            stats.getAttribute(ESM::Attribute::Agility).getModified(),
+                            world->getTimeManager()->getSimulationTime(),true);
                     cls.getCreatureStats(mPtr).setFatigue(fatigue);
                 }
             }
@@ -2524,6 +2539,11 @@ namespace MWMechanics
         if(cls.isActor())
         {
             auto& combat=cls.getCreatureStats(mPtr).mCombat;
+            if(mUpperBodyState==UpperBodyState::AttackWindUp || mUpperBodyState==UpperBodyState::AttackRelease
+                || mUpperBodyState==UpperBodyState::AttackEnd || mUpperBodyState==UpperBodyState::Casting)
+                Ragdoll::Combat::observeFatigue(combat,cls.getCreatureStats(mPtr).getFatigue().getCurrent(),
+                    cls.getCreatureStats(mPtr).getAttribute(ESM::Attribute::Agility).getModified(),
+                    world->getTimeManager()->getSimulationTime(),true);
             combat.mContactWindow=mUpperBodyState==UpperBodyState::AttackRelease
                 || (isRandomAttackAnimation(mCurrentWeapon) && mReadyToHit);
             const double now=world->getTimeManager()->getSimulationTime();

@@ -2845,6 +2845,8 @@ namespace MWWorld
     MWWorld::SpellCastState World::startSpellCast(const Ptr& actor)
     {
         MWMechanics::CreatureStats& stats = actor.getClass().getCreatureStats(actor);
+        Ragdoll::Combat::observeFatigue(stats.mCombat,stats.getFatigue().getCurrent(),
+            stats.getAttribute(ESM::Attribute::Agility).getModified(),getTimeManager()->getSimulationTime(),true);
 
         std::string_view message;
         MWWorld::SpellCastState result = MWWorld::SpellCastState::Success;
