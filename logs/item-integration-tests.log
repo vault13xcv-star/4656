@@ -1,0 +1,141 @@
+Loading settings file: D:/a/4656/4656\files\settings-default.cfg
+Note: Google Test filter = ItemPhysics*
+[==========] Running 46 tests from 13 test suites.
+[----------] Global test environment set-up.
+[----------] 22 tests from ItemPhysicsIntegration
+[ RUN      ] ItemPhysicsIntegration.ProjectileDebrisSharesClutterSolverAndIsNotAWorldReference
+Disabling Multiview (disabled by config)
+[       OK ] ItemPhysicsIntegration.ProjectileDebrisSharesClutterSolverAndIsNotAWorldReference (16 ms)
+[ RUN      ] ItemPhysicsIntegration.ProjectileDebrisUsesTheItemDeadlineAndPause
+[       OK ] ItemPhysicsIntegration.ProjectileDebrisUsesTheItemDeadlineAndPause (14 ms)
+[ RUN      ] ItemPhysicsIntegration.HeldShieldFreezesTheActualRaisedTrackAndReleasesToIdle
+Initializing LuaUtil::LuaState without profiler
+Lua version: Lua 5.1.4 (LuaJIT 2.1.1767980792)
+[       OK ] ItemPhysicsIntegration.HeldShieldFreezesTheActualRaisedTrackAndReleasesToIdle (4 ms)
+[ RUN      ] ItemPhysicsIntegration.ProjectileAnchorFollowsPoseAndBoneRebuild
+[       OK ] ItemPhysicsIntegration.ProjectileAnchorFollowsPoseAndBoneRebuild (3 ms)
+[ RUN      ] ItemPhysicsIntegration.NativeImpulseMovesItemAndPreservesVelocityAcrossPoseUpdates
+[       OK ] ItemPhysicsIntegration.NativeImpulseMovesItemAndPreservesVelocityAcrossPoseUpdates (13 ms)
+[ RUN      ] ItemPhysicsIntegration.AllImpulseSlidersReachTheNativeSolverAfterBaselineClamping
+[       OK ] ItemPhysicsIntegration.AllImpulseSlidersReachTheNativeSolverAfterBaselineClamping (48 ms)
+[ RUN      ] ItemPhysicsIntegration.NativeExplosionPushesRegisteredItemsOutwardAccordingToMass
+[       OK ] ItemPhysicsIntegration.NativeExplosionPushesRegisteredItemsOutwardAccordingToMass (8 ms)
+[ RUN      ] ItemPhysicsIntegration.NativeDropWakesItemAndPickupRemovesBothColliders
+[       OK ] ItemPhysicsIntegration.NativeDropWakesItemAndPickupRemovesBothColliders (8 ms)
+[ RUN      ] ItemPhysicsIntegration.UnloadAndReloadPreserveTheRemainingWindowAndFinalPose
+[       OK ] ItemPhysicsIntegration.UnloadAndReloadPreserveTheRemainingWindowAndFinalPose (11 ms)
+[ RUN      ] ItemPhysicsIntegration.ProjectileChoosesBottleBeforeWallRegardlessOfCandidateOrder
+[       OK ] ItemPhysicsIntegration.ProjectileChoosesBottleBeforeWallRegardlessOfCandidateOrder (8 ms)
+[ RUN      ] ItemPhysicsIntegration.MeleeFindsSmallOffAxisClutterButDoesNotHitThroughFurniture
+[       OK ] ItemPhysicsIntegration.MeleeFindsSmallOffAxisClutterButDoesNotHitThroughFurniture (8 ms)
+[ RUN      ] ItemPhysicsIntegration.DownwardMeleeUsesBodyReachRatherThanEyeDistance
+[       OK ] ItemPhysicsIntegration.DownwardMeleeUsesBodyReachRatherThanEyeDistance (8 ms)
+[ RUN      ] ItemPhysicsIntegration.CellUnloadDropsPoseMemoryAndTimersButRetainsReferencePlacement
+[       OK ] ItemPhysicsIntegration.CellUnloadDropsPoseMemoryAndTimersButRetainsReferencePlacement (3 ms)
+[ RUN      ] ItemPhysicsIntegration.RemovingLastItemReleasesWorldAndNextItemCanStillMove
+[       OK ] ItemPhysicsIntegration.RemovingLastItemReleasesWorldAndNextItemCanStillMove (11 ms)
+[ RUN      ] ItemPhysicsIntegration.FirstPersonMeleeUsesTheRenderedEyeNotTheAnimatedHead
+[       OK ] ItemPhysicsIntegration.FirstPersonMeleeUsesTheRenderedEyeNotTheAnimatedHead (8 ms)
+[ RUN      ] ItemPhysicsIntegration.LiveItemDurationChangesPreserveAge
+[       OK ] ItemPhysicsIntegration.LiveItemDurationChangesPreserveAge (8 ms)
+[ RUN      ] ItemPhysicsIntegration.WeaponGroupsHaveIndependentTunableImpulses
+[       OK ] ItemPhysicsIntegration.WeaponGroupsHaveIndependentTunableImpulses (3 ms)
+[ RUN      ] ItemPhysicsIntegration.NativeWeaponClassesAndAnimationKeysSelectOnlyEligibleWounds
+[       OK ] ItemPhysicsIntegration.NativeWeaponClassesAndAnimationKeysSelectOnlyEligibleWounds (3 ms)
+[ RUN      ] ItemPhysicsIntegration.CombatHitChanceIsAlwaysCertainForBothSidesAndAllSkills
+[       OK ] ItemPhysicsIntegration.CombatHitChanceIsAlwaysCertainForBothSidesAndAllSkills (3 ms)
+[ RUN      ] ItemPhysicsIntegration.LoadingAndResurrectionClearTransientActiveCombat
+[       OK ] ItemPhysicsIntegration.LoadingAndResurrectionClearTransientActiveCombat (3 ms)
+[ RUN      ] ItemPhysicsIntegration.PhysicalFriendlyFirePolicyUsesBothActorsCombatTargets
+[       OK ] ItemPhysicsIntegration.PhysicalFriendlyFirePolicyUsesBothActorsCombatTargets (3 ms)
+[ RUN      ] ItemPhysicsIntegration.PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders
+[       OK ] ItemPhysicsIntegration.PrimedEnchantmentsMergeWithTheNativeDeathHitInBothOrders (3 ms)
+[----------] 22 tests from ItemPhysicsIntegration (208 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/0, where TypeParam = struct ESM::Apparatus
+[ RUN      ] ItemPhysicsRecords/0.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/0.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/0.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/0.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (20 ms)
+[----------] 2 tests from ItemPhysicsRecords/0 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/1, where TypeParam = struct ESM::Armor
+[ RUN      ] ItemPhysicsRecords/1.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/1.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/1.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/1.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (20 ms)
+[----------] 2 tests from ItemPhysicsRecords/1 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/2, where TypeParam = struct ESM::Book
+[ RUN      ] ItemPhysicsRecords/2.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/2.SceneInsertionAndPostponedInsertionCreateHittableBodies (12 ms)
+[ RUN      ] ItemPhysicsRecords/2.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/2.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (19 ms)
+[----------] 2 tests from ItemPhysicsRecords/2 (32 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/3, where TypeParam = struct ESM::Clothing
+[ RUN      ] ItemPhysicsRecords/3.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/3.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/3.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/3.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (19 ms)
+[----------] 2 tests from ItemPhysicsRecords/3 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/4, where TypeParam = struct ESM::Ingredient
+[ RUN      ] ItemPhysicsRecords/4.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/4.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/4.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/4.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (19 ms)
+[----------] 2 tests from ItemPhysicsRecords/4 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/5, where TypeParam = struct ESM::Light
+[ RUN      ] ItemPhysicsRecords/5.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/5.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/5.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/5.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (20 ms)
+[----------] 2 tests from ItemPhysicsRecords/5 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/6, where TypeParam = struct ESM::Lockpick
+[ RUN      ] ItemPhysicsRecords/6.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/6.SceneInsertionAndPostponedInsertionCreateHittableBodies (12 ms)
+[ RUN      ] ItemPhysicsRecords/6.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/6.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (19 ms)
+[----------] 2 tests from ItemPhysicsRecords/6 (32 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/7, where TypeParam = struct ESM::Miscellaneous
+[ RUN      ] ItemPhysicsRecords/7.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/7.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/7.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/7.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (20 ms)
+[----------] 2 tests from ItemPhysicsRecords/7 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/8, where TypeParam = struct ESM::Potion
+[ RUN      ] ItemPhysicsRecords/8.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/8.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/8.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/8.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (20 ms)
+[----------] 2 tests from ItemPhysicsRecords/8 (32 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/9, where TypeParam = struct ESM::Probe
+[ RUN      ] ItemPhysicsRecords/9.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/9.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/9.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/9.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (19 ms)
+[----------] 2 tests from ItemPhysicsRecords/9 (31 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/10, where TypeParam = struct ESM::Repair
+[ RUN      ] ItemPhysicsRecords/10.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/10.SceneInsertionAndPostponedInsertionCreateHittableBodies (10 ms)
+[ RUN      ] ItemPhysicsRecords/10.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/10.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (19 ms)
+[----------] 2 tests from ItemPhysicsRecords/10 (30 ms total)
+
+[----------] 2 tests from ItemPhysicsRecords/11, where TypeParam = struct ESM::Weapon
+[ RUN      ] ItemPhysicsRecords/11.SceneInsertionAndPostponedInsertionCreateHittableBodies
+[       OK ] ItemPhysicsRecords/11.SceneInsertionAndPostponedInsertionCreateHittableBodies (11 ms)
+[ RUN      ] ItemPhysicsRecords/11.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem
+[       OK ] ItemPhysicsRecords/11.DownwardMeleeHitsAtAllHeadingsAndMovesTheItem (20 ms)
+[----------] 2 tests from ItemPhysicsRecords/11 (32 ms total)
+
+[----------] Global test environment tear-down
+[==========] 46 tests from 13 test suites ran. (589 ms total)
+[  PASSED  ] 46 tests.
