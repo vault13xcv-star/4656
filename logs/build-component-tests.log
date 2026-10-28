@@ -1,0 +1,40 @@
+[0/2] Re-checking globbed directories...
+[1/92] C:\Windows\system32\cmd.exe /C "cd /D D:\a\4656\4656\build\components && "C:\Program Files\CMake\bin\cmake.exe" "-DGIT_EXECUTABLE=C:/Program Files/Git/bin/git.exe" -DOpenMW_SOURCE_DIR=D:/a/4656/4656 -DOpenMW_BINARY_DIR=D:/a/4656/4656/build -DVERSION_RESOURCE_FILE_IN=D:/a/4656/4656/files/version.in -DVERSION_RESOURCE_FILE_RELATIVE=resources/version -DVERSION_CPP_FILE_IN=D:/a/4656/4656/components/version/version.cpp.in -DVERSION_CPP_FILE_OUT=D:/a/4656/4656/build/components/version/version.cpp.out -DOPENMW_VERSION_MAJOR=0 -DOPENMW_VERSION_MINOR=51 -DOPENMW_VERSION_RELEASE=0 -DOPENMW_LUA_API_REVISION=129 -DOPENMW_POSTPROCESSING_API_REVISION=5 -DOPENMW_VERSION=0.51.0 -DOPENMW_DOC_BASEURL=https://openmw.readthedocs.io/en/ -DMACROSFILE=D:/a/4656/4656/cmake/OpenMWMacros.cmake -DCMAKE_CONFIGURATION_TYPES= -Dgenerator_is_multi_config_var=0 -P D:/a/4656/4656/components/../cmake/GitVersion.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/4656/4656/build/components/version/version.cpp.out D:/a/4656/4656/build/components/version/version.cpp"
+-- OpenMW version 0.51.0
+[2/90] Building CXX object _deps\googletest-build\googlemock\CMakeFiles\gmock.dir\src\gmock-all.cc.obj
+[3/90] Building CXX object _deps\googletest-build\googletest\CMakeFiles\gtest.dir\src\gtest-all.cc.obj
+[4/90] Linking CXX static library lib\gtest.lib
+[5/90] Building CXX object _deps\googletest-build\googlemock\CMakeFiles\gmock.dir\__\googletest\src\gtest-all.cc.obj
+[6/90] Linking CXX static library lib\gmock.lib
+[7/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\cmake_pch.cxx.obj
+[8/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\main.cpp.obj
+[9/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwdialogue\testkeywordsearch.cpp.obj
+[10/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\bsa\testbsafile.cpp.obj
+[11/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\bsa\testcompressedbsafile.cpp.obj
+[12/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\gettilespositions.cpp.obj
+[13/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\navmeshdb.cpp.obj
+[14/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\asyncnavmeshupdater.cpp.obj
+[15/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\navmeshtilescache.cpp.obj
+[16/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\recastmeshbuilder.cpp.obj
+[17/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\recastmeshobject.cpp.obj
+[18/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\settingsutils.cpp.obj
+[19/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm\testfixedstring.cpp.obj
+[20/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\navigator.cpp.obj
+[21/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm\variant.cpp.obj
+[22/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm\testrefid.cpp.obj
+[23/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\detournavigator\tilecachedrecastmeshmanager.cpp.obj
+[24/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testcstringids.cpp.obj
+[25/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\readerscache.cpp.obj
+[26/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testinfoorder.cpp.obj
+[27/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testesmwriter.cpp.obj
+[28/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm4\includes.cpp.obj
+[29/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmloader\esmdata.cpp.obj
+[30/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmloader\load.cpp.obj
+[31/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmloader\record.cpp.obj
+[32/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esm3\testsaveload.cpp.obj
+[33/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\files\conversiontests.cpp.obj
+[34/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\esmterrain\testgridsampling.cpp.obj
+[35/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\fx\lexer.cpp.obj
+[36/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\files\hash.cpp.obj
+[37/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\lua\testasync.cpp.obj
+[38/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\fx\technique.cpp.obj
