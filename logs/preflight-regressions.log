@@ -1,0 +1,28 @@
+[0/2] Re-checking globbed directories...
+[1/12] C:\Windows\system32\cmd.exe /C "cd /D D:\a\4656\4656\build\components && "C:\Program Files\CMake\bin\cmake.exe" "-DGIT_EXECUTABLE=C:/Program Files/Git/bin/git.exe" -DOpenMW_SOURCE_DIR=D:/a/4656/4656 -DOpenMW_BINARY_DIR=D:/a/4656/4656/build -DVERSION_RESOURCE_FILE_IN=D:/a/4656/4656/files/version.in -DVERSION_RESOURCE_FILE_RELATIVE=resources/version -DVERSION_CPP_FILE_IN=D:/a/4656/4656/components/version/version.cpp.in -DVERSION_CPP_FILE_OUT=D:/a/4656/4656/build/components/version/version.cpp.out -DOPENMW_VERSION_MAJOR=0 -DOPENMW_VERSION_MINOR=51 -DOPENMW_VERSION_RELEASE=0 -DOPENMW_LUA_API_REVISION=129 -DOPENMW_POSTPROCESSING_API_REVISION=5 -DOPENMW_VERSION=0.51.0 -DOPENMW_DOC_BASEURL=https://openmw.readthedocs.io/en/ -DMACROSFILE=D:/a/4656/4656/cmake/OpenMWMacros.cmake -DCMAKE_CONFIGURATION_TYPES= -Dgenerator_is_multi_config_var=0 -P D:/a/4656/4656/components/../cmake/GitVersion.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/4656/4656/build/components/version/version.cpp.out D:/a/4656/4656/build/components/version/version.cpp"
+-- OpenMW version 0.51.0
+[2/12] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\cmake_pch.cxx.obj
+[3/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\cmake_pch.cxx.obj
+[4/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\creature.cpp.obj
+[5/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwrender\animation.cpp.obj
+[6/12] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwphysics\testitems.cpp.obj
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(54): warning C4250: '`anonymous-namespace'::ShieldTestTrack': inherits 'osg::Callback::osg::Callback::asCallback' via dominance
+D:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\osg/Callback(47): note: see declaration of 'osg::Callback::asCallback'
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(54): warning C4250: '`anonymous-namespace'::ShieldTestTrack': inherits 'osg::Callback::osg::Callback::asCallbackObject' via dominance
+D:\a\4656\4656\deps\vcpkg-x64-windows-2022-2026-02-24\installed\x64-windows\include\osg/Callback(50): note: see declaration of 'osg::Callback::asCallbackObject'
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(609): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(610): warning C4244: '=': conversion from 'const _Elem' to 'int16_t', possible loss of data
+        with
+        [
+            _Elem=ESM::Weapon::Type
+        ]
+D:\a\4656\4656\apps\openmw_tests\mwphysics\testitems.cpp(653): warning C4244: '=': conversion from 'const ESM::Weapon::Type' to 'int16_t', possible loss of data
+[7/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\creaturestats.cpp.obj
+[8/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwclass\npc.cpp.obj
+[9/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\combat.cpp.obj
+[10/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\character.cpp.obj
+[11/12] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwmechanics\actors.cpp.obj

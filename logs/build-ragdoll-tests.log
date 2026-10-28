@@ -1,0 +1,43 @@
+[1/26] Building CXX object CMakeFiles\ragdoll-tests.dir\simulation.cpp.obj
+[2/26] Building CXX object CMakeFiles\ragdoll-tests.dir\tests\simulation.cpp.obj
+[3/26] Building CXX object CMakeFiles\item-physics-tests.dir\items.cpp.obj
+[4/26] Building CXX object CMakeFiles\item-physics-tests.dir\tests\items.cpp.obj
+[5/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\simulation.cpp.obj
+[6/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\items.cpp.obj
+[7/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\ragdollappearance.cpp.obj
+[8/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\tests\render_pose.cpp.obj
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\utility(274): warning C4244: 'initializing': conversion from '_Ty' to '_Ty2', possible loss of data
+        with
+        [
+            _Ty=int
+        ]
+        and
+        [
+            _Ty2=float
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\include\utility(274): note: the template instantiation context (the oldest one first) is
+D:\a\4656\4656\components\ragdoll\tests\render_pose.cpp(632): note: see reference to function template instantiation 'std::pair<size_t,float>::pair<int,int,0>(_Other1 &&,_Other2 &&) noexcept' being compiled
+        with
+        [
+            _Other1=int,
+            _Other2=int
+        ]
+D:\a\4656\4656\components\ragdoll\tests\render_pose.cpp(632): note: see the first reference to 'std::pair<size_t,float>::pair' in '`anonymous-namespace'::brutalMeshClipAndPose'
+[9/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp.obj
+[10/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\brutalgore.cpp.obj
+[11/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\bloodsurface.cpp.obj
+[12/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\bloodsurfacevisitor.cpp.obj
+[13/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\apps\openmw\mwrender\brutalblood.cpp.obj
+[14/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\sceneutil\skeleton.cpp.obj
+[15/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\sceneutil\workqueue.cpp.obj
+[16/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\sceneutil\riggeometry.cpp.obj
+[17/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\sceneutil\morphgeometry.cpp.obj
+[18/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\debug\debuglog.cpp.obj
+[19/26] Building CXX object CMakeFiles\ragdoll-render-tests.dir\D_\a\4656\4656\components\files\conversion.cpp.obj
+[20/26] Linking CXX executable ragdoll-tests.exe
+[21/26] Building CXX object CMakeFiles\active-combat-tests.dir\tests\combat.cpp.obj
+[22/26] Building CXX object CMakeFiles\ragdoll-impact.dir\tests\impact.cpp.obj
+[23/26] Linking CXX executable item-physics-tests.exe
+[24/26] Linking CXX executable ragdoll-render-tests.exe
+[25/26] Linking CXX executable ragdoll-impact.exe
+[26/26] Linking CXX executable active-combat-tests.exe
