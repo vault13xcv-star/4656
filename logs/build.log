@@ -1,15 +1,3 @@
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1428): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1429): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1435): warning C4244: '=': conversion from 'btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
-D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1436): warning C4244: '=': conversion from 'const btScalar' to '_Ty', possible loss of data
-        with
-        [
-            _Ty=float
-        ]
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1447): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1448): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
 D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1449): warning C4244: '=': conversion from 'const btScalar' to 'float', possible loss of data
@@ -178,3 +166,15 @@ D:\a\4656\4656\apps\openmw\mwrender\ragdoll.cpp(1449): warning C4244: '=': conve
 [737/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\door.cpp.obj
 [738/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockable.cpp.obj
 [739/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\container.cpp.obj
+[740/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\weapon.cpp.obj
+[741/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\creature.cpp.obj
+[742/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\npc.cpp.obj
+[743/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\activator.cpp.obj
+[744/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\player.cpp.obj
+[745/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\book.cpp.obj
+[746/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\lockpick.cpp.obj
+[747/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\apparatus.cpp.obj
+[748/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\potion.cpp.obj
+[749/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\probe.cpp.obj
+[750/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\repair.cpp.obj
+[751/999] Building CXX object apps\openmw\CMakeFiles\openmw-lib.dir\mwlua\types\misc.cpp.obj
