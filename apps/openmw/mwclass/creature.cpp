@@ -356,9 +356,9 @@ namespace MWClass
         const float combatScale=Ragdoll::Combat::damage(MWMechanics::getCombatSkill(ptr,weapon),getCreatureStats(ptr).getFatigue().getCurrent()<=0);
         damage*=combatScale;
         const float beforeBlock=damage;
-        MWMechanics::blockMeleeAttack(ptr,victim,weapon,damage,attackStrength);
+        const bool fullyBlocked=MWMechanics::blockMeleeAttack(ptr,victim,weapon,damage,attackStrength)>=1;
         const float armorScale=combatScale*(beforeBlock>0?damage/beforeBlock:1.f);
-        if(damage>0)MWMechanics::applyOnStrikeEnchantment(ptr,victim,weapon,hitPosition,false,ragdollHit);
+        if(!fullyBlocked)MWMechanics::applyOnStrikeEnchantment(ptr,victim,weapon,hitPosition,false,ragdollHit);
         MWMechanics::applyElementalShields(ptr, victim);
 
 

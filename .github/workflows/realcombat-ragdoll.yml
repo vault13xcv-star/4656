@@ -60,19 +60,13 @@ jobs:
           ./CI/ragdoll-report.ps1 -Stage ragdoll-tests -Result running
           ./CI/ragdoll-windows.ps1 -Phase RagdollTests
 
-      - name: Compile the modified engine and component tests
+      - name: Compile the modified engine
         id: build
         run: |
           ./CI/ragdoll-report.ps1 -Stage build -Result running
           ./CI/ragdoll-windows.ps1 -Phase Build
 
-      - name: Run component tests
-        id: tests
-        run: |
-          ./CI/ragdoll-report.ps1 -Stage tests -Result running
-          ./CI/ragdoll-windows.ps1 -Phase Test
-
-      - name: Retain the compiled runtime before packaging
+      - name: Retain the compiled runtime before building tests
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -84,6 +78,12 @@ jobs:
             build/resources
           if-no-files-found: error
           retention-days: 30
+
+      - name: Compile and run component and native tests
+        id: tests
+        run: |
+          ./CI/ragdoll-report.ps1 -Stage tests -Result running
+          ./CI/ragdoll-windows.ps1 -Phase Test
 
       - name: Package a standalone runtime and check its DLLs
         id: package

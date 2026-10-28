@@ -31,14 +31,14 @@ function Assert-GoreAssets([string] $Directory) {
     }
 }
 
-function Invoke-WithBuildReports([scriptblock] $BuildAction) {
+function Invoke-WithBuildReports([scriptblock] $BuildAction, [string] $ReportStage = 'build') {
     # A separate PowerShell process can publish log tails while Ninja runs.
     # Each report finishes before another starts; request a clean stop before
     # the next workflow phase writes to the same disposable report checkout.
     $stopFile = Join-Path $env:RUNNER_TEMP ("ragdoll-report-stop-" + [Guid]::NewGuid().ToString('N'))
     $reportScript = Join-Path $PSScriptRoot 'ragdoll-report.ps1'
-    $heartbeat = Start-Job -ArgumentList $reportScript, $stopFile -ScriptBlock {
-        param([string] $ReportScript, [string] $StopFile)
+    $heartbeat = Start-Job -ArgumentList $reportScript, $stopFile, $ReportStage -ScriptBlock {
+        param([string] $ReportScript, [string] $StopFile, [string] $ReportStage)
         $ErrorActionPreference = 'Stop'
         while (-not (Test-Path $StopFile)) {
             for ($second = 0; $second -lt 60 -and -not (Test-Path $StopFile); ++$second) {
@@ -46,7 +46,7 @@ function Invoke-WithBuildReports([scriptblock] $BuildAction) {
             }
             if (Test-Path $StopFile) { break }
             try {
-                & $ReportScript -Stage build -Result running
+                & $ReportScript -Stage $ReportStage -Result running
             } catch {
                 # Reporting is auxiliary. The foreground build and final
                 # report still determine success if GitHub has a brief outage.
@@ -159,10 +159,13 @@ switch ($Phase) {
     }
     Build {
         Invoke-WithBuildReports {
-            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw', 'components-tests', 'openmw-tests') 'build.log'
+            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'openmw') 'build.log'
         }
     }
     Test {
+        Invoke-WithBuildReports -BuildAction {
+            Run 'cmake' @('--build', $build, '--parallel', '3', '--target', 'components-tests', 'openmw-tests') 'build-component-tests.log'
+        } -ReportStage tests
         Copy-Runtime $build
         Run "$build/components-tests.exe" @('--gtest_color=no') 'components-tests.log'
         Run "$build/openmw-tests.exe" @('--gtest_color=no', '--gtest_filter=ItemPhysics*') 'item-integration-tests.log'

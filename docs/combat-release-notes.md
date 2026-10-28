@@ -14,3 +14,5 @@ Contact geometry uses bounded blade-axis sweeps and native ray/capsule fallbacks
 Automated checks exercise actual collision geometry, the shipped Lua armor module, save compatibility, balance and active-defense rules, alongside existing physics/render/component/native tests. They do not replace a playtest. Gameplay FPS and Morrowind fight balance have not been measured.
 
 Fully extract the Windows-x64 ZIP separately, read BRUTAL-MORROWIND-README.md and use copied saves. Game data and launcher/editor are not bundled. Corresponding sources and dependency notices accompany the release.
+
+Dodge is available in idle weapon, unarmed, readied-spell and sheathed stances. OnStrike enchantments remain active against physical immunity; only a perfect shield block suppresses them.

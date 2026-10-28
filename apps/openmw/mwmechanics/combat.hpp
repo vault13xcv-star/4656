@@ -23,8 +23,8 @@ namespace MWMechanics
         const osg::Vec3f& hitPosition, const bool fromProjectile = false,
         const std::shared_ptr<RagdollHit>& ragdollHit = {});
 
-    /// @return can we block the attack?
-    bool blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
+    /// @return fraction blocked: 0, 0.3 (early), or 1 (timely).
+    float blockMeleeAttack(const MWWorld::Ptr& attacker, const MWWorld::Ptr& blocker, const MWWorld::Ptr& weapon,
         float& damage, float attackStrength, double attackStart = -1);
     float getCombatSkill(const MWWorld::Ptr& actor,const MWWorld::Ptr& weapon);
     void updateActiveDefense(const MWWorld::Ptr& actor,float duration,bool canAct);

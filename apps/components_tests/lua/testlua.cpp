@@ -24,7 +24,7 @@ namespace
         lua.open_libraries(sol::lib::base,sol::lib::math,sol::lib::table);
         lua["combatSource"] = read("files/data-mw/scripts/omw/combat/local.lua");
         const auto result=lua.safe_script(read("components/ragdoll/tests/armor.lua"),sol::script_pass_on_error);
-        ASSERT_TRUE(result.valid()) << (result.valid()?"":sol::error(result).what());
+        if(!result.valid())FAIL() << result.get<sol::error>().what();
     }
 
     constexpr VFS::Path::NormalizedView counterPath("aaa/counter.lua");

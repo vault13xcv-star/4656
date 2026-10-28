@@ -5,7 +5,7 @@ This branch extends the physical-projectile build descended from stable 1.1. Sta
 ## Controls
 
 - Hold **right mouse button** to raise/hold a carried shield with a compatible one-handed weapon or unarmed stance.
-- Press **Q** while moving sideways/backwards to dodge. Standing still dodges backwards; forward-only input, jumping and swimming cannot start a dodge.
+- Press **Q** while moving sideways/backwards to dodge. It is also available with a readied spell or sheathed hands. Standing still dodges backwards; forward-only input, jumping and swimming cannot start a dodge.
 - **I** opens inventory; **G** toggles auto-move. Old default RMB/Q conflicts are migrated on first run; unrelated custom bindings are retained. Actions can be rebound in keyboard settings. Dedicated controller defaults are not added.
 
 ## Contact and balance
@@ -24,7 +24,7 @@ Let `s = clamp(skill / 100, 0, 1)` and `a = clamp(agility / 100, 0, 1)`. Weapons
 | Wind-up duration, agility 40 | `1 + (1-s)(0.20 + 0.15(1-a))` | 129% | 120.3% | 100% |
 | Recovery duration, agility 40 | `1 + (1-s)(0.35 + 0.15(1-a))` | 144% | 130.8% | 100% |
 
-Wind-up includes bow draw and thrown preparation; recovery includes crossbow reload and follow-through. The actual release/strike retains original weapon animation speed. At zero stamina, damage receives a further ×0.5 and wind-up/recovery durations a further ×1.5. Fractional wear accumulates so integer item condition preserves mastery savings. Armor is evaluated at the original damage scale before mastery/exhaustion/partial-guard factors, avoiding a second low-skill penalty. A perfect block stays at zero despite armor's minimum damage. Fully blocked contacts do not apply OnStrike enchantments; partial blocks retain ordinary enchantments.
+Wind-up includes bow draw and thrown preparation; recovery includes crossbow reload and follow-through. The actual release/strike retains original weapon animation speed. At zero stamina, damage receives a further ×0.5 and wind-up/recovery durations a further ×1.5. Fractional wear accumulates so integer item condition preserves mastery savings. Armor is evaluated at the original damage scale before mastery/exhaustion/partial-guard factors, avoiding a second low-skill penalty. A perfect block stays at zero despite armor's minimum damage. Fully blocked contacts do not apply OnStrike enchantments; partial blocks and zero physical damage from immunity retain ordinary enchantments.
 
 Calibration uses a skill30/agility40/luck40 full-fatigue attacker against an agility20/luck20 opponent: original expected hit chance approximately 45%. For a representative cycle of 50% preparation, 20% strike and 30% recovery, new expected damage rate differs by about 5%, stamina per fight by about 10%, and wear by about 6%. This is a formula calibration, not a measured mudcrab fight. Exact effort cannot be preserved for every defender after removing defender-dependent evasion. Low/high-level balance requires gameplay feedback.
 

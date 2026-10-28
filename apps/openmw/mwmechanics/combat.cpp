@@ -281,10 +281,9 @@ namespace MWMechanics
         }
         auto fatigue=stats.getFatigue();
         if(stats.isDead() || stats.getKnockedDown() || stats.isParalyzed() || stats.getHitRecovery())state.mAttackActive=false;
-        const bool allowed=canAct && !stats.isDead() && !stats.getKnockedDown() && !stats.isParalyzed() && !stats.getHitRecovery()
-            && stats.getDrawState()==DrawState::Weapon;
+        const bool allowed=canAct && !stats.isDead() && !stats.getKnockedDown() && !stats.isParalyzed() && !stats.getHitRecovery();
         if(!state.mGuardRequested)state.mGuardLatched=false;
-        if(!allowed || shield.isEmpty() || fatigue.getCurrent()<=0 || !state.mGuardRequested)
+        if(!allowed || stats.getDrawState()!=DrawState::Weapon || shield.isEmpty() || fatigue.getCurrent()<=0 || !state.mGuardRequested)
             state.mGuardHeld=false;
         else if(!state.mGuardHeld && !state.mGuardLatched)
         {
@@ -321,7 +320,7 @@ namespace MWMechanics
         stats.setFatigue(fatigue);
     }
 
-    bool blockMeleeAttack(const MWWorld::Ptr& attacker,const MWWorld::Ptr& blocker,const MWWorld::Ptr& weapon,
+    float blockMeleeAttack(const MWWorld::Ptr& attacker,const MWWorld::Ptr& blocker,const MWWorld::Ptr& weapon,
         float& damage,float attackStrength,double attackStart)
     {
         if(blocker.isEmpty() || !blocker.getClass().hasInventoryStore(blocker))return false;
@@ -351,7 +350,7 @@ namespace MWMechanics
         stats.setBlock(true);
         MWBase::Environment::get().getSoundManager()->playSound3D(blocker,ESM::RefId::stringRefId("Light Armor Hit"),1,1);
         if(blocker==getPlayer())blocker.getClass().skillUsageSucceeded(blocker,ESM::Skill::Block,ESM::Skill::Block_Success);
-        return true;
+        return fraction;
     }
 
     bool isNormalWeapon(const MWWorld::Ptr& weapon)
@@ -478,12 +477,11 @@ namespace MWMechanics
 
         auto ragdollHit = makeRagdollHit(attacker, victim, weapon, projectile, 0, hitPosition, impactDirection);
         const float beforeBlock=damage;
-        if(validVictim)blockMeleeAttack(attacker,victim,weapon,damage,attackStrength,attackStart);
-        const bool fullyBlocked=beforeBlock>0 && damage<=0;
+        const bool fullyBlocked=validVictim && blockMeleeAttack(attacker,victim,weapon,damage,attackStrength,attackStart)>=1;
         const float armorScale=combatScale*(beforeBlock>0?damage/beforeBlock:1.f);
         // Apply "On hit" effect of the projectile with the same contact identity.
-        if(damage>0)applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
-        if (damage>0 && weapon != projectile)
+        if(!fullyBlocked)applyOnStrikeEnchantment(attacker, victim, projectile, hitPosition, true, ragdollHit);
+        if (!fullyBlocked && weapon != projectile)
             applyOnStrikeEnchantment(attacker, victim, weapon, hitPosition, true, ragdollHit);
 
         if (validVictim)

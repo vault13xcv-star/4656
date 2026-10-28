@@ -2000,7 +2000,7 @@ namespace MWMechanics
         osg::Vec3f movement(0.f, 0.f, 0.f);
         if(cls.isActor())
         {
-            updateActiveDefense(mPtr,duration,mUpperBodyState==UpperBodyState::WeaponEquipped
+            updateActiveDefense(mPtr,duration,mUpperBodyState==UpperBodyState::None || mUpperBodyState==UpperBodyState::WeaponEquipped
                 || mUpperBodyState==UpperBodyState::AttackWindUp);
             auto& combat=cls.getCreatureStats(mPtr).mCombat;
             if((combat.mDodgeLeft>0 || combat.mGuardHeld) && mUpperBodyState>UpperBodyState::WeaponEquipped)
