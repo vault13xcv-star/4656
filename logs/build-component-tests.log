@@ -79,3 +79,13 @@
 [77/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\transaction.cpp.obj
 [78/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\toutf8\toutf8.cpp.obj
 [79/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\sqlite3\request.cpp.obj
+[80/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testduration.cpp.obj
+[81/90] Building CXX object apps\components_tests\CMakeFiles\components-tests.dir\vfs\testpathutil.cpp.obj
+[82/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwscript\testscripts.cpp.obj
+[83/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testtimestamp.cpp.obj
+[84/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testptr.cpp.obj
+[85/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\testweather.cpp.obj
+[86/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\options.cpp.obj
+[87/90] Linking CXX executable components-tests.exe
+[88/90] Building CXX object apps\openmw_tests\CMakeFiles\openmw-tests.dir\mwworld\teststore.cpp.obj
+[89/90] Linking CXX executable openmw-tests.exe
