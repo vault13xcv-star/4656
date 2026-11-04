@@ -211,10 +211,11 @@ namespace Settings
             MyGUI::xml::Document document;
             ASSERT_TRUE(document.open((data / "mygui/openmw_settings_window.layout").string()));
             Index index;
-            Values values(index);
+            Values defaults(index);
+            Values values(std::move(defaults)); // Match the engine's default-to-user initialization.
             const auto english = YAML::LoadFile((data / "l10n/OMWEngine/en.yaml").string());
             const auto russian = YAML::LoadFile((data / "l10n/OMWEngine/ru.yaml").string());
-            std::set<std::string> seen;
+            std::set<std::string> seen, switches;
             std::function<void(MyGUI::xml::Element*)> visit = [&](MyGUI::xml::Element* element) {
                 std::map<std::string, std::string> metadata;
                 auto child = element->getElementEnumerator();
@@ -224,7 +225,19 @@ namespace Settings
                     if (value->getName() == "UserString")
                         metadata[std::string(value->findAttribute("key"))] = value->findAttribute("value");
                 }
-                if (metadata["SettingCategory"] == "Ragdoll")
+                if (metadata["SettingCategory"] == "Ragdoll" && metadata["SettingType"] == "CheckButton")
+                {
+                    const auto& name = metadata["SettingName"];
+                    EXPECT_TRUE(switches.insert(name).second);
+                    ASSERT_NE(index.find<bool>("Ragdoll", name), nullptr);
+                    auto& setting = index.get<bool>("Ragdoll", name);
+                    EXPECT_TRUE(setting.get());
+                    setting.set(false);
+                    EXPECT_FALSE(setting.get());
+                    setting.reset();
+                    EXPECT_TRUE(setting.get());
+                }
+                if (metadata["SettingCategory"] == "Ragdoll" && metadata["SettingType"] == "Slider")
                 {
                     const auto& name = metadata["SettingName"];
                     EXPECT_TRUE(seen.insert(name).second);
@@ -277,6 +290,7 @@ namespace Settings
                     visit(child.current());
             };
             visit(document.getRoot());
+            EXPECT_EQ(switches, (std::set<std::string>{ "kill slow motion" }));
             EXPECT_EQ(seen, (std::set<std::string>{ "melee impulse scale", "crossbow impulse scale",
                 "bow impulse scale", "thrown impulse scale", "magic distance scale", "max simulation time",
                 "item simulation time", "max active", "max active items", "pin max distance",

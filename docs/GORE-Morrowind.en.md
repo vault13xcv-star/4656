@@ -37,3 +37,5 @@ The same tab configures impulses, active-body/item budgets and lifetimes, bolt p
 Contacts remain approximate. Animation/skeleton/combat/input mods require compatibility checks; unsupported skeletons can fall back to native death animations. Projectile remnants are session effects cleared on load/cell changes or after ten real minutes. Keep save backups; older executables may not understand newer projectile fields. Automated tests and packaged logs do not replace a Morrowind-data playtest or establish gameplay FPS.
 
 [Technical reference](gore-morrowind.md) · [Dismemberment rules](dismemberment.md) · [Build recipe](../CI/ragdoll-build.md) · [OpenMW GPLv3 license](../LICENSE)
+
+Validation exception: the completed Windows executable is retained unchanged after one obsolete menu-test failure (1404/1405 component tests passed). The corrected 17 settings tests passed separately on Linux; Windows native tests were not run after that failed step. [Detailed report](gore-validation.md).

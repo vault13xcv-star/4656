@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish a downloadable prerelease after all checks pass
+        description: Publish a downloadable release after all checks pass
         required: false
         type: boolean
         default: false
@@ -132,7 +132,7 @@ jobs:
           retention-days: 30
 
   gore-release-notes:
-    if: github.ref == 'refs/heads/release/gore-1.0' && contains(github.event.head_commit.message, '[publish-only]')
+    if: github.ref == 'refs/heads/release/gore-1.0' && contains(github.event.head_commit.message, '[publish-only]') && !contains(github.event.head_commit.message, '[publish-retained]')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -140,3 +140,24 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Update release notes without recompiling the engine
         run: gh release edit gore-v1.0 --repo "$GITHUB_REPOSITORY" --notes-file docs/gore-release-notes.md --latest=true
+
+  retained-gore-release:
+    if: github.ref == 'refs/heads/release/gore-1.0' && contains(github.event.head_commit.message, '[publish-retained]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+      - name: Verify and package the retained executable and corrected source
+        run: python3 CI/publish-gore-retained.py
+      - name: Publish G.O.R.E 1.0 with the validation exception disclosed
+        run: |
+          gh release create gore-v1.0 --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --title "G.O.R.E: Morrowind 1.0 - Guts Overhaul & Ragdoll Extension" \
+            --notes-file docs/gore-release-notes.md \
+            dist-retained-gore/*.zip dist-retained-gore/SHA256SUMS \
+            dist-retained-gore/package.json dist-retained-gore/KNOWN-ISSUES.md \
+            dist-retained-gore/RELEASE-INFO.json
+          gh release edit gore-v1.0 --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest=true
