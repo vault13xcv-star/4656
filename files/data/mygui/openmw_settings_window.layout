@@ -790,7 +790,7 @@
                 </Widget>
                 <Widget type="ScrollView" skin="MW_ScrollView" position="4 74 352 264" align="Stretch" name="PhysicsView">
                     <Property key="CanvasAlign" value="Left Top"/>
-                    <Property key="CanvasSize" value="352 844"/>
+                    <Property key="CanvasSize" value="352 880"/>
                     <Widget type="Widget" position="4 4 324 56" align="HStretch Top">
                         <Widget type="TextBox" skin="NormalText" position="0 0 324 24" align="HStretch Top" name="PhysicsMeleeLabel"/>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 30 324 18" align="HStretch Top" name="PhysicsMeleeSlider">
@@ -1008,6 +1008,19 @@
                             <UserString key="SettingLabelWidget" value="PhysicsBloodLifetimeLabel"/>
                             <UserString key="SettingLabelCaption" value="RagdollBloodLifetimeValue"/>
                             <UserString key="SettingLabelPercent" value="false"/>
+                        </Widget>
+                    </Widget>
+                    <Widget type="HBox" position="4 844 324 28" align="HStretch Top">
+                        <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="PhysicsSlowMotionButton">
+                            <UserString key="SettingCategory" value="Ragdoll"/>
+                            <UserString key="SettingName" value="kill slow motion"/>
+                            <UserString key="SettingType" value="CheckButton"/>
+                            <UserString key="ToolTipType" value="Layout"/>
+                            <UserString key="ToolTipLayout" value="TextToolTip"/>
+                            <UserString key="Caption_Text" value="#{OMWEngine:RagdollKillSlowMotionTooltip}"/>
+                        </Widget>
+                        <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 292 20" align="Left Top">
+                            <Property key="Caption" value="#{OMWEngine:RagdollKillSlowMotion}"/>
                         </Widget>
                     </Widget>
                 </Widget>

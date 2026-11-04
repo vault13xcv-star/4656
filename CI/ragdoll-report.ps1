@@ -64,7 +64,7 @@ $releasePath = Join-Path $source 'dist/release-url.txt'
 if (Test-Path $releasePath) { $status.releaseUrl = (Get-Content $releasePath -Raw).Trim() }
 $status | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $reports 'status.json') -Encoding utf8
 @"
-# Windows x64 ragdoll build
+# G.O.R.E: Morrowind — Windows x64 build
 
 Status: **$Result**, phase: **$Stage**.
 

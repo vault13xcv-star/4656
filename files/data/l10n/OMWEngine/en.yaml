@@ -238,7 +238,9 @@ RepairTool: "Tool"
 
 # Native corpse and loose-item physics settings
 RagdollPhysics: "Physics"
-RagdollPhysicsDescription: "Brutal Morrowind physics and gore. Blood amount: 0–300%. Stains: 5–30 minutes, default 10. Dismemberment: 0–100%, default 30%."
+RagdollPhysicsDescription: "G.O.R.E: Morrowind physics and gore. Blood amount: 0–300%. Stains: 5–30 minutes, default 10. Dismemberment: 0–100%, default 30%."
+RagdollKillSlowMotion: "Last enemy slow motion"
+RagdollKillSlowMotionTooltip: "Slow time and audio to one third for two seconds when the last nearby hostile dies. Turning this off also cancels an active slow motion effect."
 RagdollReset: "Reset physics to defaults"
 RagdollMeleeValue: "Melee impulse ({percent, number, :: group-off}%)"
 RagdollCrossbowValue: "Crossbow impulse ({percent, number, :: group-off}%)"

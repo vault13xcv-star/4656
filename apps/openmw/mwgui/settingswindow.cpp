@@ -688,7 +688,7 @@ namespace MWGui
             return;
         // Match the native controls list: canvas coordinates exclude the bar.
         mPhysicsView->setVisibleVScroll(false);
-        mPhysicsView->setCanvasSize(mPhysicsView->getWidth(), 844);
+        mPhysicsView->setCanvasSize(mPhysicsView->getWidth(), 880);
         mPhysicsView->setVisibleVScroll(true);
     }
 
@@ -709,6 +709,7 @@ namespace MWGui
         settings.mDismembermentChance.reset();
         settings.mBloodAmount.reset();
         settings.mBloodLifetime.reset();
+        settings.mKillSlowMotion.reset();
         configureWidgets(mPhysicsView, false);
         apply();
     }

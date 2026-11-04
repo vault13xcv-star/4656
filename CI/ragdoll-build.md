@@ -1,104 +1,40 @@
-# Windows x64 build and stable release
+# G.O.R.E: Morrowind — Windows build and release
 
-Push the modified engine to a branch matching `experimental/ragdoll-*` to run
-`.github/workflows/realcombat-ragdoll.yml`. GitHub Actions must be enabled for the
-repository. The current stable source is tag `v1.1` on the default branch.
-A manual `workflow_dispatch` is also supported once GitHub exposes the workflow.
-No personal access token or repository secret is needed: the job uses its
-short-lived `GITHUB_TOKEN` with `contents: write`.
+The current release is **G.O.R.E: Morrowind 1.0**, tag `gore-v1.0`. It is based on OpenMW 0.51. Historical Brutal Morrowind releases and tags remain available.
 
-The Windows Server 2022 runner activates MSVC 2022 x64. It downloads the same
-OpenMW vcpkg bundle selected by `CI/deps_versions.msvc.sh`, but from the manifest
-committed as `CI/ragdoll-deps-manifest.txt` rather than a mutable remote manifest.
-The archive is verified with SHA512 before extraction. That manifest was copied
-from `https://gitlab.com/OpenMW/openmw-deps/-/raw/main/windows/vcpkg-x64-windows-2022-2026-02-24-manifest.txt`.
-Actions are pinned by commit. Runner/compiler updates mean this is a repeatable
-build recipe, not a guarantee of byte-identical executables.
+## Build pipeline
 
-Only the runtime and tests are built, with launcher, editor and other tools
-disabled, so no Qt download is needed. The package includes the installed
-resources, default settings, configuration, DLLs, OSG plugins, app-local MSVC CRT,
-OpenMW license, dependency copyright notices and commit/build metadata. It does
-not include Morrowind assets. The whole ZIP must be extracted. The normal
-OpenMW user configuration is reused; no stable installation is overwritten.
-The package also includes `OpenMW-Russian.cmd` and `OpenMW-Cyrillic-Fonts.cmd`,
-which select bundled Cyrillic-capable fonts, and `CYRILLIC-README.md`.
-Packaging requires their existing
-MysticCards/DejaVu font files and licenses and runs both launchers with
-`--version` to check command-line forwarding. This does not validate rendered
-text or the encoding of the user's game data.
+`.github/workflows/realcombat-ragdoll.yml` runs on `release/gore-1.0` and retained development branch patterns; it also supports workflow_dispatch. The Windows 2022 runner enables MSVC 2022 x64 and executes the phases of `CI/ragdoll-windows.ps1`.
 
-Successful jobs publish an immutable GitHub prerelease containing the runtime
-ZIP, its SHA256 checksum and the complete corresponding engine source archive.
-Runtime/source ZIP names, the prerelease title, tag and package metadata include
-the Brutal Morrowind version (currently `1.1`) separately from OpenMW `0.51.0`.
-Actions also stores these as a 30-day artifact. Physics, synthetic OSG skeleton,
-loose-item dynamics, lethal-hit attribution and component tests,
-the installed executable's `--version` command, and ZIP integrity must pass
-before publication. This is not an in-game playtest.
+The dependency archive is pinned in `CI/ragdoll-deps-manifest.txt` and verified with SHA512. Actions are pinned by commit. No personal access token is needed: release publication uses the runner's short-lived GITHUB_TOKEN with contents: write.
 
-The standalone tests are configured with `-DRAGDOLL_TEST_RENDERING=ON` and the
-same vcpkg toolchain/prefix as the engine, so the Bullet and OpenSceneGraph ABIs
-match the runtime. All standalone test suites build and run before the
-full engine compilation, so a Windows solver regression fails within minutes.
-The complete engine and component tests still build and pass before packaging.
-Linux validation can additionally enable `-DRAGDOLL_TEST_GL=ON` for surfaceless
-EGL tests of visible fire/smoke, opaque-wall occlusion, inherited NPC shader/alpha
-state and the native per-view projection in both normal and reversed depth modes.
-The retained cloud helper accepts this flag:
-`/workspace/openmw-toolchain/check.sh -DRAGDOLL_TEST_GL=ON`.
-MSVC precompiled headers remain enabled; no unverified CMake build directory is
-restored between jobs. Compiler-cache tools that reject MSVC precompiled headers
-would require a separate measured build configuration before being enabled.
-Stable releases use `v1.1` and `.github/workflows/brutal-release.yml`. The
-manifest `CI/brutal-release.json` pins the current compiled runtime and matching
-sources. Packaging verifies every executable/library/game-resource byte, updates
-release documentation and publishes a normal Latest release without recompiling.
-The known obsolete Windows test expectation remains disclosed in the archive.
-These tags do not match the upstream workflow's `openmw-**` trigger.
+1. Configure the OpenMW runtime and standalone tests against the same Bullet/OpenSceneGraph ABI.
+2. Build/run physics, render, damage-attribution and combat groups. Compile changed engine/native-test objects early; Ninja reuses them in the full build.
+3. Build the `openmw` target. Save the compiled executable and resources as a checkpoint before compiling test programs.
+4. Build/run component and native integration tests.
+5. Install the portable runtime, include resources/DLLs/OSG plugins/app-local MSVC CRT, license notices and launch scripts. Check the uploaded DDS hashes, installed `--version`, all launch scripts and ZIP integrity. Create the matching source archive and SHA256SUMS for both ZIPs.
+6. When all tests pass, publish a normal **Latest** release `gore-v1.0` with runtime, source, SHA256SUMS and package.json.
 
-## Poll without GitHub API access
+The archive is named `GORE-Morrowind-1.0-Windows-x64.zip`; sources are `GORE-Morrowind-1.0-Source.zip`. BUILD-INFO.txt records the full source commit and Actions URL. OpenMW's own version remains 0.51.0; G.O.R.E's mod version is 1.0.
 
-Each run creates its own report branch:
+Only runtime and tests are built. Game assets, launcher, editor and Qt are not included. The installed directory includes GORE-Morrowind.cmd, the Cyrillic launchers and font licenses, README.md, GORE-MORROWIND-README.md and validation logs.
 
-```
+Packaging preserves a compiled diagnostic candidate if a late test fails; VALIDATION.txt and package metadata retain that failure. A retained candidate is not automatically published as a passing release. Reuse it to diagnose minor late faults instead of restarting a full engine compilation.
+
+## Main repository page
+
+After release assets are downloaded and verified, the tested release commit is promoted with an ordinary fast-forward push to the repository's existing default branch, `downloads/real-combat-0.1.0`. The branch name is retained to preserve links. Its README is the default G.O.R.E page at the repository root. No history or old tag is overwritten. This promotion does not match the Windows build branch filter and therefore does not start another full compilation.
+
+A `[publish-only]` documentation commit on the release branch updates release notes through the notes-only job without rebuilding the engine. Published source archives always identify the exact compiled commit.
+
+## Reports and local builds
+
+Each Windows run writes `status.json` and bounded log tails to:
+
+```text
 build-results/ragdoll-<full source commit>-<run ID>-<attempt>
 ```
 
-In the cloud checkout, `origin` refers to upstream OpenMW and `publish` refers
-to `vault13xcv-star/4656`. After pushing source commit `SOURCE_SHA`, use the
-publication remote and a dedicated report ref:
+The report includes source revision, stage/result, package SHA256/size and the final release URL. A successful installed executable/ZIP check and automated tests do not constitute an in-game Morrowind-data playtest.
 
-```sh
-git ls-remote publish 'refs/heads/build-results/ragdoll-SOURCE_SHA-*'
-git fetch --depth 1 --no-tags publish \
-  +refs/heads/build-results/ragdoll-SOURCE_SHA-RUN_ID-1:refs/remotes/publish/ragdoll-monitor-RUN_ID
-git show refs/remotes/publish/ragdoll-monitor-RUN_ID:status.json
-git show refs/remotes/publish/ragdoll-monitor-RUN_ID:logs/build.log
-```
-
-Replace the placeholders with the actual values. `status.json` identifies the
-phase, overall result, source commit, run URL, package checksum and release URL.
-During compilation a background reporter requests an update every 60 seconds,
-including the last compiler output, so long builds have a visible heartbeat.
-A busy runner and Git publication can delay visible updates by several minutes.
-It finishes before the next workflow phase can publish a report. A temporary
-heartbeat failure does not interrupt compilation; phase/final reports remain
-required.
-
-The `logs` directory has only the last 180 lines per diagnostic log; full logs
-remain in the workflow artifact. If the runtime ZIP is under 95 MiB, the final
-report commit also contains it, and `package.gitDownload` gives a direct GitHub
-download URL. This permits checksum verification through ordinary `git fetch`
-when unauthenticated API/HTTP access is unavailable.
-
-Report branches are unique to each run/attempt, and are updated by ordinary
-fast-forward pushes. No source branches or existing release tags are rewritten.
-The report branch pattern does not trigger the build workflow recursively.
-Credentials remain in the disposable report checkout's local `.git/config` and
-are never copied into a report, package or artifact.
-
-If no report branch appears, inspect the repository's Actions page: workflow
-execution may be disabled or unavailable. A failure to start a runner cannot be
-reported by that runner. A job cancelled before its final step may retain the
-last `running` status; the linked Actions run is authoritative.
+For local engine builds use the [OpenMW build documentation](https://openmw.readthedocs.io/en/latest/manuals/installation/compile.html), CMake/Ninja and C++20 with the dependencies selected by this fork. The small physics/render/combat suite can be built from `components/ragdoll` with `-DRAGDOLL_TEST_RENDERING=ON`. On Linux, `-DRAGDOLL_TEST_GL=ON` additionally enables surfaceless graphics regressions. Do not reuse mismatched Bullet precision or incompatible third-party libraries.

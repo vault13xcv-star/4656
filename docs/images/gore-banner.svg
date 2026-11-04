@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-labelledby="title desc">
+<title id="title">G.O.R.E: Morrowind 1.0</title>
+<desc id="desc">Guts Overhaul &amp; Ragdoll Extension. Windows x64, based on OpenMW.</desc>
+<rect width="1200" height="280" rx="12" fill="#171314"/>
+<path d="M45 42H1155M45 238H1155" stroke="#8c292d" stroke-width="2"/>
+<path d="M45 42V238M1155 42V238" stroke="#3b282a"/>
+<text x="80" y="141" font-family="Georgia,serif" font-size="94" font-weight="bold" letter-spacing="8" fill="#e9ded0">G.O.R.E</text>
+<text x="586" y="137" font-family="Georgia,serif" font-size="58" fill="#bba58e">Morrowind</text>
+<text x="83" y="194" font-family="Arial,sans-serif" font-size="23" letter-spacing="2" fill="#bfaaa3">GUTS OVERHAUL &amp; RAGDOLL EXTENSION</text>
+<rect x="992" y="168" width="120" height="37" rx="4" fill="#8c292d"/>
+<text x="1052" y="193" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" font-weight="bold" fill="#fff0e0">1.0</text>
+</svg>

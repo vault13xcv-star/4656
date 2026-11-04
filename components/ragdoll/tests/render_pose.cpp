@@ -183,6 +183,16 @@ namespace
         slow.advance(1,false);slow.trigger();
         require(slow.mRemaining==1,"Repeated deaths extended the slowdown");
         slow.advance(1,false);require(slow.scale()==1,"Kill slowdown failed to end after two real seconds");
+        slow.trigger();slow.setEnabled(false);
+        require(slow.scale()==1 && slow.mRemaining==0,"Disabling active slow motion did not restore normal time");
+        slow.trigger();slow.advance(1,true);
+        require(slow.scale()==1 && slow.mRemaining==0,"Disabled slow motion triggered during a paused menu");
+        slow.setEnabled(true);
+        require(slow.scale()==1,"Re-enabling slow motion revived the previous kill");
+        slow.trigger();
+        require(slow.mRemaining==2,"Re-enabled slow motion cannot start on a new kill");
+        slow.setEnabled(false);slow.setEnabled(true);
+        require(slow.scale()==1,"Rapid toggle restored a cancelled slow motion effect");
         const auto incoming=osg::Vec3f(100,-200,-10);
         const auto bounced=Ragdoll::projectileBounce(incoming,{0,1,0});
         require(bounced.y()>0 && bounced.length2()<incoming.length2(),"Hard surface impact gained energy or failed to rebound");

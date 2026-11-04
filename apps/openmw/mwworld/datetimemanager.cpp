@@ -1,6 +1,7 @@
 #include "datetimemanager.hpp"
 
 #include <components/l10n/manager.hpp>
+#include <components/settings/values.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/soundmanager.hpp"
@@ -250,12 +251,16 @@ namespace MWWorld
 
     void DateTimeManager::startKillSlowMotion()
     {
-        mKillSlowMotionRequested=true;
+        if(Settings::ragdoll().mKillSlowMotion)
+            mKillSlowMotionRequested=true;
     }
 
     void DateTimeManager::updateKillSlowMotion(float realSeconds)
     {
         const float before=mKillSlowMotion.scale();
+        const bool enabled=Settings::ragdoll().mKillSlowMotion;
+        mKillSlowMotion.setEnabled(enabled);
+        if(!enabled)mKillSlowMotionRequested=false;
         mKillSlowMotion.advance(realSeconds,isPaused());
         if(mKillSlowMotionRequested && !isPaused())
         {

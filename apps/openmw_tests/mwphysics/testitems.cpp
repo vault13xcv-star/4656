@@ -16,6 +16,7 @@
 #include "apps/openmw/mwworld/cellvisitors.hpp"
 #include "apps/openmw/mwworld/class.hpp"
 #include "apps/openmw/mwworld/esmstore.hpp"
+#include "apps/openmw/mwworld/datetimemanager.hpp"
 #include "apps/openmw/mwworld/livecellref.hpp"
 #include "apps/openmw/mwworld/worldmodel.hpp"
 
@@ -697,6 +698,29 @@ namespace
                 }
             }
         }
+    }
+
+    TEST_F(ItemPhysicsIntegration, SlowMotionSettingDisablesKillsAndClearsPendingRequests)
+    {
+        struct RestoreSetting
+        {
+            bool value=Settings::ragdoll().mKillSlowMotion.get();
+            ~RestoreSetting(){Settings::ragdoll().mKillSlowMotion.set(value);}
+        } restore;
+        auto& enabled=Settings::ragdoll().mKillSlowMotion;
+        MWWorld::DateTimeManager time;
+        enabled.set(false);
+        time.startKillSlowMotion();time.updateKillSlowMotion(.1f);
+        EXPECT_EQ(time.getSimulationTimeScale(),1.f);
+        enabled.set(true);
+        time.startKillSlowMotion(); // The frame-wide effect has not begun yet.
+        EXPECT_EQ(time.getSimulationTimeScale(),1.f);
+        enabled.set(false);time.updateKillSlowMotion(.1f);
+        enabled.set(true);
+        time.updateKillSlowMotion(.1f);
+        EXPECT_EQ(time.getSimulationTimeScale(),1.f); // Cancelled kill cannot resume after re-enabling.
+        enabled.reset();
+        EXPECT_TRUE(enabled.get());
     }
 
     TEST_F(ItemPhysicsIntegration, CombatHitChanceIsAlwaysCertainForBothSidesAndAllSkills)

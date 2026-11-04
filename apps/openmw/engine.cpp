@@ -540,7 +540,7 @@ void OMW::Engine::createWindow()
     {
         while (!mWindow)
         {
-            mWindow = SDL_CreateWindow("OpenMW", posX, posY, width, height, flags);
+            mWindow = SDL_CreateWindow("G.O.R.E: Morrowind 1.0 (OpenMW)", posX, posY, width, height, flags);
             if (!mWindow)
             {
                 // Try with a lower AA

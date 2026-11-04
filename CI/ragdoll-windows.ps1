@@ -12,7 +12,7 @@ $build = Join-Path $source 'build'
 $tests = Join-Path $source 'build-ragdoll-tests'
 $logs = Join-Path $source 'ragdoll-logs'
 $dist = Join-Path $source 'dist'
-$ragdollVersion = '1.3-combat.4'
+$ragdollVersion = '1.0'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Run([string] $Program, [string[]] $Arguments, [string] $LogName) {
@@ -89,7 +89,7 @@ function Copy-CyrillicLaunchers([string] $Destination) {
             throw "Incomplete Cyrillic font package: $fontFile is missing or empty."
         }
     }
-    foreach ($launcherFile in @('OpenMW-Russian.cmd', 'OpenMW-Cyrillic-Fonts.cmd')) {
+    foreach ($launcherFile in @('GORE-Morrowind.cmd', 'OpenMW-Russian.cmd', 'OpenMW-Cyrillic-Fonts.cmd')) {
         Copy-Item (Join-Path $source "files/windows/$launcherFile") (Join-Path $Destination $launcherFile) -Force
     }
     Copy-Item (Join-Path $source 'docs/realcombat-cyrillic.md') (Join-Path $Destination 'CYRILLIC-README.md') -Force
@@ -164,6 +164,9 @@ switch ($Phase) {
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/actors.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwphysics/physicssystem.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/worldimp.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwworld/datetimemanager.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/mwgui/settingswindow.cpp.obj',
+            'apps/openmw/CMakeFiles/openmw-lib.dir/engine.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwmechanics/creaturestats.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/npc.cpp.obj',
             'apps/openmw/CMakeFiles/openmw-lib.dir/mwclass/creature.cpp.obj',
@@ -189,7 +192,7 @@ switch ($Phase) {
     Package {
         $testResult = if ($env:RAGDOLL_TEST_RESULT) { $env:RAGDOLL_TEST_RESULT } else { 'not reported' }
         $shortSha = $env:GITHUB_SHA.Substring(0, 12)
-        $packageName = "Brutal-Morrowind-$ragdollVersion-OpenMW-0.51-Windows-x64-$shortSha"
+        $packageName = "GORE-Morrowind-$ragdollVersion-Windows-x64"
         $install = Join-Path $source "package/$packageName"
         Run 'cmake' @('--install', $build, '--prefix', $install, '--config', 'Release') 'install.log'
         Copy-Runtime $install
@@ -224,14 +227,21 @@ switch ($Phase) {
             Copy-Item $license.FullName (Join-Path $licences "$library.txt")
         }
         Copy-Item (Join-Path $PSScriptRoot 'ragdoll-deps-manifest.txt') (Join-Path $install 'licenses/dependency-manifest.txt')
-        if (Test-Path "$source/docs/realcombat-ragdoll.md") {
-            Copy-Item "$source/docs/realcombat-ragdoll.md" (Join-Path $install 'RAGDOLL-README.md')
+        Copy-Item "$source/README.md" (Join-Path $install 'README.md')
+        $packageDocs = Join-Path $install 'docs'
+        New-Item -ItemType Directory -Force (Join-Path $packageDocs 'images') | Out-Null
+        foreach ($doc in @('gore-morrowind.md', 'GORE-Morrowind.en.md', 'dismemberment.md')) {
+            Copy-Item (Join-Path $source "docs/$doc") (Join-Path $packageDocs $doc)
         }
-        Copy-Item "$source/docs/brutal-morrowind.md" (Join-Path $install 'BRUTAL-MORROWIND-README.md')
-        Copy-Item "$source/docs/physics-tz-audit.md" (Join-Path $install 'PHYSICS-STATUS.md')
+        Copy-Item "$source/docs/images/gore-banner.svg" (Join-Path $packageDocs 'images/gore-banner.svg')
+        New-Item -ItemType Directory -Force (Join-Path $install 'CI') | Out-Null
+        Copy-Item "$source/CI/ragdoll-build.md" (Join-Path $install 'CI/ragdoll-build.md')
+        Copy-Item "$source/LICENSE" (Join-Path $install 'LICENSE')
+        Copy-Item "$source/docs/gore-morrowind.md" (Join-Path $install 'GORE-MORROWIND-README.md')
         Copy-Item "$source/docs/dismemberment.md" (Join-Path $install 'dismemberment.md')
         @"
-Brutal Morrowind $ragdollVersion runtime for OpenMW 0.51.0 / Windows x64.
+G.O.R.E: Morrowind $ragdollVersion - Guts Overhaul & Ragdoll Extension.
+Runtime for OpenMW 0.51.0 / Windows x64.
 Source: https://github.com/$($env:GITHUB_REPOSITORY)/tree/$($env:GITHUB_SHA)
 Commit: $($env:GITHUB_SHA)
 Build: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)
@@ -241,9 +251,10 @@ Automated component/integration tests: $testResult (see VALIDATION.txt).
 
 Extract the entire directory and launch its openmw.exe. Existing OpenMW user
 configuration is reused. Morrowind game data is required and is not included.
-This is the Brutal Morrowind modified engine, not a Lua mod or an official OpenMW release.
+This is the G.O.R.E: Morrowind modified engine, not a Lua mod or an official OpenMW release.
 Keep the regular OpenMW installation and use a separate copy of your saves.
-See RAGDOLL-README.md for feature configuration, limits and manual test steps.
+Launch GORE-Morrowind.cmd. See README.md and GORE-MORROWIND-README.md for installation,
+controls, slow motion settings and compatibility notes.
 "@ | Set-Content (Join-Path $install 'BUILD-INFO.txt') -Encoding utf8
         $validation = Join-Path $install 'validation'
         New-Item -ItemType Directory -Force $validation | Out-Null
@@ -265,6 +276,7 @@ These automated tests do not constitute an in-game playtest with Morrowind data.
         $process = Start-Process -FilePath (Join-Path $install 'openmw.exe') -ArgumentList '--version' -WorkingDirectory $install -Wait -PassThru -RedirectStandardOutput $versionOut -RedirectStandardError $versionErr
         if ($process.ExitCode -ne 0) { throw "Installed runtime failed --version (exit $($process.ExitCode))." }
         Run (Join-Path $install 'OpenMW-Russian.cmd') @('--version') 'installed-russian-version.log'
+        Run (Join-Path $install 'GORE-Morrowind.cmd') @('--version') 'installed-gore-version.log'
         Run (Join-Path $install 'OpenMW-Cyrillic-Fonts.cmd') @('--version') 'installed-cyrillic-fonts-version.log'
         New-Item -ItemType Directory -Force $dist | Out-Null
         $zip = Join-Path $dist "$packageName.zip"
@@ -273,19 +285,23 @@ These automated tests do not constitute an in-game playtest with Morrowind data.
         Run '7z' @('t', $zip) 'package-integrity.log'
         $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $packageName.zip" | Set-Content (Join-Path $dist 'SHA256SUMS') -Encoding ascii
-        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion; modName = 'Brutal Morrowind'; testResult = $testResult } |
+        [ordered]@{ file = "$packageName.zip"; sha256 = $hash; bytes = (Get-Item $zip).Length; sourceCommit = $env:GITHUB_SHA; ragdollVersion = $ragdollVersion; modVersion = $ragdollVersion; modName = 'G.O.R.E: Morrowind'; testResult = $testResult } |
             ConvertTo-Json | Set-Content (Join-Path $dist 'package.json') -Encoding utf8
-        Run 'git' @('-c', 'core.autocrlf=false', 'archive', '--format=zip', "--output=$dist/Brutal-Morrowind-$ragdollVersion-Source-$shortSha.zip", 'HEAD') 'source-package.log'
+        Run 'git' @('-c', 'core.autocrlf=false', 'archive', '--format=zip', "--output=$dist/GORE-Morrowind-$ragdollVersion-Source.zip", 'HEAD') 'source-package.log'
+        $sourceZip = Join-Path $dist "GORE-Morrowind-$ragdollVersion-Source.zip"
+        $sourceHash = (Get-FileHash $sourceZip -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$sourceHash  GORE-Morrowind-$ragdollVersion-Source.zip" | Add-Content (Join-Path $dist 'SHA256SUMS') -Encoding ascii
     }
     Publish {
-        $tag = "brutal-$ragdollVersion"
+        $tag = "gore-v$ragdollVersion"
         $notes = Join-Path $logs 'release-notes.md'
-        $releaseText = Get-Content (Join-Path $source 'docs/combat-release-notes.md') -Raw
+        $releaseText = Get-Content (Join-Path $source 'docs/gore-release-notes.md') -Raw
         $releaseText += "`nSource commit: $($env:GITHUB_SHA)`nBuild: https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)`n"
         $releaseText | Set-Content $notes -Encoding utf8
         $assets = @(Get-ChildItem $dist -Filter '*.zip' -File | ForEach-Object FullName)
         $assets += Join-Path $dist 'SHA256SUMS'
-        Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--prerelease', '--title', "Brutal Morrowind $ragdollVersion - Windows x64 ($($env:GITHUB_SHA.Substring(0, 12)))", '--notes-file', $notes) + $assets) 'publish.log'
+        $assets += Join-Path $dist 'package.json'
+        Run 'gh' (@('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--target', $env:GITHUB_SHA, '--latest=true', '--title', "G.O.R.E: Morrowind $ragdollVersion - Guts Overhaul & Ragdoll Extension", '--notes-file', $notes) + $assets) 'publish.log'
         "https://github.com/$($env:GITHUB_REPOSITORY)/releases/tag/$tag" | Set-Content (Join-Path $dist 'release-url.txt') -Encoding ascii
     }
 }

@@ -10,7 +10,13 @@ namespace Ragdoll
     struct KillSlowMotion
     {
         float mRemaining = 0;
-        void trigger() { if (mRemaining <= 0) mRemaining = 2.f; }
+        bool mEnabled = true;
+        void setEnabled(bool enabled)
+        {
+            mEnabled=enabled;
+            if(!mEnabled)mRemaining=0;
+        }
+        void trigger() { if (mEnabled && mRemaining <= 0) mRemaining = 2.f; }
         void advance(float realSeconds, bool paused)
         {
             if (!paused && std::isfinite(realSeconds) && realSeconds > 0)
