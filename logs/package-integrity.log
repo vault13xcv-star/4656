@@ -1,0 +1,18 @@
+
+7-Zip 26.05 (x64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-10-21
+
+Scanning the drive for archives:
+1 file, 49666050 bytes (48 MiB)
+
+Testing archive: D:\a\4656\4656\dist\GORE-Morrowind-1.0-Windows-x64.zip
+--
+Path = D:\a\4656\4656\dist\GORE-Morrowind-1.0-Windows-x64.zip
+Type = zip
+Physical Size = 49666050
+
+Everything is Ok
+
+Folders: 70
+Files: 608
+Size:       139695401
+Compressed: 49666050
