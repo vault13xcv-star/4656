@@ -1,6 +1,6 @@
 # G.O.R.E: Morrowind — Windows x64 build
 
-Status: **running**, phase: **ragdoll-tests**.
+Status: **running**, phase: **build**.
 
 Source commit: `31b0943e93241a2b5c7aa4a9ee15b71d5d2f10dc`.
 
